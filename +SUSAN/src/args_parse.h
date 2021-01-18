@@ -20,6 +20,7 @@ typedef struct {
     single ref_range;
     single ref_step;
     single res_thres;
+    single bfac_max;
     int    verbose;
     int    n_gpu;
     uint32 p_gpu[SUSAN_MAX_N_GPU];
@@ -86,6 +87,7 @@ bool parse_args(Info&info,int ac,char** av) {
 	info.tlt_range = 2000;
 	info.ref_range = 2000;
 	info.ref_step  = 100;
+	info.bfac_max  = 700;
 	info.n_gpu     = 0;
 	info.verbose   = 0;
 	memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
@@ -107,6 +109,7 @@ bool parse_args(Info&info,int ac,char** av) {
         BOX_SIZE,
         N_THREADS,
         GPU_LIST,
+        BFAC_MAX,
         VERBOSE
     };
 
@@ -125,6 +128,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"binning",    1, 0, BINNING   },
         {"gpu_list",   1, 0, GPU_LIST  },
         {"verbose",    1, 0, VERBOSE   },
+        {"bfactor_max",1, 0, BFAC_MAX  },
         {0, 0, 0, 0}
     };
     
@@ -185,6 +189,9 @@ bool parse_args(Info&info,int ac,char** av) {
 				info.ref_range = tmp_single[0];
 				info.ref_step  = tmp_single[1];
 				delete [] tmp_single;
+				break;
+			case BFAC_MAX:
+				info.bfac_max = atof(optarg);
 				break;
 			case VERBOSE:
 				info.verbose = atoi(optarg);

@@ -955,9 +955,6 @@ protected:
 		CtfLinearizer ctf_lin(p_info->p_gpu[0],p_info->box_size,tomo.num_proj);
 		ctf_lin.load_info(p_info,&tomo);
 		ctf_lin.process(out_dir,ptr,&tomo);
-		/*CtfEst ctf_est(p_info->p_gpu[0],p_info->box_size,tomo.num_proj);
-		ctf_est.load_info(p_info,&tomo);
-		ctf_est.process(out_dir,ptr,&tomo);*/
 	}
 
 };

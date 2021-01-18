@@ -72,6 +72,7 @@ public:
 	
 	int   verbose;
 	float res_thres;
+	float bfac_max;
 	
 	char filename[SUSAN_FILENAME_LENGTH];
 	
@@ -132,8 +133,9 @@ public:
 		grd_r = GPU::calc_grid_size(blk,ss_r.x,ss_r.y,ss_r.z);
 		grd_2 = GPU::calc_grid_size(blk,ss_2.x,ss_2.y,ss_2.z);
 		
-		verbose = info->verbose;
+		verbose   = info->verbose;
 		res_thres = info->res_thres;
+		bfac_max  = info->bfac_max;
 		
 		lambda = Math::get_lambda(p_tomo->KV);
 		lambda_pi = lambda*M_PI;
@@ -495,9 +497,17 @@ protected:
 	void save_defocus(const int k,const char*out_dir) {
 		sprintf(filename,"%s/defocus.txt",out_dir);
 		FILE*fp = fopen(filename,"w");
+		float U,V,angle,Bfactor,ExpFilt=0,max_res,score;
 
         for(int i=0;i<k;i++) {
-            fprintf(fp,"%10.2f  %10.2f  %8.3f 0 0 0 %e\n",c_def_inf[i].x,c_def_inf[i].y,c_def_inf[i].z*180.0/M_PI,c_def_inf[i].w);
+			int idx = i*(int)M;
+			estimate_params(Bfactor,max_res,p_rad_avg+idx,p_ctf_res+idx);
+			U     = c_def_inf[i].x;
+			V     = c_def_inf[i].y;
+			angle = c_def_inf[i].z*180.0/M_PI;
+			score = c_def_inf[i].w;
+            fprintf(fp,"%10.2f  %10.2f  %8.3f %8.2f %8.2f %6.3f %e\n",U,V,angle,Bfactor,ExpFilt,max_res,score);
+            
         }
 
         fclose(fp);
@@ -554,6 +564,68 @@ protected:
 		delete [] output;
 		
 	}
+
+	void estimate_params(float&Bfactor,float&max_res,const float*data,const float*peaks) {
+		Bfactor = 0;
+		int min_j = (int)ceil(fpix_range.x);
+		int count=0;
+		int max_j;
+		float s2;
+		for(int j=min_j;j<M;j++) {
+			if( peaks[j] > 0 ) {
+				count++;
+				if(peaks[j]<res_thres) {
+					max_j = j;
+					break;
+				}
+			}
+		}
+		max_res = N*apix/((float)max_j);
+		
+		float2 *extracted_data = new float2[count];
+		
+		if( count > 2 ) {
+			count=0;
+			for(int j=min_j;j<max_j;j++) {
+				if( peaks[j] > 0 ) {
+					s2 = (float)j;
+					s2 = s2/(N*apix);
+					s2 = s2*s2;
+					extracted_data[count].x = s2;
+					extracted_data[count].y = data[j];
+					count++;
+				}
+			}
+			
+			float2 bfac_val;
+			bfac_val.x = 0;
+			bfac_val.y = 9999999.9;
+			for(float bfac=0;bfac<=bfac_max;bfac+=50) {
+				float avg=0,std=0,val;
+				for(int i=0;i<count;i++) {
+					val = extracted_data[i].y/exp(-bfac*extracted_data[i].x/4);
+					avg += val;
+				}
+				avg = avg/count;
+				for(int i=0;i<count;i++) {
+					val = extracted_data[i].y/exp(-bfac*extracted_data[i].x/4) - avg;
+					std += val*val;
+				}
+				std = sqrt(std/count);
+				
+				if( std < bfac_val.y ) {
+					bfac_val.y = std;
+					bfac_val.x = bfac;
+				}
+			}
+			
+			Bfactor = -bfac_val.x;
+			
+			delete [] extracted_data;
+		}
+		
+	}
+
 };
 
 #endif /// CTF_LINEARIZER_H
