@@ -1,0 +1,130 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function rslt = ang_dist(obj,ref_idx)     
+    % ANG_DIST returns a 2D matrix with the angular distribution.
+    %   RSLT = ANG_DIST(REF_IDX) return 2D histogram with the first and
+    %   second euler angles as axis. 
+        
+    
+        if( nargin < 2 )
+            ref_idx = 1;
+        end
+        
+        ty = -180:5:175;
+        tx =    0:5:175;
+        rslt = zeros(length(tx),length(ty));
+        
+        eu1 = round( obj.ali_eZYZ(:,1,ref_idx)/5 ) + 1;
+        eu2 = round( obj.ali_eZYZ(:,2,ref_idx)/5 ) + 180/5 + 1;
+        
+        eu1( eu1 > length(tx) ) = eu1( eu1 > length(tx) ) - length(tx);
+        eu2( eu2 > length(ty) ) = eu2( eu2 > length(ty) ) - length(ty);
+
+        
+        for i = 1:obj.num_particles
+            rslt(eu1(i),eu2(i)) = rslt(eu1(i),eu2(i)) + 1;
+        end
+        
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function show_ang_dist(obj,ref_idx)     
+    % SHOW_ANG_DIST shows the angular distribution for a class.
+    %   SHOW_ANG_DIST(REF_IDX) shows 2D histogram with the first and
+    %   second euler angles as axis. 
+        
+        if( nargin < 2 )
+            ref_idx = 1;
+        end
+        
+        val = obj.ang_dist(ref_idx);
+        
+        t = -180:15:175;
+        xlbl = {};
+        for i = 1:length(t)
+            xlbl{i} = sprintf('%.0f°',t(i));
+        end
+        
+        t = 0:15:175;
+        ylbl = {};
+        for i = 1:length(t)
+            ylbl{i} = sprintf('%.0f°',t(i));
+        end
+        
+        imagesc(val);
+        xticks(1:3:72);
+        xticklabels( xlbl );
+        xtickangle(45);
+        yticks(1:3:36);
+        yticklabels( ylbl );
+        
+        title( sprintf('Angular distribution Class %d', ref_idx) );
+        
+        colorbar;
+        colormap jet;
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function rslt = cc_ang_dist(obj,ref_idx)     
+    % CC_ANG_DIST returns a 2D matrix with the cc - angular distribution.
+    %   RSLT = CC_ANG_DIST(REF_IDX) return 2D matrix with the maximum cross
+    %   correlaiton value for each angle.
+        
+    
+        if( nargin < 2 )
+            ref_idx = 1;
+        end
+        
+        ty = -180:5:175;
+        tx =    0:5:175;
+        rslt = zeros(length(tx),length(ty));
+        
+        eu1 = round( obj.ali_eZYZ(:,1,ref_idx)/5 ) + 1;
+        eu2 = round( obj.ali_eZYZ(:,2,ref_idx)/5 ) + 180/5 + 1;
+        
+        eu1( eu1 > length(tx) ) = eu1( eu1 > length(tx) ) - length(tx);
+        eu2( eu2 > length(ty) ) = eu2( eu2 > length(ty) ) - length(ty);
+
+        
+        for i = 1:obj.num_particles
+            rslt(eu1(i),eu2(i)) = max(rslt(eu1(i),eu2(i)), obj.ali_cc(i,:,ref_idx) );
+        end
+        
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function show_cc_ang_dist(obj,ref_idx)     
+    % SHOW_CC_ANG_DIST shows the cc - angular distribtution for a class.
+    %   SHOW_CC_ANG_DIST(REF_IDX) shows the maximum cc value per orientation. 
+        
+        if( nargin < 2 )
+            ref_idx = 1;
+        end
+        
+        val = obj.cc_ang_dist(ref_idx);
+        
+        t = -180:15:175;
+        xlbl = {};
+        for i = 1:length(t)
+            xlbl{i} = sprintf('%.0f°',t(i));
+        end
+        
+        t = 0:15:175;
+        ylbl = {};
+        for i = 1:length(t)
+            ylbl{i} = sprintf('%.0f°',t(i));
+        end
+        
+        imagesc(val);
+        xticks(1:3:72);
+        xticklabels( xlbl );
+        xtickangle(45);
+        yticks(1:3:36);
+        yticklabels( ylbl );
+        
+        title( sprintf('Cross correlation per angle - Class %d', ref_idx) );
+        
+        colorbar;
+        colormap jet;
+    end
+    
+    

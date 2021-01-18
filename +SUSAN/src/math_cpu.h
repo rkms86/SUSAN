@@ -1,0 +1,452 @@
+#ifndef MATH_CPU_H
+#define MATH_CPU_H
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cstdint>
+#include <cmath>
+#include <random>
+
+#include "datatypes.h"
+
+#include "Eigen/Geometry"
+
+#include "iostream"
+
+typedef Eigen::Matrix3f M33f;
+typedef Eigen::Vector3f V3f;
+
+using namespace Eigen;
+
+namespace Math {
+
+float get_lambda(const float kv) {
+	float volt = kv*1000;
+	return sqrt( 150.4 / ( volt*(1+(volt/1022000)) ) );
+}
+
+bool should_use_avx2(const uint32 length) {
+    return (__builtin_cpu_supports ("avx2") && ( (length&31) == 0));
+}
+
+void eZXZ_Rmat(M33f&R,const V3f&eu_rad) {
+    R = AngleAxisf(eu_rad(0), Vector3f::UnitZ())
+      * AngleAxisf(eu_rad(1), Vector3f::UnitX())
+      * AngleAxisf(eu_rad(2), Vector3f::UnitZ());
+}
+
+void eZYZ_Rmat(M33f&R,const V3f&eu_rad) {
+    R = AngleAxisf(eu_rad(0), Vector3f::UnitZ())
+      * AngleAxisf(eu_rad(1), Vector3f::UnitY())
+      * AngleAxisf(eu_rad(2), Vector3f::UnitZ());
+}
+
+void Rmat_eZXZ(V3f&eu_rad,const M33f&R) {
+    eu_rad = R.eulerAngles(2,0,2);
+}
+
+void Rmat_eZYZ(V3f&eu_rad,const M33f&R) {
+    eu_rad = R.eulerAngles(2,1,2);
+}
+
+void set(Rot33&Rout,const M33f&Rin) {
+    Rout.xx = Rin(0,0);
+    Rout.xy = Rin(0,1);
+    Rout.xz = Rin(0,2);
+    Rout.yx = Rin(1,0);
+    Rout.yy = Rin(1,1);
+    Rout.yz = Rin(1,2);
+    Rout.zx = Rin(2,0);
+    Rout.zy = Rin(2,1);
+    Rout.zz = Rin(2,2);
+}
+
+void set(M33f&Rout,const Rot33&Rin) {
+    Rout(0,0) = Rin.xx;
+    Rout(0,1) = Rin.xy;
+    Rout(0,2) = Rin.xz;
+    Rout(1,0) = Rin.yx;
+    Rout(1,1) = Rin.yy;
+    Rout(1,2) = Rin.yz;
+    Rout(2,0) = Rin.zx;
+    Rout(2,1) = Rin.zy;
+    Rout(2,2) = Rin.zz;
+}
+
+void sum(float*ptr_out, const float*ptr_in, const uint32 length) {
+    uint32 i;
+    float *w_in  = (float*) ptr_in;
+    float *w_out = ptr_out;
+
+    if( should_use_avx2(length) ) {
+
+        for(i=0;i<length;i+=8) {
+
+            __asm__ __volatile__(
+                "vmovups (%0), %%ymm0 \n\t"
+                "vaddps  (%1), %%ymm0, %%ymm0 \n\t"
+                "vmovups %%ymm0, (%0) \n\t"
+            :: "r"(w_out), "r"(w_in) :"memory");
+
+            w_in  += 8;
+            w_out += 8;
+        }
+
+    }
+    else {
+        for(i=0;i<length;i++) {
+            w_out[i] += w_in[i];
+        }
+    }
+}
+
+void sum(double*ptr_out, const double*ptr_in, const uint32 length) {
+    uint32 i;
+    double *w_in  = (double*) ptr_in;
+    double *w_out = ptr_out;
+
+    if( should_use_avx2(length) ) {
+
+        for(i=0;i<length;i+=4) {
+
+            __asm__ __volatile__(
+                "vmovupd (%0), %%ymm0 \n\t"
+                "vaddpd  (%1), %%ymm0, %%ymm0 \n\t"
+                "vmovupd %%ymm0, (%0) \n\t"
+            :: "r"(w_out), "r"(w_in) :"memory");
+
+            w_in  += 4;
+            w_out += 4;
+        }
+
+    }
+    else {
+        for(i=0;i<length;i++) {
+            w_out[i] += w_in[i];
+        }
+    }
+}
+
+void mul(float*out,const float*in,const uint32 length) {
+
+    uint32 i;
+    if( should_use_avx2(length) ) {
+
+        float*ptr_i = (float*)in;
+        float*ptr_o = (float*)out;
+
+        for(i=0;i<length;i+=8) {
+
+            __asm__ __volatile__(
+                "vmovups (%0), %%ymm0 \n\t"
+                "vmulps  (%1), %%ymm0, %%ymm0 \n\t"
+                "vmovups %%ymm0, (%1) \n\t"
+            :: "r"(ptr_i),"r"(ptr_o) :"memory");
+
+            ptr_i += 8;
+            ptr_o += 8;
+        }
+
+    }
+    else {
+        for(i=0;i<length;i++) {
+            out[i] = out[i]*in[i];
+        }
+    }
+
+}
+
+float get_max(const float*ptr,const uint32 length) {
+
+	float rslt = 0;
+	
+	uint32 i;
+	for(i=0;i<length;i++) {
+		rslt = fmax(ptr[i],rslt);
+	}
+	
+	return rslt;
+}
+
+void fit_ellipsoid(float&U,float&V,float&ang,const MatrixXf&points) {
+	float scale = sqrt(2/((float)(points.cols())));
+	Eigen::JacobiSVD<MatrixXf> svd(points, Eigen::ComputeThinU | Eigen::ComputeThinV);
+	U = scale*svd.singularValues()(0);
+	V = scale*svd.singularValues()(1);
+	
+	Eigen::Matrix2f tmp;
+	float sign_correction = svd.matrixU()(0,0)/svd.matrixU()(1,1);
+	tmp << svd.matrixU()(0,0), sign_correction*svd.matrixU()(0,1), svd.matrixU()(1,0), sign_correction*svd.matrixU()(1,1);
+	Eigen::Rotation2D<float> rot2d(tmp);
+	ang = rot2d.angle();
+	if(ang<-M_PI/2) ang += M_PI;
+	if(ang> M_PI/2) ang -= M_PI;
+}
+
+float sum_vec(const float*ptr,const uint32 length) {
+
+    float sum = 0;
+
+    uint32 i;
+
+    if( should_use_avx2(length) ) {
+
+        float*ptr_w = (float*)ptr;
+        float sum_arr[8];
+
+        __asm__ __volatile__(
+            "vxorps %%ymm0, %%ymm0, %%ymm0\n\t"
+        :::"memory");
+
+        for(i=0;i<length;i+=8) {
+
+            __asm__ __volatile__(
+                "vaddps (%0), %%ymm0, %%ymm0 \n\t"
+            :: "r"(ptr_w) :"memory");
+
+            ptr_w += 8;
+        }
+
+        __asm__ __volatile__(
+            "vmovups %%ymm0, (%0) \n\t"
+        ::"r"(sum_arr):"memory");
+
+        for(i=0;i<8;i++) {
+            sum += sum_arr[i];
+        }
+
+    }
+    else {
+        for(i=0;i<length;i++) {
+            sum += ptr[i];
+        }
+    }
+
+    return sum;
+}
+
+void get_avg_std(float&avg,float&std,const float*ptr,const uint32 length) {
+	
+    uint32 i;
+    
+    std = 0;
+    
+    avg = sum_vec(ptr,length);
+    avg = avg/length;
+
+    if( should_use_avx2(length) ) {
+
+        float*ptr_w = (float*)ptr;
+        float std_arr[8];
+
+        __asm__ __volatile__(
+            "vbroadcastss (%0), %%ymm1\n\t"
+            "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
+            :: "r"(&avg), "r"(&std) :"memory");
+
+        for(i=0;i<length;i+=8) {
+
+            __asm__ __volatile__(
+                "vsubps (%0), %%ymm1, %%ymm0 \n\t"
+                "vmulps %%ymm0, %%ymm0, %%ymm2 \n\t"
+                "vaddps %%ymm2, %%ymm3, %%ymm3 \n\t"
+                :: "r"(ptr_w) :"memory");
+
+            ptr_w += 8;
+        }
+
+        __asm__ __volatile__(
+            "vmovups %%ymm3, (%0) \n\t"
+            :: "r"(std_arr) :"memory");
+
+        for(i=0;i<8;i++) {
+            std += std_arr[i];
+        }
+
+    }
+    else {
+        for(i=0;i<length;i++) {
+            float tmp = ptr[i] - avg;
+            std += (tmp*tmp);
+        }
+    }
+    
+    std = sqrt( std/(length-1) );
+}
+
+bool normalize(float*ptr,const uint32 length, const float avg, const float old_std, const float new_std=1) {
+    
+    if(old_std < SUSAN_FLOAT_TOL )
+        return false;
+		
+    float scale_factor = new_std/old_std;
+
+    uint32 i;
+    if( should_use_avx2(length) ) {
+
+        float*ptr_w = (float*)ptr;
+        __asm__ __volatile__(
+            "vbroadcastss (%0), %%ymm0\n\t"
+            "vbroadcastss (%1), %%ymm1\n\t"
+        :: "r"(&avg), "r"(&scale_factor) :"memory");
+
+        for(i=0;i<length;i+=8) {
+
+            __asm__ __volatile__(
+                "vmovups (%0), %%ymm2 \n\t"
+                "vsubps %%ymm0, %%ymm2, %%ymm3 \n\t"
+                "vmulps %%ymm1, %%ymm3, %%ymm4 \n\t"
+                "vmovups %%ymm4, (%0) \n\t"
+            :: "r"(ptr_w) :"memory");
+
+            ptr_w += 8;
+        }
+
+    }
+    else {
+        for(i=0;i<length;i++) {
+            ptr[i] = (ptr[i]-avg)*scale_factor;
+        }
+    }
+    
+    return true;
+}
+
+bool normalize_masked(float*ptr,const float*msk,const uint32 length, const float new_std=1) {
+
+    float count = 0;
+    float avg = 0;
+    float std = 0;
+
+    for(uint32 i=0; i<length; i++) {
+        if( msk[i] > 0 ) {
+            count += msk[i];
+            avg += (ptr[i]*msk[i]);
+        }
+    }
+
+    if( count == 0 )
+        return false;
+
+    avg = avg/count;
+
+    for(uint32 i=0; i<length; i++) {
+        if( msk[i] > 0 ) {
+            float tmp = ptr[i]*msk[i];
+            tmp  = tmp - avg;
+            std += tmp*tmp;
+        }
+    }
+
+    std = sqrt( std/(count-1) );
+
+    return normalize(ptr,length,avg,std,new_std);
+}
+
+void enforce_hermitian(double*p_vol, double*p_wgt, const uint32 M, const uint32 N) {
+    uint32 N_h = N/2;
+    for(int z=1; z<N; z++) {
+        int y_start = ( z < N_h ) ? N_h : N_h + 1;
+        for(int y=y_start; y<N; y++ ) {
+            int ix_a = y*M + z*M*N;
+            int ix_b = (N-y)*M + (N-z)*M*N;
+
+            double vol_real = p_vol[2*ix_a  ] + p_vol[2*ix_b  ];
+            double vol_imag = p_vol[2*ix_a+1] - p_vol[2*ix_b+1];
+            p_vol[2*ix_a  ] = vol_real;
+            p_vol[2*ix_a+1] = vol_imag;
+            p_vol[2*ix_b  ] = vol_real;
+            p_vol[2*ix_b+1] =-vol_imag;
+
+            double wgt  = p_wgt[ix_a] + p_wgt[ix_b];
+            p_wgt[ix_a] = wgt;
+            p_wgt[ix_b] = wgt;
+        }
+    }
+}
+
+void invert(double*ptr, const uint32 length) {
+    uint32 i;
+    for(i=0;i<length;i++) {
+        if( abs(ptr[i]) < SUSAN_FLOAT_TOL )
+            ptr[i] = 1;
+        else {
+            ptr[i] = 1/ptr[i];
+        }
+    }
+}
+
+void radial_avg(float*r_avg, float*r_wgt, const int L, const float*p_in, const int N, const single r_min, const single r_max) {
+    int center = N/2;
+    int range = (int)ceil(r_max)+1;
+    range = fminf(range,N/2);
+
+    memset(r_avg,0,sizeof(float)*L);
+    memset(r_wgt,0,sizeof(float)*L);
+
+    for(int j=center-range; j<=center+range; j++) {
+        int j_off = j*N;
+        float y = j - center;
+        for(int i=center-range; i<=center+range; i++) {
+            float x = i - center;
+            float r = sqrt(x*x+y*y);
+            if( r >= r_min && r <= r_max ) {
+                float val = p_in[ i + j_off ];
+                int idx = (int)roundf(r);
+                if( idx < L ) {
+                    r_avg[idx] += val;
+                    r_wgt[idx] += 1;
+                }
+            }
+        }
+    }
+
+    for(int l=0; l<L; l++) {
+        if( r_wgt[l] > SUSAN_FLOAT_TOL ) {
+            r_avg[l] = r_avg[l]/r_wgt[l];
+        }
+        else
+            r_avg[l] = 0;
+    }
+}
+
+void radial_avg(float*r_avg, float*r_wgt, const int L, const float*p_in, const int N) {
+    radial_avg(r_avg,r_wgt,L,p_in,N,0,N/2);
+}
+
+void expand_ps_hermitian(float*p_herm, const double*p_ps, const float scale, const uint32 M, const uint32 N, const uint32 K) {
+    for(int k=0;k<K;k++) {
+        const double* p_in  = p_ps+k*M*N;
+        float* p_out = p_herm+k*N*N;
+        for(int j=0;j<N;j++) {
+            int y_in = j*M;
+            int y_out_a = j*N;
+            int y_out_b = (j>0) ? (N-j)*N : 0;
+            for(int i=0;i<M;i++) {
+                int x_out_a = (i<(N/2)) ? i+N/2 : 0;
+                int x_out_b = (N/2)-i;
+                double val = p_in[i+y_in]/scale;
+                p_out[x_out_a + y_out_a] = val;
+                p_out[x_out_b + y_out_b] = val;
+            }
+        }
+    }
+}
+
+void randn(float*ptr,const uint32 length,const float u=0, const float s=1) {
+    std::random_device rd{};
+    std::mt19937 gen{rd()};
+    std::normal_distribution<float> d{u,s};
+
+    for(uint32 i=0;i<length;i++) {
+        ptr[i] = d(gen);
+    }
+}
+
+}
+
+#endif /// MATH_CPU_H
+
+
+
