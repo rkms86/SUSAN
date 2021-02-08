@@ -62,6 +62,29 @@ bool check_fread(void *ptr, size_t size, size_t nmemb, FILE *fp) {
 
 ////
 
+namespace DefocusIO {
+	
+	bool read(Defocus&def,FILE*fp) {
+		int n = 0;
+		n += fscanf(fp,"%f",&def.U);
+		n += fscanf(fp,"%f",&def.V);
+		n += fscanf(fp,"%f",&def.angle);
+		n += fscanf(fp,"%f",&def.ph_shft);
+		n += fscanf(fp,"%f",&def.Bfactor);
+		n += fscanf(fp,"%f",&def.ExpFilt);
+		n += fscanf(fp,"%f",&def.max_res);
+		n += fscanf(fp,"%f",&def.score);
+		return (n==8);
+	}
+	
+	void write(FILE*fp,const Defocus&def) {
+		fprintf(fp,"%10.2f  %10.2f  %8.3f  %8.3f  %8.2f  %8.2f  %6.3f  %e\n",def.U,def.V,def.angle,def.ph_shft,def.Bfactor,def.ExpFilt,def.max_res,def.score);
+	}
+	
+}
+
+////
+
 class TxtParser {
 
 protected:

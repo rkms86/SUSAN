@@ -86,18 +86,18 @@ public:
             char*buf = parser.read_line_raw();
             t[i](2) = 0;
 
-            int n = sscanf(buf,"%f %f %f %f %f %f %f %f %f %f %f %f %f",
+            int n = sscanf(buf,"%f %f %f %f %f %f %f %f %f %f %f %f %f %f",
                            &eu(0),&eu(1),&eu(2),&t[i](0),&t[i](1),&w[i],
-                           &def[i].U,&def[i].V,&def[i].angle,
+                           &def[i].U,&def[i].V,&def[i].angle,&def[i].ph_shft,
                            &def[i].Bfactor,&def[i].ExpFilt,
                            &def[i].max_res,&def[i].score);
 
-            if( n != 13 ) {
+            if( n != 14 ) {
                 fprintf(stderr,"Truncated tomogram file.\n");
-                exit(0);
+                exit(1);
             }
 
-            eu *= M_PI/180;
+            eu *= DEG2RAD;
             Math::eZYZ_Rmat(R[i],eu);
 
         }

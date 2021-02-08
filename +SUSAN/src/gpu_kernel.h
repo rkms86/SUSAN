@@ -45,6 +45,35 @@ __device__ float l2_distance(const float x, const float y) {
     return sqrtf( x*x + y*y );
 }
 
+__device__ float l2_distance(const float x, const float y, const float z) {
+    return sqrtf( x*x + y*y + z*z );
+}
+
+__device__ void get_xyR(float&x,float&y,float&R,const float in_x,const float in_y) {
+	x = in_x;
+	y = in_y;
+	R = l2_distance(x,y);
+}
+
+__device__ void get_xyR_unit(float&x,float&y,float&R,const float in_x,const float in_y) {
+	x = in_x;
+	y = in_y;
+	R = l2_distance(x,y);
+	if( R<0.5 ) R = 1;
+	x = x/R;
+	y = y/R;
+}
+
+__device__ float get_bp_wgt(const float min_R,const float max_R,const float rolloff,const float R) {
+	/// w_max = 1./(1+exp(2*(n-(HP+X/2))/sqrt(X)));
+	/// w_min = 1./(1+exp(2*((LP-X/2)-n)/sqrt(X)));
+	float w_min = 2*(min_R - R)/max(rolloff,0.0001);
+	float w_max = 2*(R - max_R)/max(rolloff,0.0001);
+	w_min = 1 + exp(w_min);
+	w_max = 1 + exp(w_max);
+	return 1/(w_min*w_max);
+}
+
 /// HOST FUNCTIONS:
 __global__ void fftshift2D(float*p_work,const int3 ss_siz) {
 
@@ -85,6 +114,53 @@ __global__ void fftshift2D(float2*p_work,const int3 ss_siz) {
 
         p_work[ix_A] = in_B;
         p_work[ix_B] = in_A;
+    }
+}
+
+__global__ void fftshift3D(float*p_work, const int N) {
+
+    int3 ss_idx = get_th_idx();
+
+    int center = N/2;
+
+    if( ss_idx.x < center && ss_idx.y < N && ss_idx.z < N ) {
+
+		int3 ss_siz = make_int3(N,N,N);
+		long ix_A = get_3d_idx(ss_idx,ss_siz);
+		ss_idx.x = ss_idx.x + center;
+        ss_idx.y = fftshift_idx(ss_idx.y,center);
+        ss_idx.z = fftshift_idx(ss_idx.z,center);
+        long ix_B = get_3d_idx(ss_idx,ss_siz);
+
+        float val_A = p_work[ ix_A ];
+        float val_B = p_work[ ix_B ];
+        
+        p_work[ ix_A ] = val_B;
+        p_work[ ix_B ] = val_A;
+
+    }
+}
+
+__global__ void fftshift3D(float2*p_work, const int M,const int N) {
+
+    int3 ss_idx = get_th_idx();
+
+    int center = N/2;
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < center ) {
+
+		int3 ss_siz = make_int3(M,N,N);
+		long ix_A = get_3d_idx(ss_idx,ss_siz);
+        ss_idx.y = fftshift_idx(ss_idx.y,center);
+        ss_idx.z = fftshift_idx(ss_idx.z,center);
+        long ix_B = get_3d_idx(ss_idx,ss_siz);
+
+        float2 val_A = p_work[ ix_A ];
+        float2 val_B = p_work[ ix_B ];
+        
+        p_work[ ix_A ] = val_B;
+        p_work[ ix_B ] = val_A;
+
     }
 }
 
@@ -248,6 +324,79 @@ __global__ void divide(float*p_avg,const float*p_wgt,const int3 ss_siz) {
 		float wgt = p_wgt[ idx ];
 		if( wgt < 1 ) wgt = 1;
 		p_avg[ idx ] = val/wgt;
+    }
+}
+
+__global__ void load_pad(float*p_out,const float*p_in,const int half_pad,const int3 ss_raw,const int3 ss_pad) {
+	
+	int3 ss_idx = get_th_idx();
+	
+    if( ss_idx.x < ss_raw.x && ss_idx.y < ss_raw.y && ss_idx.z < ss_raw.z ) {
+
+		int idx_in  = get_3d_idx(ss_idx,ss_raw);
+		int idx_out = get_3d_idx(ss_idx.x+half_pad,ss_idx.y+half_pad,ss_idx.z,ss_pad);
+		float data = p_in[idx_in];
+		p_out[idx_out] = data;
+	}
+		
+}
+
+__global__ void remove_pad_vol(float*p_out,const float*p_in,const int half_pad,const int3 ss_raw,const int3 ss_pad) {
+	
+	int3 ss_idx = get_th_idx();
+	
+    if( ss_idx.x < ss_raw.x && ss_idx.y < ss_raw.y && ss_idx.z < ss_raw.z ) {
+
+		long idx_in  = get_3d_idx(ss_idx.x+half_pad,ss_idx.y+half_pad,ss_idx.z+half_pad,ss_pad);
+		long idx_out = get_3d_idx(ss_idx,ss_raw);
+		float data = p_in[idx_in];
+		p_out[idx_out] = data;
+	}
+		
+}
+
+__global__ void subpixel_shift(float2*p_data,const Proj2D*g_ali,const int3 ss_siz) {
+	
+	int3 ss_idx = get_th_idx();
+	
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+		int idx  = get_3d_idx(ss_idx,ss_siz);
+
+		float x,y,R;
+		get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+
+		float2 data = p_data[idx];
+		
+		float phase_shift = x*g_ali[ss_idx.z].t.x + y*g_ali[ss_idx.z].t.y;
+		float sin_cos_arg = -2*M_PI*phase_shift/ss_siz.y;
+		
+		/// exp(-ix) = cos(x) - i sin(x);
+		float tmp_real = data.x;
+		float tmp_imag = data.y;
+		float c = cos(sin_cos_arg);
+		float s = sin(sin_cos_arg);
+		data.x = tmp_real*c + tmp_imag*s;
+		data.y = tmp_imag*c - tmp_real*s;
+		
+		p_data[idx] = data;
+	}
+		
+}
+
+__global__ void multiply(float2*p_out,const double2*p_acc,const double*p_wgt,const int3 ss_siz,const double scale=1.0) {
+	
+	int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+		int idx = get_3d_idx(ss_idx,ss_siz);
+		double2 val = p_acc[ idx ];
+		double  wgt = p_wgt[ idx ];
+		float2 rslt;
+		rslt.x = (float)(val.x*wgt*scale);
+		rslt.y = (float)(val.y*wgt*scale);
+		p_out[ idx ] = rslt;
     }
 }
 

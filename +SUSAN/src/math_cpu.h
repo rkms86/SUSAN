@@ -7,12 +7,14 @@
 #include <cstdint>
 #include <cmath>
 #include <random>
-
-#include "datatypes.h"
-
-#include "Eigen/Geometry"
+#include <sys/time.h>
+#include <sys/types.h>
 
 #include "iostream"
+
+#include "datatypes.h"
+#include "Eigen/Geometry"
+
 
 typedef Eigen::Matrix3f M33f;
 typedef Eigen::Vector3f V3f;
@@ -127,6 +129,12 @@ void sum(double*ptr_out, const double*ptr_in, const uint32 length) {
         }
     }
 }
+
+#ifdef CUDA_VERSION
+void sum(double2*ptr_out, const double2*ptr_in, const uint32 length) {
+	sum((double*)ptr_out,(const double*)ptr_in,length*2);
+}
+#endif
 
 void mul(float*out,const float*in,const uint32 length) {
 
@@ -243,7 +251,7 @@ void get_avg_std(float&avg,float&std,const float*ptr,const uint32 length) {
         __asm__ __volatile__(
             "vbroadcastss (%0), %%ymm1\n\t"
             "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-            :: "r"(&avg), "r"(&std) :"memory");
+            :: "r"(&avg) :"memory");
 
         for(i=0;i<length;i+=8) {
 
@@ -272,7 +280,36 @@ void get_avg_std(float&avg,float&std,const float*ptr,const uint32 length) {
         }
     }
     
-    std = sqrt( std/(length-1) );
+    std = sqrt( std/(length) );
+}
+
+void zero_mean(float*ptr,const uint32 length, const float avg) {
+    
+    uint32 i;
+    if( should_use_avx2(length) ) {
+
+        float*ptr_w = (float*)ptr;
+        __asm__ __volatile__(
+            "vbroadcastss (%0), %%ymm0\n\t"
+        :: "r"(&avg) :"memory");
+
+        for(i=0;i<length;i+=8) {
+
+            __asm__ __volatile__(
+                "vmovups (%0), %%ymm2 \n\t"
+                "vsubps %%ymm0, %%ymm2, %%ymm3 \n\t"
+                "vmovups %%ymm3, (%0) \n\t"
+            :: "r"(ptr_w) :"memory");
+
+            ptr_w += 8;
+        }
+
+    }
+    else {
+        for(i=0;i<length;i++) {
+            ptr[i] = (ptr[i]-avg);
+        }
+    }
 }
 
 bool normalize(float*ptr,const uint32 length, const float avg, const float old_std, const float new_std=1) {
@@ -444,9 +481,60 @@ void randn(float*ptr,const uint32 length,const float u=0, const float s=1) {
     }
 }
 
+class Timing {
+protected:
+	struct timeval starting_time;
+	
+public:
+	Timing() {
+		tic();
+	}
+	
+	void tic() {
+		gettimeofday(&starting_time, NULL);
+	}
+	
+	uint32 toc() {
+		struct timeval current_time;
+		gettimeofday(&current_time, NULL);
+		return current_time.tv_sec - starting_time.tv_sec;
+	}
+	
+	void get_etc(int&days,int&hours,int&mins,int&secs,const int processed,const int total) {
+		if( processed > 0 ) {
+			if( total == processed ) {
+				days =0;
+				hours=0;
+				mins =0;
+				secs =0;
+			}
+			else {
+				float scale = (float)(total-processed)/(float)(processed);
+				float total_secs = scale*(float)toc();
+				days = (int)floor(total_secs/(86400.0));
+				total_secs = total_secs - 86400.0*days;
+				hours = (int)floor(total_secs/(3600.0));
+				total_secs = total_secs - 3600.0*hours;
+				mins = (int)floor(total_secs/(60.0));
+				secs = ceil(total_secs) - 60.0*mins;
+				if(secs > 59)
+					secs = 59;
+			}
+		}
+		else {
+			days =99;
+			hours=23;
+			mins =59;
+			secs =59;
+		}
+	}
+	
+};
+
 }
 
 #endif /// MATH_CPU_H
+
 
 
 

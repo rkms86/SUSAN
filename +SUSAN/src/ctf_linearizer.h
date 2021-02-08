@@ -5,8 +5,8 @@
 #include "particles.h"
 #include "tomogram.h"
 #include "stack_reader.h"
-#include "args_parse.h"
 #include "gpu.h"
+#include "gpu_fft.h"
 #include "gpu_kernel.h"
 #include "gpu_kernel_ctf.h"
 #include "substack_crop.h"
@@ -14,6 +14,7 @@
 #include "io.h"
 #include "points_provider.h"
 #include "svg.h"
+#include "reconstruct_args.h"
 #include <iostream>
 
 class CtfLinearizer{
@@ -37,7 +38,7 @@ public:
 	GPU::GArrSingle   rad_wgt;
 	GPU::GArrSingle2  rad_fourier;
 	GPU::GArrSingle2  rad_hilbert;
-	GPU::FFT2D        fft2;
+	GpuFFT::FFT2D     fft2;
 	GPU::GTex2DSingle ss_lin;
 	
 	float  *p_ps_lin_avg;
@@ -353,8 +354,8 @@ protected:
 	}
 	
 	void calculate_hilbert(float2*p_out,single*p_in,const int k) {
-		GPU::FFT1D_full  fft1fwd;
-		GPU::IFFT1D_full fft1inv;
+		GpuFFT::FFT1D_full  fft1fwd;
+		GpuFFT::IFFT1D_full fft1inv;
 		fft1fwd.alloc(M,k);
 		fft1inv.alloc(M,k);
 		fft1fwd.exec(rad_fourier.ptr,p_in);
@@ -432,7 +433,7 @@ protected:
 			}
 		}
 		
-		fit_coef = exp(-val);
+		fit_coef = val;
 		
 		return rslt;
 	}
@@ -445,7 +446,7 @@ protected:
 			s2 = s2/(N*apix);
 			s2 = s2*s2;
 			float s4 = s2*s2;
-			float gamma = -lambda_pi*def*s2 - lambda3_Cs_pi_2*s4;
+			float gamma = lambda_pi*def*s2 - lambda3_Cs_pi_2*s4;
 			float ctf = CA*sin(gamma) + AC*cos(gamma);
 			v += abs( p_in[t] - ctf*ctf );
 		}
@@ -462,7 +463,7 @@ protected:
 				s2 = s2/(N*apix);
 				s2 = s2*s2;
 				float s4 = s2*s2;
-				float gamma = -lambda_pi*def*s2 - lambda3_Cs_pi_2*s4;
+				float gamma = lambda_pi*def*s2 - lambda3_Cs_pi_2*s4;
 				float ctf = CA*sin(gamma) + AC*cos(gamma);
 				Pctf[j] = ctf*ctf;
 			}
@@ -497,17 +498,18 @@ protected:
 	void save_defocus(const int k,const char*out_dir) {
 		sprintf(filename,"%s/defocus.txt",out_dir);
 		FILE*fp = fopen(filename,"w");
-		float U,V,angle,Bfactor,ExpFilt=0,max_res,score;
+		Defocus def;
+		def.ph_shft = 0;
+		def.ExpFilt = 0;
 
         for(int i=0;i<k;i++) {
 			int idx = i*(int)M;
-			estimate_params(Bfactor,max_res,p_rad_avg+idx,p_ctf_res+idx);
-			U     = c_def_inf[i].x;
-			V     = c_def_inf[i].y;
-			angle = c_def_inf[i].z*180.0/M_PI;
-			score = c_def_inf[i].w;
-            fprintf(fp,"%10.2f  %10.2f  %8.3f %8.2f %8.2f %6.3f %e\n",U,V,angle,Bfactor,ExpFilt,max_res,score);
-            
+			estimate_params(def.Bfactor,def.max_res,p_rad_avg+idx,p_ctf_res+idx);
+			def.U     = c_def_inf[i].x;
+			def.V     = c_def_inf[i].y;
+			def.angle = c_def_inf[i].z*180.0/M_PI;
+			def.score = c_def_inf[i].w;
+			IO::DefocusIO::write(fp,def);
         }
 
         fclose(fp);

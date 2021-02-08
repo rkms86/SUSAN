@@ -5,10 +5,8 @@
 #include <unistd.h>
 
 #include "io.h"
-#include "args_parse.h"
 #include "estimate_ctf.h"
-
-#include "mrc.h"
+#include "estimate_ctf_args.h"
 
 int main(int ac, char** av) {
 

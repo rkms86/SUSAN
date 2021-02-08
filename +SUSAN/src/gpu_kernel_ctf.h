@@ -35,12 +35,38 @@ __device__ float calc_def(const float x, const float y, const Defocus&def) {
 }
 
 __device__ float calc_gamma(const float def,const float lambda_pi,const float lambda3_Cs_pi_2,const float s2, const float s4) {
-	return (-lambda_pi*def*s2 - lambda3_Cs_pi_2*s4);
+	return (lambda_pi*def*s2 - lambda3_Cs_pi_2*s4);
+}
+
+__device__ float calc_gamma(const float def,const float lambda_pi,const float lambda3_Cs_pi_2,const float s2) {
+	return calc_gamma(def,lambda_pi,lambda3_Cs_pi_2,s2,s2*s2);
+}
+
+__device__ float calc_ctf(const float gamma,const float ac,const float ca) {
+	return (ca*sin(gamma) + ac*cos(gamma));
 }
 
 __device__ float calc_ctf(const float gamma,const float ac) {
-	return sqrt(1-ac*ac)*sin(gamma) + ac*cos(gamma);
+	return calc_ctf(gamma,ac,sqrt(1-ac*ac));
 }
+
+__device__ float calc_bfactor(const float s,const float bfactor) {
+    return expf(-s*s*bfactor/4);
+}
+
+__device__ float calc_ssnr(const float r,const float ssnr_F,const float ssnr_S) {
+	return (1/(ssnr_S*exp(r*ssnr_F)));
+}
+
+__device__ void store_surface(cudaSurfaceObject_t surf,const float val, const int3 pos) {
+	surf2DLayeredwrite<float>(val,surf,pos.x*sizeof(float), pos.y, pos.z);
+}
+
+__device__ void store_surface(cudaSurfaceObject_t surf,const float2 val, const int3 pos) {
+	surf2DLayeredwrite<float2>(val,surf,pos.x*sizeof(float2), pos.y, pos.z);
+}
+
+/////////////////
 
 __global__ void create_vec_r(float3*p_vec_r,const int3 ss_siz) {
 	
@@ -164,7 +190,7 @@ __global__ void divide(float*p_out,const double*p_acc,const double*p_wgt,const i
         double acc = p_acc[ix];
         double wgt = p_wgt[ix];
         
-        if( wgt < SUSAN_FLOAT_TOL ) wgt = 1;
+        if( wgt < 0.000001 ) wgt = 1;
         
         p_out[ix] = (float)(acc/wgt);
     }
@@ -498,6 +524,154 @@ __global__ void vis_add_ctf(float*p_out,const float4*p_def_inf,const float apix,
     }
 }
 
+__global__ void ctf_stk_no_correction(cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_ctf,const float2*g_data, const float3 bandpass,const int3 ss_siz) {
+	
+	int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+		float2 val = {0,0};
+		float  ctf = 0;
+
+		float x,y,R;
+		get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+		
+		float w = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+		
+		if( w > 0.05 ) {
+			val = g_data[ get_3d_idx(ss_idx,ss_siz) ];
+			val.x *= w;
+			val.y *= w;
+			ctf = 1.0;
+		}
+		
+		store_surface(s_stk,val,ss_idx);
+		store_surface(s_ctf,ctf,ss_idx);
+		
+    }
+	
+}
+
+__global__ void ctf_stk_phase_flip( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_ctf,const float2*g_data, 
+                                    const CtfConst ctf_const, const Defocus*def, const float3 bandpass,const int3 ss_siz)
+{
+	
+	int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+		float2 val = {0,0};
+		float  ctf = 0;
+
+		float x,y,R;
+		get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+		
+		float w = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+		
+		if( w > 0.05 ) {
+			float s = calc_s(R,ss_siz.y,ctf_const.apix);
+			float z = calc_def(x,y,def[ss_idx.z]);
+			float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
+			ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
+			if(ctf<0)
+				ctf = -1.0;
+			else
+				ctf =  1.0;
+			val = g_data[ get_3d_idx(ss_idx,ss_siz) ];
+			val.x *= w*ctf;
+			val.y *= w*ctf;
+			ctf = 1.0;
+		}
+		
+		store_surface(s_stk,val,ss_idx);
+		store_surface(s_ctf,ctf,ss_idx);
+		
+    }
+}
+
+__global__ void ctf_stk_wiener( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_ctf,const float2*g_data, 
+                                const CtfConst ctf_const,const Defocus*def,const float3 bandpass,const int3 ss_siz)
+{
+	
+	int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+		float2 val = {0,0};
+		float  ctf = 0;
+
+		float x,y,R;
+		get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+		
+		float max_R = bandpass.y;
+		if( def[ss_idx.z].max_res > 0 )
+			max_R = min(max_R,def[ss_idx.z].max_res);
+		float w = get_bp_wgt(bandpass.x,max_R,bandpass.z,R);
+		
+		if( w > 0.05 ) {
+			float s = calc_s(R,ss_siz.y,ctf_const.apix);
+			float z = calc_def(x,y,def[ss_idx.z]);
+			float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
+			ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
+			if( def[ss_idx.z].Bfactor > 0 )
+				ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
+			if( def[ss_idx.z].ExpFilt > 0 )
+				w *= calc_bfactor(s,def[ss_idx.z].ExpFilt);
+			
+			val = g_data[ get_3d_idx(ss_idx,ss_siz) ];
+			val.x = w*ctf*val.x;
+			val.y = w*ctf*val.y;
+			ctf *= ctf;
+		}
+		
+		store_surface(s_stk,val,ss_idx);
+		store_surface(s_ctf,ctf,ss_idx);
+		
+    }
+}
+
+__global__ void ctf_stk_wiener_ssnr( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_ctf,const float2*g_data, 
+                                     const CtfConst ctf_const,const Defocus*def,const float ssnr_F,const float ssnr_S,
+                                     const float3 bandpass,const int3 ss_siz)
+{
+	
+	int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+		float2 val = {0,0};
+		float  ctf = 0;
+
+		float x,y,R;
+		get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+		
+		float max_R = bandpass.y;
+		if( def[ss_idx.z].max_res > 0 )
+			max_R = min(max_R,def[ss_idx.z].max_res);
+		float w = get_bp_wgt(bandpass.x,max_R,bandpass.z,R);
+		
+		if( w > 0.05 ) {
+			float s = calc_s(R,ss_siz.y,ctf_const.apix);
+			float z = calc_def(x,y,def[ss_idx.z]);
+			float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
+			ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
+			if( def[ss_idx.z].Bfactor > 0 )
+				ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
+			if( def[ss_idx.z].ExpFilt > 0 )
+				w *= calc_bfactor(s,def[ss_idx.z].ExpFilt);
+			
+			val = g_data[ get_3d_idx(ss_idx,ss_siz) ];
+			val.x = w*ctf*val.x;
+			val.y = w*ctf*val.y;
+			ctf *= ctf;
+			ctf += calc_ssnr(R,ssnr_F,ssnr_S);
+		}
+		
+		store_surface(s_stk,val,ss_idx);
+		store_surface(s_ctf,ctf,ss_idx);
+		
+    }
+}
 
 }
 

@@ -37,17 +37,15 @@ class Worker : public PThread {
 	
 public:
 	uint32 worker_id;
-	uint32 worker_total;
 	uint32 work_progress;
-	uint32 work_total;
+	uint32 work_accumul;
 	WorkerCommand *worker_cmd;
 	
 	Worker() {
-		worker_id = 0;
-		worker_total = 0;
+		worker_id     = 0;
 		work_progress = 0;
-		work_total = 0;
-		worker_cmd = NULL;
+		work_accumul  = 0;
+		worker_cmd    = NULL;
 	}
 	
 	

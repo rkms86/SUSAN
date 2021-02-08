@@ -70,6 +70,15 @@ void sync() {
     }
 }
 
+void reset() {
+    cudaError_t err = cudaDeviceReset();
+    if( err != cudaSuccess ) {
+        fprintf(stderr,"Error resetting CUDA device. ");
+        fprintf(stderr,"GPU error: %s.\n",cudaGetErrorString(err));
+        exit(1);
+    }
+}
+
 class Stream {
 public:
     cudaStream_t strm;
@@ -158,6 +167,7 @@ protected:
     }
 };
 
+typedef GArr<uint32>  GArrUint32;
 typedef GArr<single>  GArrSingle;
 typedef GArr<double>  GArrDouble;
 typedef GArr<float2>  GArrSingle2;
@@ -240,8 +250,8 @@ protected:
 
 };
 
-typedef GTex2D<single>  GTex2DSingle;
-typedef GTex2D<float2>  GTex2DSingle2;
+typedef GTex2D<single> GTex2DSingle;
+typedef GTex2D<float2> GTex2DSingle2;
 
 template<class T>
 class GHost {
@@ -275,9 +285,11 @@ protected:
     }
 };
 
-typedef GHost<single> GHostSingle;
-typedef GHost<float2> GHostFloat2;
-typedef GHost<Proj2D> GHostProj2D;
+typedef GHost<single>  GHostSingle;
+typedef GHost<double>  GHostDouble;
+typedef GHost<float2>  GHostFloat2;
+typedef GHost<Proj2D>  GHostProj2D;
+typedef GHost<double2> GHostDouble2;
 typedef GHost<Defocus> GHostDefocus;
 
 template<class T>
@@ -306,146 +318,6 @@ void download_async(T*p_cpu,const T*p_gpu, size_t numel, cudaStream_t&strm) {
 }
 
 template void download_async<>(single* ,const single* ,size_t,cudaStream_t&);
-
-class FFT1D_batch_base {
-protected:
-    cufftHandle handler;
-
-public:
-    FFT1D_batch_base() {
-        handler = 0;
-    }
-
-    ~FFT1D_batch_base() {
-        if( handler != 0 )
-            cufftDestroy(handler);
-    }
-
-    virtual void alloc(const int X, const int Y) = 0;
-
-    void set_stream(cudaStream_t strm) {
-        cufftSetStream(handler, strm);
-    }
-};
-
-class FFT1D_full : public FFT1D_batch_base {
-
-public:
-    virtual void alloc(const int X, const int Y) {
-        int rank = 1;
-        int m[1] = {X};
-        int idist = X;
-        int odist = X;
-        int inembed[] = {X};
-        int onembed[] = {X};
-        int istride = 1;
-        int ostride = 1;
-
-        if ( cufftPlanMany(&handler, rank, m, inembed, istride, idist, onembed, ostride, odist, CUFFT_R2C, Y) != CUFFT_SUCCESS ) {
-            fprintf(stderr,"Error allocating forward FFT1D batch.\n");
-            exit(1);
-
-        }
-    }
-
-    void exec(float2*g_out, float*g_in) {
-        cufftExecR2C(handler,g_in,g_out);
-    }
-};
-
-class IFFT1D_batch_base {
-protected:
-    cufftHandle handler;
-
-public:
-    IFFT1D_batch_base() {
-        handler = 0;
-    }
-
-    ~IFFT1D_batch_base() {
-        if( handler != 0 )
-            cufftDestroy(handler);
-    }
-
-    virtual void alloc(const int X, const int Y) = 0;
-
-    void set_stream(cudaStream_t strm) {
-        cufftSetStream(handler, strm);
-    }
-};
-
-class IFFT1D_full : public IFFT1D_batch_base {
-
-public:
-    virtual void alloc(const int X, const int Y) {
-        int rank = 1;
-        int m[1] = {X};
-        int idist = X;
-        int odist = X;
-        int inembed[] = {X};
-        int onembed[] = {X};
-        int istride = 1;
-        int ostride = 1;
-
-        if ( cufftPlanMany(&handler, rank, m, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, Y) != CUFFT_SUCCESS ) {
-            fprintf(stderr,"Error allocating inverse FFT1D batch.\n");
-            exit(1);
-
-        }
-    }
-
-    void exec(float2*g_out, float2*g_in) {
-        cufftExecC2C(handler,g_in,g_out,CUFFT_INVERSE);
-    }
-};
-
-class FFT2D_batch_base {
-protected:
-    cufftHandle handler;
-
-public:
-    FFT2D_batch_base() {
-        handler = 0;
-    }
-
-    ~FFT2D_batch_base() {
-        if( handler != 0 )
-            cufftDestroy(handler);
-    }
-
-    virtual void alloc(const int X, const int Y, const int Z) = 0;
-
-    void set_stream(cudaStream_t strm) {
-        cufftSetStream(handler, strm);
-    }
-};
-
-class FFT2D : public FFT2D_batch_base {
-
-public:
-    virtual void alloc(const int X, const int Y, const int Z) {
-        int rank = 2;
-        int m[2] = {Y, Y};
-        int idist = Y*Y;
-        int odist = X*Y;
-        int inembed[] = {Y, Y};
-        int onembed[] = {Y, X};
-        int istride = 1;
-        int ostride = 1;
-
-        if ( cufftPlanMany(&handler, rank, m, inembed, istride, idist, onembed, ostride, odist, CUFFT_R2C, Z) != CUFFT_SUCCESS ) {
-            fprintf(stderr,"Error allocating forward FFT2D batch.\n");
-            exit(1);
-
-        }
-    }
-
-    void exec(float2*g_out, float*g_in) {
-        cufftExecR2C(handler,g_in,g_out);
-    }
-};
-
-
 
 }
 

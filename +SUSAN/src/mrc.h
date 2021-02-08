@@ -67,10 +67,22 @@ namespace Mrc {
     }
 	
     void read(float*buffer, const uint32 X, const uint32 Y, const uint32 Z, const char*mapname) {
+		if(!is_mode_float(mapname)) {
+			fprintf(stderr,"Error: File %s is not mode FLOAT32.\n",mapname);
+			exit(1);
+		}
         FILE*fp=fopen(mapname,"rb");
-        fseek(fp,1024,SEEK_SET);
-        fread((void*)buffer,sizeof(single),X*Y*Z,fp);
+        uint32 offset = 0;
+        fseek(fp,92,SEEK_SET);
+        fread((void*)(&offset),sizeof(uint32),1,fp);
+        fseek(fp,1024+offset,SEEK_SET);
+        size_t num_el = X*Y*Z;
+        size_t read_el = fread((void*)buffer,sizeof(single),num_el,fp);
         fclose(fp);
+        if( num_el != read_el ) {
+			fprintf(stderr,"Error: File %s truncated.\n",mapname);
+			exit(1);
+		}
     }
 
     float *read(uint32&X, uint32&Y, uint32&Z, const char*mapname) {

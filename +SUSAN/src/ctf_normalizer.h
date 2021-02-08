@@ -5,8 +5,8 @@
 #include "particles.h"
 #include "tomogram.h"
 #include "stack_reader.h"
-#include "args_parse.h"
 #include "gpu.h"
+#include "gpu_fft.h"
 #include "gpu_kernel.h"
 #include "gpu_kernel_ctf.h"
 #include "substack_crop.h"
@@ -14,6 +14,7 @@
 #include "io.h"
 #include "points_provider.h"
 #include "svg.h"
+#include "reconstruct_args.h"
 #include <iostream>
 
 class CtfNormalizer {
@@ -30,7 +31,7 @@ public:
 	GPU::GArrSingle   ss_acc_avg;
 	GPU::GArrSingle   ss_acc_std;
 	GPU::GArrSingle2  ss_fourier;
-	GPU::FFT2D        fft2;
+	GpuFFT::FFT2D     fft2;
 	GPU::GTex2DSingle ss_ps;
 		
 	CtfNormalizer(int N,int K) {

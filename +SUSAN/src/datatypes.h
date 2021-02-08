@@ -18,6 +18,9 @@ typedef float    single;
 #define SUSAN_CUDA_THREADS 1024
 #define SUSAN_CUDA_WARP 32
 
+#define RAD2DEG 57.295779513082323
+#define DEG2RAD  0.017453292519943
+
 #define SUSAN_SVG_SHADOW_BG "#F7F7F7"
 //#define SUSAN_SVG_FG_A "#FDB366"
 #define SUSAN_SVG_FG_A "#F67E4B"
@@ -70,6 +73,7 @@ typedef struct {
     float U;
     float V;
     float angle;
+    float ph_shft;
     float Bfactor;
     float ExpFilt;
     float max_res;
@@ -83,13 +87,6 @@ typedef struct {
     float CA;
     float apix;
 } CtfConst;
-
-enum {
-    CTF_NONE        = 0,
-    CTF_PHASE_FLIP  = 1,
-    CTF_INVERSION   = 2,
-    CTF_INV_BFACTOR = 3
-};
 
 typedef struct {
     Rot33 R;

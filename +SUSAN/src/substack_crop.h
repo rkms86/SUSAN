@@ -53,19 +53,28 @@ public:
 		p_subpix.y = p_proj(1) - floor(p_proj(1));
 	}
 	
+	bool check_point(const V3f&p_proj) {
+		return ( p_proj(0) >= x_min && p_proj(0) <= x_max && p_proj(1) >= y_min && p_proj(1) <= y_max );
+	}
+	
 	void crop(float*substack,float*stack,const V3f&p_proj,const int k) {
 		internal_crop( substack+k*N*N, stack+k*tomo->stk_dim.x*tomo->stk_dim.y, floor(p_proj(0)), floor(p_proj(1)) );
 	}
 	
-	void normalize(float*substack,const int k) {
-		internal_normalize( substack+k*N*N );
+	float normalize_zero_mean(float*substack,const int k) {
+		return internal_normalize_zero_mean( substack+k*N*N );
+	}
+	
+	void normalize_zero_mean_one_std(float*substack,const int k) {
+		internal_normalize_zero_mean_new_std( substack+k*N*N, 1.0 );
+	}
+	
+	void normalize_zero_mean_w_std(float*substack,float w,const int k) {
+		internal_normalize_zero_mean_new_std( substack+k*N*N, w );
 	}
 	
 	
 protected:
-	bool check_point(const V3f&p_proj) {
-		return ( p_proj(0) >= x_min && p_proj(0) <= x_max && p_proj(1) >= y_min && p_proj(1) <= y_max );
-	}
 	
 	void internal_crop(float*substack,float*stack,const int x,const int y) {
 		int w = tomo->stk_dim.x;
@@ -78,10 +87,17 @@ protected:
 		}
 	}
 	
-	void internal_normalize(float*substack) {
+	float internal_normalize_zero_mean(float*substack) {
 		float avg,std;
 		Math::get_avg_std(avg,std,substack,N*N);
-		Math::normalize(substack,N*N,avg,std,1);
+		Math::zero_mean(substack,N*N,avg);
+		return std;
+	}
+	
+	void internal_normalize_zero_mean_new_std(float*substack,float new_std) {
+		float avg,std;
+		Math::get_avg_std(avg,std,substack,N*N);
+		Math::normalize(substack,N*N,avg,std,new_std);
 	}
 
 };
