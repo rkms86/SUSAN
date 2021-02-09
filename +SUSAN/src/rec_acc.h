@@ -147,6 +147,11 @@ public:
 		grd = GPU::calc_grid_size(blk,MP,NP,NP);
 	}
 	
+	void clear() {
+		vol_acc.clear();
+		vol_wgt.clear();
+	}
+	
 	void insert(GPU::GTex2DSingle2&ss_stk,GPU::GTex2DSingle&ss_wgt,GPU::GArrProj2D&g_ali,float3 bandpass,int k,GPU::Stream&stream) {
 		GpuKernelsVol::insert_stk<<<grd,blk,0,stream.strm>>>(vol_acc.ptr,vol_wgt.ptr,ss_stk.texture,ss_wgt.texture,g_ali.ptr,bandpass,MP,NP,k);
 	}

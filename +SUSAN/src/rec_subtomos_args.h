@@ -185,7 +185,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.ssnr_F     = 0;
     info.ssnr_S     = 1;
 	memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
-	memset(info.out_pfx ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
+	memset(info.out_dir ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	memset(info.ptcls_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	memset(info.tomos_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	
@@ -222,7 +222,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"ctf_type",    1, 0, CTF_TYPE  },
         {"ssnr_param",  1, 0, SSNR      },
         {"w_inv_iter",  1, 0, W_INV_ITE },
-        {"w_inv_gstd",  1, 0, W_INV_STD }
+        {"w_inv_gstd",  1, 0, W_INV_STD },
         {0, 0, 0, 0}
     };
     
@@ -234,8 +234,8 @@ bool parse_args(Info&info,int ac,char** av) {
 			case TOMOS_FILE:
 				strcpy(info.tomos_in,optarg);
 				break;
-			case OUT_PREFIX:
-				strcpy(info.out_pfx,optarg);
+			case OUT_FOLDER:
+				strcpy(info.out_dir,optarg);
 				break;
 			case PTCLS_FILE:
 				strcpy(info.ptcls_in,optarg);
@@ -282,9 +282,6 @@ bool parse_args(Info&info,int ac,char** av) {
 			case W_INV_STD:
 				info.w_inv_std = atof(optarg);
 				break;
-			case REC_HALVES:
-				info.rec_halves = (atoi(optarg)>0);
-				break;
 			default:
 				printf("Unknown parameter %d\n",c);
 				exit(1);
@@ -296,7 +293,7 @@ bool parse_args(Info&info,int ac,char** av) {
 }
 
 void print(const Info&info,FILE*fp=stdout) {
-	fprintf(stdout,"\Subtomogram generation:\n");
+	fprintf(stdout,"\tSubtomogram generation:\n");
 
 	fprintf(stdout,"\t\tParticles file: %s.\n",info.ptcls_in);
 	fprintf(stdout,"\t\tTomograms file: %s.\n",info.tomos_in);
