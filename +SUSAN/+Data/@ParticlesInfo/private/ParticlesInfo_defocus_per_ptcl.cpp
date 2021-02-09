@@ -58,14 +58,14 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
         }
 
         get_array(pIn[3],p_def_in,X,Y,Z);
-        if( X != num_projs || Y != 7 || Z != num_tomos ) {
+        if( X != num_projs || Y != 8 || Z != num_tomos ) {
             char tmp[1024];
-            sprintf(tmp,"[" FUNC_NAME "] Arg4 (defocus) wrong size [%d,%d,%d], should be [%d 7 %d]",X,Y,Z,num_projs,num_tomos);
+            sprintf(tmp,"[" FUNC_NAME "] Arg4 (defocus) wrong size [%d,%d,%d], should be [%d 8 %d]",X,Y,Z,num_projs,num_tomos);
             mexErrMsgTxt(tmp);
         }
         
         /// Allocate output:
-        allocate_and_get(p_def_out,pOut[0],num_projs,7,num_ptcl);
+        allocate_and_get(p_def_out,pOut[0],num_projs,8,num_ptcl);
 
         /// Expand Defocus:
         V3f    pos_tomo,pos_proj;
@@ -87,24 +87,25 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
             pos_tomo(1)  = p_pos[ptcl+  num_ptcl];
             pos_tomo(2)  = p_pos[ptcl+2*num_ptcl];
 
-            cur_tomo_def  = p_def_in  + tomo_ix*(num_projs*7);
+            cur_tomo_def  = p_def_in  + tomo_ix*(num_projs*8);
             cur_tomo_eZYZ = p_euZYZ   + tomo_ix*(num_projs*3);
-            cur_ptcl_def  = p_def_out +    ptcl*(num_projs*7);
+            cur_ptcl_def  = p_def_out +    ptcl*(num_projs*8);
 
             for(int proj=0;proj<num_projs;proj++) {
                 euZYZ(0) = cur_tomo_eZYZ[proj    ];
                 euZYZ(1) = cur_tomo_eZYZ[proj+  num_projs];
                 euZYZ(2) = cur_tomo_eZYZ[proj+2*num_projs];
-                euZYZ   *= M_PI/180;
+                euZYZ   *= DEG2RAD;
                 Math::eZYZ_Rmat(R,euZYZ);
                 pos_proj = R*pos_tomo;
-                cur_ptcl_def[proj            ] = cur_tomo_def[proj            ] - pos_proj(2); // U
-                cur_ptcl_def[proj+  num_projs] = cur_tomo_def[proj+  num_projs] - pos_proj(2); // V
+                cur_ptcl_def[proj            ] = cur_tomo_def[proj            ] + pos_proj(2); // U
+                cur_ptcl_def[proj+  num_projs] = cur_tomo_def[proj+  num_projs] + pos_proj(2); // V
                 cur_ptcl_def[proj+2*num_projs] = cur_tomo_def[proj+2*num_projs]; // angle
-                cur_ptcl_def[proj+3*num_projs] = cur_tomo_def[proj+3*num_projs]; // BFactor
-                cur_ptcl_def[proj+4*num_projs] = cur_tomo_def[proj+4*num_projs]; // Exposure Filter
-                cur_ptcl_def[proj+5*num_projs] = cur_tomo_def[proj+5*num_projs]; // Maximum Resolution
-                cur_ptcl_def[proj+6*num_projs] = cur_tomo_def[proj+6*num_projs]; // Score
+                cur_ptcl_def[proj+3*num_projs] = cur_tomo_def[proj+3*num_projs]; // phase shift
+                cur_ptcl_def[proj+4*num_projs] = cur_tomo_def[proj+4*num_projs]; // BFactor
+                cur_ptcl_def[proj+5*num_projs] = cur_tomo_def[proj+5*num_projs]; // Exposure Filter
+                cur_ptcl_def[proj+6*num_projs] = cur_tomo_def[proj+6*num_projs]; // Maximum Resolution
+                cur_ptcl_def[proj+7*num_projs] = cur_tomo_def[proj+7*num_projs]; // Score
             }
         }
 

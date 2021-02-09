@@ -24,17 +24,18 @@
 %    prj_t     - (Kx2xP Matrix) 2D Shift of each projection (Angstroms).
 %    prj_cc    - (Kx1xP Matrix) Cross correlaiton value for each projection.
 %    prj_w     - (Kx1xP Matrix) Weights to be applied to each projection.
-%    defocus   - (Kx7xP Matrix) Defocus information for each projection.
+%    defocus   - (Kx8xP Matrix) Defocus information for each projection.
 %    Notes:
-%    - The defocus matrix is composed by 7 columns, each holding the
+%    - The defocus matrix is composed by 8 columns, each holding the
 %      following information:
 %         Column 1: Defocus U.
 %         Column 2: Defocus V.
 %         Column 3: Defocus angle.
-%         Column 4: Defocus BFactor.
-%         Column 5: Exposure Filter.
-%         Column 6: Max. Resolution (angstroms).
-%         Column 7: Fitting Score.
+%         Column 4: Defocus phase shift.
+%         Column 5: Defocus BFactor.
+%         Column 6: Exposure Filter.
+%         Column 7: Max. Resolution (angstroms).
+%         Column 8: Fitting Score.
 %
 % SUSAN.Data.ParticlesInfo Methods:
 %    ParticlesInfo     - (Constructor) creates a ParticlesInfo.
@@ -467,7 +468,7 @@ methods(Access=private)
         obj.prj_t     = zeros(max_proj,2,num_ptcls);
         obj.prj_cc    = zeros(max_proj,1,num_ptcls);
         obj.prj_w     = zeros(max_proj,1,num_ptcls);
-        obj.defocus   = zeros(max_proj,7,num_ptcls);
+        obj.defocus   = zeros(max_proj,8,num_ptcls);
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

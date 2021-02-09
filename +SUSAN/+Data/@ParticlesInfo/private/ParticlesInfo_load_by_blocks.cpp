@@ -59,7 +59,7 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
     allocate_and_get(p_prj_block,pOut[3],num_proj,7,num_ptcl);
 
     float *p_ctf_block;
-    allocate_and_get(p_ctf_block,pOut[4],num_proj,7,num_ptcl);
+    allocate_and_get(p_ctf_block,pOut[4],num_proj,8,num_ptcl);
 
 	/// Unpack UINT32
     uint32_t *ptcl_id   = p_uint32_block;
@@ -122,16 +122,17 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
         }
         
 		/// CTF:
-        float *cur_ctf_info = p_ctf_block + ptcl*7*num_proj;
+        float *cur_ctf_info = p_ctf_block + ptcl*8*num_proj;
         for(int proj=0; proj<num_proj; proj++) {
 			
             cur_ctf_info[proj             ] = cur_ptcl.def[proj].U;
             cur_ctf_info[proj +   num_proj] = cur_ptcl.def[proj].V;
             cur_ctf_info[proj + 2*num_proj] = cur_ptcl.def[proj].angle;
-            cur_ctf_info[proj + 3*num_proj] = cur_ptcl.def[proj].Bfactor;
-            cur_ctf_info[proj + 4*num_proj] = cur_ptcl.def[proj].ExpFilt;
-            cur_ctf_info[proj + 5*num_proj] = cur_ptcl.def[proj].max_res;
-            cur_ctf_info[proj + 6*num_proj] = cur_ptcl.def[proj].score;
+            cur_ctf_info[proj + 3*num_proj] = cur_ptcl.def[proj].ph_shft;
+            cur_ctf_info[proj + 4*num_proj] = cur_ptcl.def[proj].Bfactor;
+            cur_ctf_info[proj + 5*num_proj] = cur_ptcl.def[proj].ExpFilt;
+            cur_ctf_info[proj + 6*num_proj] = cur_ptcl.def[proj].max_res;
+            cur_ctf_info[proj + 7*num_proj] = cur_ptcl.def[proj].score;
         }
         
     }

@@ -83,9 +83,9 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
 
     float *p_ctf_block;
     get_array(pIn[5],p_ctf_block,X,Y,Z);
-    if( X != num_proj || Y != 7 || Z != num_ptcl ) {
+    if( X != num_proj || Y != 8 || Z != num_ptcl ) {
         char tmp[1024];
-        sprintf(tmp,"[" FUNC_NAME "] Arg6 wrong size [%d,%d,%d], should be [%d 7 %d]",X,Y,Z,num_proj,num_ptcl);
+        sprintf(tmp,"[" FUNC_NAME "] Arg6 wrong size [%d,%d,%d], should be [%d 8 %d]",X,Y,Z,num_proj,num_ptcl);
         mexErrMsgTxt(tmp);
     }
 
@@ -125,9 +125,9 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
         /// Alignment per reference/class
         for(int refs=0; refs<num_refs; refs++) {
             float *cur_ali_info = p_ali_block + refs*7*num_ptcl;
-            cur_ptcl.ali_eu[refs].x = cur_ali_info[ptcl             ]*M_PI/180;
-            cur_ptcl.ali_eu[refs].y = cur_ali_info[ptcl +   num_ptcl]*M_PI/180;
-            cur_ptcl.ali_eu[refs].z = cur_ali_info[ptcl + 2*num_ptcl]*M_PI/180;
+            cur_ptcl.ali_eu[refs].x = cur_ali_info[ptcl             ]*DEG2RAD;
+            cur_ptcl.ali_eu[refs].y = cur_ali_info[ptcl +   num_ptcl]*DEG2RAD;
+            cur_ptcl.ali_eu[refs].z = cur_ali_info[ptcl + 2*num_ptcl]*DEG2RAD;
             cur_ptcl.ali_t [refs].x = cur_ali_info[ptcl + 3*num_ptcl];
             cur_ptcl.ali_t [refs].y = cur_ali_info[ptcl + 4*num_ptcl];
             cur_ptcl.ali_t [refs].z = cur_ali_info[ptcl + 5*num_ptcl];
@@ -138,9 +138,9 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
 		/// 2D refinement
         float *cur_prj_info = p_prj_block + ptcl*7*num_proj;
         for(int proj=0; proj<num_proj; proj++) {
-			cur_ptcl.prj_eu[proj].x = cur_prj_info[proj             ]*M_PI/180;
-            cur_ptcl.prj_eu[proj].y = cur_prj_info[proj +   num_proj]*M_PI/180;
-            cur_ptcl.prj_eu[proj].z = cur_prj_info[proj + 2*num_proj]*M_PI/180;
+			cur_ptcl.prj_eu[proj].x = cur_prj_info[proj             ]*DEG2RAD;
+            cur_ptcl.prj_eu[proj].y = cur_prj_info[proj +   num_proj]*DEG2RAD;
+            cur_ptcl.prj_eu[proj].z = cur_prj_info[proj + 2*num_proj]*DEG2RAD;
             cur_ptcl.prj_t [proj].x = cur_prj_info[proj + 3*num_proj];
             cur_ptcl.prj_t [proj].y = cur_prj_info[proj + 4*num_proj];
             cur_ptcl.prj_cc[proj]   = cur_prj_info[proj + 5*num_proj];
@@ -149,15 +149,16 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
         
         
         /// CTF:
-        float *cur_ctf_info = p_ctf_block + ptcl*7*num_proj;
+        float *cur_ctf_info = p_ctf_block + ptcl*8*num_proj;
         for(int proj=0; proj<num_proj; proj++) {
 			cur_ptcl.def[proj].U       = cur_ctf_info[proj             ];
             cur_ptcl.def[proj].V       = cur_ctf_info[proj +   num_proj];
             cur_ptcl.def[proj].angle   = cur_ctf_info[proj + 2*num_proj];
-            cur_ptcl.def[proj].Bfactor = cur_ctf_info[proj + 3*num_proj];
-            cur_ptcl.def[proj].ExpFilt = cur_ctf_info[proj + 4*num_proj];
-            cur_ptcl.def[proj].max_res = cur_ctf_info[proj + 5*num_proj];
-            cur_ptcl.def[proj].score   = cur_ctf_info[proj + 6*num_proj];
+            cur_ptcl.def[proj].ph_shft = cur_ctf_info[proj + 3*num_proj];
+            cur_ptcl.def[proj].Bfactor = cur_ctf_info[proj + 4*num_proj];
+            cur_ptcl.def[proj].ExpFilt = cur_ctf_info[proj + 5*num_proj];
+            cur_ptcl.def[proj].max_res = cur_ctf_info[proj + 6*num_proj];
+            cur_ptcl.def[proj].score   = cur_ctf_info[proj + 7*num_proj];
         }
         
         ptcl_stream.write_buffer();

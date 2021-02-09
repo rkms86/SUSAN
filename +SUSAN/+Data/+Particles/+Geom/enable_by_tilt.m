@@ -1,4 +1,3 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function enable_by_tilt(ptcls_in,tomos_list,ang)
 % ENABLE_BY_TILT enables/disables projections by their tilt angle.
 %   ENABLE_BY_TILT(PTCLS_IN,TOMOS_LIST,ANG) enables/disables the

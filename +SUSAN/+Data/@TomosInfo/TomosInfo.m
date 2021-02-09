@@ -19,18 +19,19 @@ classdef TomosInfo < handle
 %    voltage      - (Tx1 Array)    Voltage in KV.
 %    sph_aberr    - (Tx1 Array)    Spherical aberration.
 %    amp_contrast - (Tx1 Array)    Amplitude contrast.
-%    defocus      - (Kx7xT Matrix) Defocus information for each projection.
+%    defocus      - (Kx8xT Matrix) Defocus information for each projection.
 %    Notes:
 %    - tomo_id is related to the tomogram number entry in the dynamo_table.
-%    - The defocus matrix is composed by 7 columns, each holding the
+%    - The defocus matrix is composed by 8 columns, each holding the
 %      following information:
 %         Column 1: Defocus U.
 %         Column 2: Defocus V.
 %         Column 3: Defocus angle.
-%         Column 4: Defocus BFactor.
-%         Column 5: Exposure Filter.
-%         Column 6: Max. Resolution (angstroms).
-%         Column 7: Fitting Score.
+%         Column 4: Defocus phase shift.
+%         Column 5: Defocus BFactor.
+%         Column 6: Exposure Filter.
+%         Column 7: Max. Resolution (angstroms).
+%         Column 8: Fitting Score.
 %
 % SUSAN.Data.TomosInfo Methods:
 %    TomosInfo   - (Constructor) creates a TomoInfo from a file or from T and K.
@@ -138,11 +139,12 @@ methods
             xf  = SUSAN.IO.read_xf (xfname );
             for i = 1:length(tlt)
                 Rtlt = eul2rotm([0 tlt(i) 0]*pi/180,'ZYZ');
-                Rxf  = [xf(1,1,i) xf(1,2,i) 0; xf(2,1,i) xf(2,2,i) 0; 0 0 1];
-                Txf  = [xf(1,3,i) xf(2,3,i)] * apix_work;
-                R = Rxf'*Rtlt;
+                Rxf  = [xf(1,1,i) xf(1,2,i) 0; xf(2,1,i) xf(2,2,i) 0; 0 0 1]';
+                Txf  = [xf(1,3,i);xf(2,3,i);0] * apix_work;
+                Txf  = -Rxf*Txf;
+                R    =  Rxf*Rtlt;
                 obj.proj_eZYZ  (i,:,tomo_ix) = rotm2eul(R,'ZYZ')*180/pi;
-                obj.proj_shift (i,:,tomo_ix) = -Txf;
+                obj.proj_shift (i,:,tomo_ix) = [Txf(1) Txf(2)];
                 obj.proj_weight(i,:,tomo_ix) = 1;
             end
         else
@@ -151,14 +153,23 @@ methods
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    function set_defocus(obj,tomo_ix,filename)
+    function set_defocus(obj,tomo_ix,filename,fields)
     % SET_DEFOCUS Sets the deofcus information for a tomogram.
     %   SET_DEFOCUS(TOMO_IX,DEFFILE) Reads a DEFFILE and sets up the
     %   TOMO_IX-th entry of defocus. DEFFILE can be an IMOD's '.defocus'
     %   file, or a '.txt' file (SUSAN's CTF estimation).
+    %   SET_DEFOCUS(...,FIELDS) read a few selected values from a '.txt'
+    %   file (SUSAN's CTF estimation). Values:
+    %    - 'Full' : Reads all the available defocus information (default).
+    %    - 'Basic': Reads only U, V and the angle.
+    %    - 'Env'  : Reads U, V, angle Bfactor and ExpFilter.
     %
     %   See also SUSAN.Data.TomosInfo.set_stack,
     %   SUSAN.Data.TomosInfo.set_angles, SUSAN.Modules.CtfEstimator
+    
+        if(nargin < 4)
+            fields = 'Full';
+        end
     
         if( SUSAN.Utils.is_extension(filename,'.defocus') )
             def = SUSAN.IO.read_defocus(filename);
@@ -166,10 +177,18 @@ methods
             
         elseif( SUSAN.Utils.is_extension(filename,'.txt') )
             fp = fopen(filename,'r');
-            data = fscanf(fp,'%f',[7 inf]);
+            data = fscanf(fp,'%f',[8 inf]);
             fclose(fp);
             
             obj.defocus(:,:,tomo_ix) = data';
+            
+            if( strcmp(fields,'Basic') )
+                obj.defocus(:,5:7,:) = 0;
+            elseif( strcmp(fields,'Env') )
+                obj.defocus(:,7,:) = 0;
+            elseif( ~strcmp(fields,'Full') )
+                fprintf(['Unknown field "' fields '". Valid values: Full, Basic and Env\n']);
+            end
         end
     end
 
@@ -202,16 +221,18 @@ methods
             
             
             fprintf(fp,'#euler.Z  euler.Y  euler.Z  shift.X  shift.Y    weight');
-            fprintf(fp,'  Defocus.U  Defocus.V  Def.ang  BFactor  ExpFilt');
+            fprintf(fp,'  Defocus.U  Defocus.V  Def.ang  PhShift');
+            fprintf(fp,'  BFactor  ExpFilt');
             fprintf(fp,' Res.angs FitScore\n');
             
             for j = 1:obj.num_proj(i)
                 fprintf(fp,'%8.3f %8.3f %8.3f ',obj.proj_eZYZ(j,1,i),obj.proj_eZYZ(j,2,i),obj.proj_eZYZ(j,3,i));
                 fprintf(fp,'%8.2f %8.2f ',obj.proj_shift(j,1,i),obj.proj_shift(j,2,i));
                 fprintf(fp,'%9.4f ',obj.proj_weight(j,1,i));
-                fprintf(fp,'%10.2f %10.2f %8.3f ',obj.defocus(j,1,i),obj.defocus(j,2,i),obj.defocus(j,3,i)); % Defocus.U  Defocus.V  Def.ang
-                fprintf(fp,'%8.2f %8.2f ',obj.defocus(j,4,i),obj.defocus(j,5,i)); % BFactor  ExpFilt
-                fprintf(fp,'%8.4f %8.5f ',obj.defocus(j,6,i),obj.defocus(j,7,i)); % Res.angs FitScore
+                fprintf(fp,'%10.2f %10.2f ',obj.defocus(j,1,i),obj.defocus(j,2,i)); % Defocus.U    Defocus.V
+                fprintf(fp,'%8.3f %8.3f '  ,obj.defocus(j,3,i),obj.defocus(j,4,i)); % Def.ang      Def.ph_shft
+                fprintf(fp,'%8.2f %8.2f '  ,obj.defocus(j,5,i),obj.defocus(j,6,i)); % Def.BFactor  Def.ExpFilt
+                fprintf(fp,'%8.4f %8.5f '  ,obj.defocus(j,7,i),obj.defocus(j,8,i)); % Def.max_res  Def.score
                 fprintf(fp,'\n');
             end
             
@@ -239,7 +260,7 @@ methods(Access=private)
         obj.voltage      = ones (num_tomos,1)*300;
         obj.sph_aberr    = ones (num_tomos,1)*2.7;
         obj.amp_contrast = ones (num_tomos,1)*0.07;
-        obj.defocus      = zeros(max_proj,7,num_tomos);
+        obj.defocus      = zeros(max_proj,8,num_tomos);
         for i = 1:num_tomos
             obj.stack_file{i} = '';
         end
@@ -272,7 +293,7 @@ methods(Access=private)
                 obj.proj_eZYZ(j,1:3,i)  = val_list(1:3);
                 obj.proj_shift(j,1:2,i) = val_list(4:5);
                 obj.proj_weight(j,1,i)  = val_list(6);
-                obj.defocus(j,1:7,i)    = val_list(7:13);
+                obj.defocus(j,1:8,i)    = val_list(7:14);
             end
 
         end

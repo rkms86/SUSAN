@@ -4,7 +4,6 @@ classdef Aligner < handle
 %
 % SUSAN.Modules.Aligner Properties:
 %    gpu_list        - (vector) list of GPU IDs to use for alignment.
-%    working_dir     - (string) working directory for temporarily files.
 %    bandpass        - (struct) frequency range to use.
 %    type            - (int)    dimensionality of the alignment (3 or 2).
 %    threshold_2D    - (scalar) [2D only] discard 2D shift threshold.

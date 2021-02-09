@@ -34,8 +34,12 @@ if( nargout > 1 )
     end
 end
 
+% Additional offset
+fseek(fp, 92, 'bof');
+offset = fread(fp,1,'uint32');
+
 % Read data according to the MODE
-fseek(fp, 1024, 'bof');
+fseek(fp, 1024+offset, 'bof');
 if    ( stack_mode == 0 ) % 8-bit signed integer (range -128 to 127)
     map = single(fread(fp,inf,'int8'));
 elseif( stack_mode == 1 ) % 16-bit signed integer

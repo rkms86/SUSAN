@@ -9,18 +9,18 @@ classdef CtfEstimator < handle
 %    defocus    - (struct) defocus' search range (angstroms min/max).
 %    tlt_range  - (scalar) defocus' search range between tilts (angstroms).
 %    refine_def - (struct) defocus' refinement (angstroms range/step).
-%    work_dir   - (string) working directory for temporarily files.
 %
 % SUSAN.Modules.CtfEstimator Methods:
 %    CtfEstimator - (Constructor) creates a CtfEstimator with a given box size.
 %    estimate     - perfoms the CTF estimation.
+%    show_cmd     - returns the command to execute the CTF estimation.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
 properties(SetAccess=private)
     box_size = 512;
 end
-    
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
 properties
@@ -30,7 +30,9 @@ properties
     defocus            = struct('min',10000,'max',90000);
     tlt_range   single = 3000;
     refine_def         = struct('range',2000,'step',100);
-    work_dir           = 'tmp/';
+    bfactor_max single = 600;
+    res_thres   single = 0.75;
+    verbose     uint32 = 0;
 end
     
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -58,20 +60,54 @@ methods
     %
     %   See also SUSAN.Data.ParticlesInfo and SUSAN.Data.TomosInfo.
         
-        if( ~exist(obj.work_dir,'dir') )
-            mkdir(obj.work_dir);
+        if( output_dir(end) == '/' )
+            output_dir = output_dir(1:end-1);
+        end
+    
+        temp_tomofile = false;
+        if( ~ischar(tomos_file) )
+            if( isa(tomos_file,'SUSAN.Data.TomosInfo') )
+                tomos_file.save('.tmp.tomostxt');
+                tomos_file = '.tmp.tomostxt';
+                temp_tomofile = true;
+            else
+                error('TOMOS_FILE must be a char array or a TOMOSINFO object.');
+            end
         end
         
-        if( obj.work_dir(end) ~= '/' )
-            obj.work_dir = [obj.work_dir '/'];
+        ctf_exec = obj.show_cmd(output_dir,ptcls_file,tomos_file);
+        
+        stat = system(ctf_exec);
+        
+        if( stat == 0 )
+            tomos = SUSAN.Data.TomosInfo(tomos_file);
+            for i = 1:length(tomos.tomo_id)
+                new_defocus_file = sprintf([output_dir '/Tomo%03d/defocus.txt'],i);
+                if( SUSAN.Utils.exist_file(new_defocus_file) ) 
+                    fprintf('Updating tomogram with ID %d.\n',tomos.tomo_id(i));
+                    tomos.set_defocus(i,new_defocus_file)
+                end
+            end
+        else
+            error('CtfEstimator crashed.');
         end
         
-        if( ~exist(output_dir,'dir') )
-            mkdir(output_dir);
+        if( temp_tomofile )
+            system(['rm ' tomos_file]);
         end
         
-        if( output_dir(end) ~= '/' )
-            output_dir = [output_dir '/'];
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function cmd = show_cmd(obj,output_dir,ptcls_file,tomos_file)
+    % SHOW_CMD returns the command to execute the CTF estimation.
+    %   CMD = SHOW_CMD(OUT_DIR,PTCLS_IN,TOMOS_IN) returns the command to 
+    %   execute the CTF estimation.
+    %
+    %   See also SUSAN.Data.ParticlesInfo and SUSAN.Data.TomosInfo.
+        
+        if( output_dir(end) == '/' )
+            output_dir = output_dir(1:end-1);
         end
         
         if( ~ischar(ptcls_file) )
@@ -80,8 +116,7 @@ methods
         
         if( ~ischar(tomos_file) )
             if( isa(tomos_file,'SUSAN.Data.TomosInfo') )
-                tomos_file.save([obj.work_dir 'tmp.tomostxt']);
-                tomos_file = [obj.work_dir 'tmp.tomostxt'];
+                tomos_file = '.tmp.tomostxt';
             else
                 error('TOMOS_FILE must be a char array or a TOMOSINFO object.');
             end
@@ -92,35 +127,24 @@ methods
         
         num_threads = length(obj.gpu_list);
         
-        susan_path = what('SUSAN');
-        ctf_exec = [susan_path.path '/bin/estimate_ctf'];
-        
-        ctf_exec = [ctf_exec ' -tomos_in '    tomos_file];
-        ctf_exec = [ctf_exec ' -data_out '    output_dir];
-        ctf_exec = [ctf_exec ' -ptcls_file '  ptcls_file];
-        ctf_exec = [ctf_exec ' -n_threads '   sprintf('%d',num_threads)];
-        ctf_exec = [ctf_exec ' -binning '     sprintf('%d',obj.binning)];
-        ctf_exec = [ctf_exec ' -gpu_list '    gpu_list_str];
-        ctf_exec = [ctf_exec ' -box_size '    sprintf('%d',obj.box_size)];
-        ctf_exec = [ctf_exec ' -res_range '   sprintf('%f,%f',obj.resolution.min,obj.resolution.max)];
-        ctf_exec = [ctf_exec ' -def_range '   sprintf('%f,%f',obj.defocus.min,obj.defocus.max)];
-        ctf_exec = [ctf_exec ' -tilt_search ' sprintf('%f',obj.tlt_range)];
-        ctf_exec = [ctf_exec ' -refine_def '  sprintf('%f,%f',obj.refine_def.range,obj.refine_def.step)];
-        ctf_exec = [ctf_exec ' -temp_dir '    obj.work_dir];
-        
-        stat = system(ctf_exec);
-        
-        if( stat == 0 )
-            tomos = SUSAN.Data.TomosInfo.load(tomos_file);
-            for i = 1:length(tomos.tomo_id)
-                new_defocus_file = sprintf([output_dir 'tomo%03d/defocus.txt'],i);
-                tomos.set_defocus(i,new_defocus_file)
-            end
-        else
-            error('CtfEstimator crashed.');
-        end
+        cmd = [SUSAN.bin_path '/susan_estimate_ctf'];        
+        cmd = [cmd ' -tomos_in '    tomos_file];
+        cmd = [cmd ' -data_out '    output_dir];
+        cmd = [cmd ' -ptcls_file '  ptcls_file];
+        cmd = [cmd ' -box_size '    sprintf('%d',obj.box_size)];
+        cmd = [cmd ' -n_threads '   sprintf('%d',num_threads)];
+        cmd = [cmd ' -res_range '   sprintf('%f,%f',obj.resolution.min,obj.resolution.max)];
+        cmd = [cmd ' -res_thres '   sprintf('%f',obj.res_thres)];
+        cmd = [cmd ' -def_range '   sprintf('%f,%f',obj.defocus.min,obj.defocus.max)];
+        cmd = [cmd ' -tilt_search ' sprintf('%f',obj.tlt_range)];
+        cmd = [cmd ' -refine_def '  sprintf('%f,%f',obj.refine_def.range,obj.refine_def.step)];
+        cmd = [cmd ' -binning '     sprintf('%d',obj.binning)];
+        cmd = [cmd ' -gpu_list '    gpu_list_str];
+        cmd = [cmd ' -bfactor_max ' sprintf('%f',obj.bfactor_max)];
+        cmd = [cmd ' -verbose '     sprintf('%d',obj.verbose)];
         
     end
+    
     
 end
 
