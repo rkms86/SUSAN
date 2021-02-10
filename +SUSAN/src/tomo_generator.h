@@ -17,12 +17,13 @@
 
 class TomoParticles : public Particles {
 public:
-    TomoParticles(uint32 box_size,Tomograms&tomos) {
-        n_proj = tomos.num_proj;
+    TomoParticles(uint32 box_size,uint32 pad_size,Tomograms&tomos) {
+                int N = box_size+pad_size;
+                n_proj = tomos.num_proj;
 		n_refs = 1;
-		n_ptcl = get_num_ptcls(box_size,tomos);
-		allocate(n_ptcl,n_proj,n_refs);
-		populate_tomos(box_size,tomos);
+                n_ptcl = get_num_ptcls(N,tomos,(float)box_size);
+                allocate(n_ptcl,n_proj,n_refs);
+                populate_tomos(N,tomos,(float)box_size);
     }
 
     ~TomoParticles() {
@@ -30,45 +31,45 @@ public:
     }
 
 protected:
-	uint32 get_num_ptcls(uint32 box_size,Tomograms&tomos) {
+        uint32 get_num_ptcls(uint32 box_size,Tomograms&tomos,float N) {
 		uint32 n = 0;
-		for(int i=0;i<tomos.num_tomo;i++) {
+                for(int i=0;i<tomos.num_tomo;i++) {
 			int cur_n=1;
-			cur_n *= (2*get_n( tomos[i].tomo_dim.x, box_size ) + 1);
-			cur_n *= (2*get_n( tomos[i].tomo_dim.y, box_size ) + 1);
-			cur_n *= get_z( tomos[i].tomo_dim.z, box_size );
+                        cur_n *= (2*get_n( tomos[i].tomo_dim.x, box_size, N ) + 1);
+                        cur_n *= (2*get_n( tomos[i].tomo_dim.y, box_size, N ) + 1);
+                        cur_n *= get_z( tomos[i].tomo_dim.z, N );
 			n += cur_n;
 		}
 		return n;
 	}
 	
-	int get_n(uint32 l,uint32 n) {
+        int get_n(uint32 l,uint32 n,float b) {
 		float data = (l-n)/2;
-		return (int)floor( data/n );
+                return (int)floor( data/b );
 	}
 	
-	int get_z(uint32 l,uint32 n) {
+        int get_z(uint32 l,float b) {
 		float data = l;
-		return (int)ceil( data/n );
+                return (int)ceil( data/b );
 	}
 	
-	void populate_tomos(uint32 box_size,Tomograms&tomos) {
+        void populate_tomos(uint32 box_size,Tomograms&tomos,float N) {
 		int ix = 0;
 		Particle ptcl;
 		for(int t=0;t<tomos.num_tomo;t++) {
-			
-			int n_z = get_z(tomos[t].tomo_dim.z,box_size);
+
+                        int n_z = get_z(tomos[t].tomo_dim.z,N);
 			
 			for(int z=0;z<n_z;z++) {
 				
-				float z_out = (float)(z*box_size+box_size/2);
-				z_out = z_out - tomos[t].tomo_center(2);
+                                float z_out = (float)(z)*N+(N/2);
+                                z_out = z_out - tomos[t].tomo_center(2);
 				
-				int n_y = get_n(tomos[t].tomo_dim.y,box_size);
+                                int n_y = get_n(tomos[t].tomo_dim.y,box_size,N);
 			
 				for(int y=-n_y;y<=n_y;y++) {
 					
-					int n_x = get_n(tomos[t].tomo_dim.x,box_size);
+                                        int n_x = get_n(tomos[t].tomo_dim.x,box_size,N);
 			
 					for(int x=-n_x;x<=n_x;x++) {
 						
@@ -80,12 +81,12 @@ protected:
 						ptcl.ptcl_id()  = ix;
 						ptcl.tomo_cix() = t;
 						ptcl.tomo_id()  = tomos[t].tomo_id;
-						ptcl.pos().x    = ((float)x*box_size)*tomos[t].pix_size;
-						ptcl.pos().y    = ((float)y*box_size)*tomos[t].pix_size;
+                                                ptcl.pos().x    = ((float)x)*N*tomos[t].pix_size;
+                                                ptcl.pos().y    = ((float)y)*N*tomos[t].pix_size;
 						ptcl.pos().z    = z_out*tomos[t].pix_size;
-						
-						//for(int k=0;k<tomos[t].num_proj;k++) {
-						for(int k=30;k<31;k++) {
+
+                                                for(int k=0;k<tomos[t].num_proj;k++) {
+                                                //for(int k=30;k<31;k++) {
 							ptcl.prj_w[k] = tomos[t].w[k];
 						}
 						
@@ -94,7 +95,7 @@ protected:
 					
 				} // Y
 				
-			} // Z
+                        } // Z
 			
 		} // tomos
 	}

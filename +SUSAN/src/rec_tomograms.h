@@ -107,27 +107,26 @@ public:
 		P = info->pad_size;
 		
 		NP = N + P;
-		MP = (NP/2)+1;
+                MP = (NP/2)+1;
 		
 		ctf_type = info->ctf_type;
 		
 		bp_pad = info->fpix_roll/2;
-		float bp_scale = ((float)NP)/((float)N);
+                float bp_scale = ((float)N)/((float)NP);
 		bandpass.x = max(bp_scale*info->fpix_min-bp_pad,0.0);
 		bandpass.y = min(bp_scale*info->fpix_max+bp_pad,(float)NP);
 		bandpass.z = sqrt(info->fpix_roll);
 		ssnr.x     = info->ssnr_F;
 		ssnr.y     = info->ssnr_S;
 		w_inv_ite  = info->w_inv_ite;
-		w_inv_std  = info->w_inv_std;
-    
+                w_inv_std  = info->w_inv_std;
 	}
 	
 	void setup_working_data(float*stack,ParticlesSubset*ptcls,Tomogram*tomo) {
 		p_stack = stack;
 		p_ptcls = ptcls;
 		p_tomo  = tomo;
-		ss_cropper.setup(tomo,N);
+                ss_cropper.setup(tomo,NP);
 		work_progress=0;
 	}
 	
@@ -138,9 +137,9 @@ protected:
 		GPU::Stream stream;
 		stream.configure();
 		work_accumul = 0;
-		RecBuffer buffer(N,max_K);
+                RecBuffer buffer(NP,max_K);
 		
-		RecSubstack ss_data(M,N,max_K,P,stream);
+                RecSubstack ss_data(MP,NP,max_K,0,stream);
 		RecInvWgt inv_wgt(NP,MP,w_inv_ite,w_inv_std);
 		RecInvVol inv_vol(N,P);
 		RecAcc vol;
@@ -173,7 +172,7 @@ protected:
 		char filename[SUSAN_FILENAME_LENGTH];
 		sprintf(filename,"%s_%03d.mrc",p_info->out_pfx,p_tomo->tomo_id);
 		tomo_rec.start_rec(filename,p_tomo);
-		for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
+                for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
 			p_ptcls->get(buffer.ptcl,i);
 			read_defocus(buffer);
 			crop_substack(pt_tomo,buffer);
@@ -189,7 +188,7 @@ protected:
 				cudaMemcpy((void*)map,(const void*)p_vol.ptr,sizeof(float)*N*N*N,cudaMemcpyDeviceToHost);
 				tomo_rec.add_block(map,pt_tomo);
 			}
-		}
+                }
 		tomo_rec.end_rec();
 	}
 	
@@ -209,9 +208,7 @@ protected:
 		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
 		M33f R_tmp,R_stack,R_gpu;
 		
-		int r = ptr.ptcl.ref_cix();
-		
-		/// P_tomo = P_ptcl
+                /// P_tomo = P_ptcl
 		pt_tomo(0) = ptr.ptcl.pos().x;
 		pt_tomo(1) = ptr.ptcl.pos().y;
 		pt_tomo(2) = ptr.ptcl.pos().z;
@@ -220,17 +217,18 @@ protected:
 		pt_work(1) = round(pt_tomo(1)/p_tomo->pix_size + p_tomo->tomo_center(1));
 		pt_work(2) = round(pt_tomo(2)/p_tomo->pix_size + p_tomo->tomo_center(2));
 		
-		for(int k=0;k<ptr.K;k++) {
+                for(int k=0;k<ptr.K;k++) {
 			if( ptr.ptcl.prj_w[k] > 0 ) {
 				
 				/// P_stack = R^k_tomo*P_tomo + t^k_tomo
-				pt_stack = p_tomo->R[k]*pt_tomo + p_tomo->t[k];
-				
+                                pt_stack = p_tomo->R[k]*pt_tomo + p_tomo->t[k];
+                                Math::Rmat_eZYZ(eu_ZYZ,p_tomo->R[k]);
+
 				/// P_crop = R^k_prj*P_stack + t^k_prj
 				eu_ZYZ(0) = ptr.ptcl.prj_eu[k].x;
 				eu_ZYZ(1) = ptr.ptcl.prj_eu[k].y;
 				eu_ZYZ(2) = ptr.ptcl.prj_eu[k].z;
-				Math::eZYZ_Rmat(R_tmp,eu_ZYZ);
+                                Math::eZYZ_Rmat(R_tmp,eu_ZYZ);
 				pt_crop = R_tmp*pt_stack;
 				pt_crop(0) += ptr.ptcl.prj_t[k].x;
 				pt_crop(1) += ptr.ptcl.prj_t[k].y;
@@ -239,14 +237,17 @@ protected:
 				R_stack = R_tmp*p_tomo->R[k];
 				
 				/// Set defocus
-				ptr.c_def.ptr[k].U = p_tomo->def[k].U + pt_crop(2);
-				ptr.c_def.ptr[k].V = p_tomo->def[k].V + pt_crop(2);
+                                ptr.c_def.ptr[k].U = p_tomo->def[k].U - pt_crop(2);
+                                ptr.c_def.ptr[k].V = p_tomo->def[k].V - pt_crop(2);
 				ptr.c_def.ptr[k].angle = p_tomo->def[k].angle;
 				
 				/// Angstroms -> pixels
-				pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center;
-				
-				/// Get subpixel shift
+                                pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center;
+                                pt_crop(0) += 0.5;
+                                pt_crop(1) += 0.5;
+                                pt_crop(2) += 0.5;
+
+                                /// Get subpixel shift
 				V3f pt_tmp;
 				pt_tmp(0) = pt_crop(0) - floor(pt_crop(0));
 				pt_tmp(1) = pt_crop(1) - floor(pt_crop(1));
@@ -258,9 +259,9 @@ protected:
 				ptr.c_ali.ptr[k].t.y = -pt_subpix(1);
 				ptr.c_ali.ptr[k].t.z = 0;
 				ptr.c_ali.ptr[k].w = ptr.ptcl.prj_w[k];
-				R_gpu = R_stack.transpose();
-				Math::set( ptr.c_ali.ptr[k].R, R_gpu );
-				
+                                R_gpu = R_stack.transpose();
+                                Math::set( ptr.c_ali.ptr[k].R, R_gpu );
+
 				/// Crop
 				if( ss_cropper.check_point(pt_crop) ) {
 					ss_cropper.crop(ptr.c_stk.ptr,p_stack,pt_crop,k);
@@ -303,8 +304,8 @@ protected:
 		return rslt;
 	}
 
-	void upload(RecBuffer&ptr,cudaStream_t&strm) {
-		GPU::upload_async(ptr.g_stk.ptr,ptr.c_stk.ptr,N*N*max_K,strm);
+        void upload(RecBuffer&ptr,cudaStream_t&strm) {
+                GPU::upload_async(ptr.g_stk.ptr,ptr.c_stk.ptr,NP*NP*max_K,strm);
 		GPU::upload_async(ptr.g_pad.ptr,ptr.c_pad.ptr,max_K    ,strm);
 		GPU::upload_async(ptr.g_ali.ptr,ptr.c_ali.ptr,max_K    ,strm);
 		GPU::upload_async(ptr.g_def.ptr,ptr.c_def.ptr,max_K    ,strm);
@@ -332,7 +333,7 @@ protected:
 	}
 
 	void insert_vol(RecAcc&vol,RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
-		vol.insert(ss_data.ss_tex,ss_data.ss_ctf,ptr.g_ali,bandpass,ptr.K,stream);
+                vol.insert(ss_data.ss_tex,ss_data.ss_ctf,ptr.g_ali,bandpass,ptr.K,stream);
 	}
 	
 	void reconstruct_core(GPU::GArrSingle&p_vol,RecInvWgt&inv_wgt,RecInvVol&inv_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
@@ -403,12 +404,12 @@ protected:
 		}
 		w_cmd.send_command(RecCmd::REC_EXEC);
 		
-		while( (count=count_progress()) < ptcls.n_ptcl ) {
+                while( (count=count_progress()) < ptcls.n_ptcl ) {
 			printf("\b\b\b\b\b\b\b%6.2f%%",100*float(count)/float(ptcls.n_ptcl));
 			fflush(stdout);
 			sleep(1);
 		}
-		printf("\b\b\b\b\b\b\b100.00%%\n"); fflush(stdout);
+                printf("\b\b\b\b\b\b\b100.00%%\n"); fflush(stdout);
 		
 		w_cmd.presend_sync();
 		clear_workers();

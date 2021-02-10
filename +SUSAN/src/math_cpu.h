@@ -76,6 +76,10 @@ void set(M33f&Rout,const Rot33&Rin) {
     Rout(2,2) = Rin.zz;
 }
 
+int make_even_up(const float val) {
+    return (int)(2*ceil(val/2));
+}
+
 void sum(float*ptr_out, const float*ptr_in, const uint32 length) {
     uint32 i;
     float *w_in  = (float*) ptr_in;

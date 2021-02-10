@@ -26,7 +26,7 @@ int main(int ac, char** av) {
 	if( ArgsRecTomos::parse_args(info,ac,av) ) {
 		ArgsRecTomos::print(info);
 		Tomograms tomos(info.tomos_in);
-		TomoParticles ptcls(info.box_size,tomos);
+                TomoParticles ptcls(info.box_size,info.pad_size,tomos);
 		print_data_info(tomos);
 		PBarrier barrier(2);
 		StackReader stkrdr(&ptcls,&tomos,&barrier);

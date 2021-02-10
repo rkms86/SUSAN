@@ -5,6 +5,7 @@
 #include <getopt.h>
 #include "datatypes.h"
 #include "gpu.h"
+#include "math_cpu.h"
 
 namespace ArgsRecTomos {
 
@@ -47,6 +48,14 @@ typedef struct {
     char   out_pfx[SUSAN_FILENAME_LENGTH];
     char   tomos_in[SUSAN_FILENAME_LENGTH];
 } Info;
+
+void get_N_P(uint32&box_size,uint32&pad_size,int N) {
+    float n = N;
+    n = n/sqrtf(2);
+    box_size = Math::make_even_up(n);
+    pad_size = Math::make_even_up( N-box_size );
+    printf("%d %d\n",box_size,pad_size);
+}
 
 uint32 get_norm_type(const char*arg) {
 	uint32 rslt = NO_NORM;
@@ -201,7 +210,6 @@ bool parse_args(Info&info,int ac,char** av) {
     
     single *tmp_single;
     uint32 *tmp_uint32;
-    float  tmp;
     while( (c=getopt_long_only(ac, av, "", long_options, 0)) >= 0 ) {
         switch(c) {
 			case TOMOS_FILE:
@@ -211,12 +219,7 @@ bool parse_args(Info&info,int ac,char** av) {
 				strcpy(info.out_pfx,optarg);
 				break;
 			case BOX_SIZE:
-				info.box_size = atoi(optarg);
-				tmp = (float)(info.box_size);
-				info.box_size = (int)(2.0*roundf(tmp/2)); // Force box to be multiple of 2.
-				tmp = (float)(info.box_size);
-				tmp *= 0.414213562373095;
-				info.pad_size = (int)(2.0*roundf((tmp+1)/2)); // Force box to be multiple of 2.
+                                get_N_P(info.box_size,info.pad_size,atoi(optarg));
 				break;
 			case N_THREADS:
 				info.n_threads = atoi(optarg);

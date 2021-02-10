@@ -279,8 +279,8 @@ public:
 		ifft3.exec(vol_pad.ptr,vol_fou.ptr);
 		GpuKernels::fftshift3D<<<grd,blk>>>(vol_pad.ptr,NP);
 		
-		//dim3 grdP = GPU::calc_grid_size(blk,NP,NP,NP);
-		//GpuKernelsVol::grid_correct<<<grdP,blk>>>(vol_pad.ptr,NP);
+                //dim3 grdP = GPU::calc_grid_size(blk,NP,NP,NP);
+                //GpuKernelsVol::grid_correct<<<grdP,blk>>>(vol_pad.ptr,NP);
 		
 		int3 siz_raw = make_int3(N,N,N);
 		int3 siz_pad = make_int3(NP,NP,NP);
