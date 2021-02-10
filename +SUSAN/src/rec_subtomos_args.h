@@ -260,6 +260,8 @@ bool parse_args(Info&info,int ac,char** av) {
 				break;
 			case PAD_SIZE:
 				info.pad_size = atoi(optarg);
+				tmp = (float)(info.pad_size);
+				info.pad_size = (int)(2.0*roundf(tmp/2)); // Force pad to be multiple of 2.
 				break;
 			case PAD_TYPE:
 				info.pad_type = get_pad_type(optarg);

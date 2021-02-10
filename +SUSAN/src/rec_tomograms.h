@@ -1,5 +1,5 @@
-#ifndef REC_SUBTOMO_H
-#define REC_SUBTOMO_H
+#ifndef REC_TOMOGRAMS_H
+#define REC_TOMOGRAMS_H
 
 #include <iostream>
 #include "datatypes.h"
@@ -18,7 +18,8 @@
 #include "io.h"
 #include "points_provider.h"
 #include "rec_acc.h"
-#include "rec_subtomos_args.h"
+#include "rec_tomograms_args.h"
+#include "tomo_generator.h"
 
 typedef enum {
 	REC_EXEC=1
@@ -55,13 +56,13 @@ public:
 	
 };
 
-class RecSubtomoWorker : public Worker {
+class RecTomogramsWorker : public Worker {
 	
 public:
-	ArgsRecSubtomo::Info *p_info;
-	float                *p_stack;
-	ParticlesSubset      *p_ptcls;
-	Tomogram             *p_tomo;
+	ArgsRecTomos::Info *p_info;
+	float              *p_stack;
+	ParticlesSubset    *p_ptcls;
+	Tomogram           *p_tomo;
 	int gpu_ix;
 	int max_K;
 	int N;
@@ -80,17 +81,17 @@ public:
     
 	float bp_pad;
 	
-	SubstackCrop    ss_cropper;
+	int maxXY;
 	
-	char em_file[SUSAN_FILENAME_LENGTH];
+	SubstackCrop ss_cropper;
 
-	RecSubtomoWorker() {
+	RecTomogramsWorker() {
 	}
 	
-	~RecSubtomoWorker() {
+	~RecTomogramsWorker() {
 	}
 	
-	void setup_global_data(int id,int in_max_K,ArgsRecSubtomo::Info*info,WorkerCommand*in_worker_cmd) {
+	void setup_global_data(int id,int in_max_K,int in_maxXY,ArgsRecTomos::Info*info,WorkerCommand*in_worker_cmd) {
 		worker_id  = id;
 		worker_cmd = in_worker_cmd;
 		
@@ -98,6 +99,7 @@ public:
 		gpu_ix   = info->p_gpu[ id % info->n_threads ];
 		max_K    = in_max_K;
 		pad_type = info->pad_type;
+		maxXY    = in_maxXY;
 
 		
 		N = info->box_size;
@@ -151,10 +153,12 @@ protected:
 		
 		int current_cmd;
 		
+		TomoRec tomo_rec(N,maxXY);
+		
 		while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
 			switch(current_cmd) {
 				case REC_EXEC:
-					crop_loop(map,p_vol,inv_wgt,inv_vol,ss_data,vol,buffer,stream);
+					crop_loop(tomo_rec,map,p_vol,inv_wgt,inv_vol,ss_data,vol,buffer,stream);
 					break;
 				default:
 					break;
@@ -164,26 +168,29 @@ protected:
 		delete [] map;
 	}
 	
-	void crop_loop(float*map,GPU::GArrSingle&p_vol,RecInvWgt&inv_wgt,RecInvVol&inv_vol,RecSubstack&ss_data,RecAcc&vol,RecBuffer&buffer,GPU::Stream&stream) {
+	void crop_loop(TomoRec&tomo_rec,float*map,GPU::GArrSingle&p_vol,RecInvWgt&inv_wgt,RecInvVol&inv_vol,RecSubstack&ss_data,RecAcc&vol,RecBuffer&buffer,GPU::Stream&stream) {
+		V3f pt_tomo;
+		char filename[SUSAN_FILENAME_LENGTH];
+		sprintf(filename,"%s_%03d.mrc",p_info->out_pfx,p_tomo->tomo_id);
+		tomo_rec.start_rec(filename,p_tomo);
 		for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
 			p_ptcls->get(buffer.ptcl,i);
 			read_defocus(buffer);
-			crop_substack(buffer);
+			crop_substack(pt_tomo,buffer);
 			work_progress++;
-			work_accumul++;
 			if( check_substack(buffer) ) {
 				vol.clear();
 				upload(buffer,stream.strm);
 				add_data(ss_data,buffer,stream);
 				correct_ctf(ss_data,buffer,stream);
 				insert_vol(vol,ss_data,buffer,stream);
+				stream.sync();
 				reconstruct_core(p_vol,inv_wgt,inv_vol,vol.vol_acc,vol.vol_wgt);
 				cudaMemcpy((void*)map,(const void*)p_vol.ptr,sizeof(float)*N*N*N,cudaMemcpyDeviceToHost);
-				sprintf(em_file,"%s/particle_%06d.em",p_info->out_dir,buffer.ptcl.ptcl_id());
-				EM::write(map,N,N,N,em_file);
-				stream.sync();
+				tomo_rec.add_block(map,pt_tomo);
 			}
 		}
+		tomo_rec.end_rec();
 	}
 	
 	void read_defocus(RecBuffer&ptr) {
@@ -196,27 +203,22 @@ protected:
 		ptr.ctf_vals.apix = p_tomo->pix_size;
 		ptr.ctf_vals.LambdaPi = M_PI*lambda;
 		ptr.ctf_vals.CsLambda3PiH = lambda*lambda*lambda*(p_tomo->CS*1e7)*M_PI/2;
-		
-		for(int k=0;k<ptr.K;k++) {
-			if( ptr.ptcl.def[k].max_res > 0 ) {
-				ptr.ptcl.def[k].max_res = ((float)NP)*p_tomo->pix_size/ptr.ptcl.def[k].max_res;
-				ptr.ptcl.def[k].max_res = min(ptr.ptcl.def[k].max_res+bp_pad,(float)NP/2);
-			}
-		}
-
-		memcpy( (void**)(ptr.c_def.ptr), (const void**)(ptr.ptcl.def), sizeof(Defocus)*ptr.K  );
 	}
 	
-	void crop_substack(RecBuffer&ptr) {
+	void crop_substack(V3f&pt_work,RecBuffer&ptr) {
 		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
 		M33f R_tmp,R_stack,R_gpu;
 		
 		int r = ptr.ptcl.ref_cix();
 		
-		/// P_tomo = P_ptcl + t_ali
-		pt_tomo(0) = ptr.ptcl.pos().x + ptr.ptcl.ali_t[r].x;
-		pt_tomo(1) = ptr.ptcl.pos().y + ptr.ptcl.ali_t[r].y;
-		pt_tomo(2) = ptr.ptcl.pos().z + ptr.ptcl.ali_t[r].z;
+		/// P_tomo = P_ptcl
+		pt_tomo(0) = ptr.ptcl.pos().x;
+		pt_tomo(1) = ptr.ptcl.pos().y;
+		pt_tomo(2) = ptr.ptcl.pos().z;
+		
+		pt_work(0) = round(pt_tomo(0)/p_tomo->pix_size + p_tomo->tomo_center(0));
+		pt_work(1) = round(pt_tomo(1)/p_tomo->pix_size + p_tomo->tomo_center(1));
+		pt_work(2) = round(pt_tomo(2)/p_tomo->pix_size + p_tomo->tomo_center(2));
 		
 		for(int k=0;k<ptr.K;k++) {
 			if( ptr.ptcl.prj_w[k] > 0 ) {
@@ -236,13 +238,15 @@ protected:
 				/// R_stack = R^k_prj*R^k_tomo
 				R_stack = R_tmp*p_tomo->R[k];
 				
+				/// Set defocus
+				ptr.c_def.ptr[k].U = p_tomo->def[k].U + pt_crop(2);
+				ptr.c_def.ptr[k].V = p_tomo->def[k].V + pt_crop(2);
+				ptr.c_def.ptr[k].angle = p_tomo->def[k].angle;
+				
 				/// Angstroms -> pixels
 				pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center;
 				
 				/// Get subpixel shift
-				//pt_subpix(0) = pt_crop(0) - floor(pt_crop(0));
-				//pt_subpix(1) = pt_crop(1) - floor(pt_crop(1));
-				//pt_subpix(2) = 0;
 				V3f pt_tmp;
 				pt_tmp(0) = pt_crop(0) - floor(pt_crop(0));
 				pt_tmp(1) = pt_crop(1) - floor(pt_crop(1));
@@ -338,47 +342,42 @@ protected:
 	}
 };
 
-class RecSubtomoPool : public PoolCoordinator {
+class RecTomogramsPool : public PoolCoordinator {
 
 public:
-	RecSubtomoWorker  *workers;
-	ArgsRecSubtomo::Info *p_info;
+	RecTomogramsWorker  *workers;
+	ArgsRecTomos::Info *p_info;
 	WorkerCommand w_cmd;
 	int max_K;
 	int N;
 	int M;
 	int P;
-	int n_ptcls;
 	int NP;
 	int MP;
 	
-	Math::Timing timer;
+	int maxXY;
 	
-	char progress_buffer[68];
-	char progress_clear [69];
-	
-	RecSubtomoPool(ArgsRecSubtomo::Info*info,int in_max_K,int num_ptcls,StackReader&stkrdr,int in_num_threads)
+	RecTomogramsPool(ArgsRecTomos::Info*info,int in_max_K,StackReader&stkrdr,int in_num_threads)
 	 : PoolCoordinator(stkrdr,in_num_threads), w_cmd(in_num_threads+1) {
-		workers  = new RecSubtomoWorker[in_num_threads];
+		workers  = new RecTomogramsWorker[in_num_threads];
 		p_info   = info;
 		max_K    = in_max_K;
-		n_ptcls  = num_ptcls;
 		N = info->box_size;
 		M = (N/2)+1;
 		P = info->pad_size;
 		NP = N+P;
 		MP = (NP/2)+1;
-		memset(progress_buffer,' ',66);
-		memset(progress_clear,'\b',66);
-		progress_buffer[66] = 0;
-		progress_buffer[67] = 0;
-		progress_clear [66] = '\r';
-		progress_clear [67] = 0;
 		
-		IO::create_dir(info->out_dir);
+		maxXY = 0;
+		for(int t=0;t<stkrdr.tomos->num_tomo;t++) {
+			int cur_numel = stkrdr.tomos->at(t).tomo_dim.x*stkrdr.tomos->at(t).tomo_dim.y;
+			if( maxXY < cur_numel )
+				maxXY = cur_numel;
+		}
+		
 	}
 	
-	~RecSubtomoPool() {
+	~RecTomogramsPool() {
 		delete [] workers;
 	}
 	
@@ -386,13 +385,17 @@ protected:
 
 	void coord_init() {
 		for(int i=0;i<p_info->n_threads;i++) {
-			workers[i].setup_global_data(i,max_K,p_info,&w_cmd);
+			workers[i].setup_global_data(i,max_K,maxXY,p_info,&w_cmd);
 			workers[i].start();
 		}
-		progress_start();
 	}
 
 	void coord_main(float*stack,ParticlesSubset&ptcls,Tomogram&tomo) {
+
+		int count=0;
+
+		printf("        Reconstructing tomo %d: %6.2f%%",tomo.tomo_id,0);
+		fflush(stdout);
 
 		w_cmd.presend_sync();
 		for(int i=0;i<p_info->n_threads;i++) {
@@ -400,14 +403,20 @@ protected:
 		}
 		w_cmd.send_command(RecCmd::REC_EXEC);
 		
-		show_progress(ptcls.n_ptcl);
+		while( (count=count_progress()) < ptcls.n_ptcl ) {
+			printf("\b\b\b\b\b\b\b%6.2f%%",100*float(count)/float(ptcls.n_ptcl));
+			fflush(stdout);
+			sleep(1);
+		}
+		printf("\b\b\b\b\b\b\b100.00%%\n"); fflush(stdout);
 		
+		w_cmd.presend_sync();
+		clear_workers();
 		w_cmd.send_command(WorkerCommand::BasicCommands::CMD_IDLE);
 		
 	}
 	
 	void coord_end() {
-		show_done();
 		w_cmd.send_command(WorkerCommand::BasicCommands::CMD_END);
 		for(int i=0;i<p_info->n_threads;i++) {
 			workers[i].wait();
@@ -422,80 +431,12 @@ protected:
 		return count;
 	}
 	
-	long count_accumul() {
-		long count = 0;
-		for(int i=0;i<p_info->n_threads;i++) {
-			count += workers[i].work_accumul;
-		}
-		return count;
+	void clear_workers() {
+		for(int i=1;i<p_info->n_threads;i++)
+			workers[i].work_progress = 0;
 	}
-
-	void progress_start() {
-		timer.tic();
-		sprintf(progress_buffer,"        Creating subtomograms: Buffering...");
-		int n = strlen(progress_buffer);
-		progress_buffer[n]  = ' ';
-		progress_buffer[65] = 0;
-		printf(progress_buffer);
-		fflush(stdout);
-	}
-
-	void show_progress(const int ptcls_in_tomo) {
-		int cur_progress=0;
-		while( (cur_progress=count_progress()) < ptcls_in_tomo ) {
-			memset(progress_buffer,' ',66);
-			if( cur_progress > 0 ) {
-				int progress = count_accumul();
-				float progress_percent = 100*(float)progress/float(n_ptcls);
-				sprintf(progress_buffer,"        Creating subtomograms: %6.2f%%%%",progress_percent);
-				int n = strlen(progress_buffer);
-				add_etc(progress_buffer+n,progress,n_ptcls);
-			}
-			else {
-				sprintf(progress_buffer,"        Creating subtomograms: Buffering...");
-				int n = strlen(progress_buffer);
-				progress_buffer[n]  = ' ';
-				progress_buffer[65] = 0;
-			}
-			printf(progress_clear);
-			fflush(stdout);
-			printf(progress_buffer);
-			fflush(stdout);
-			sleep(1);
-		}
-	}
-	
-	void show_done() {
-		memset(progress_buffer,' ',66);
-		sprintf(progress_buffer,"        Creating subtomograms: 100.00%%%%");
-		int n = strlen(progress_buffer);
-		progress_buffer[n] = ' ';
-		printf(progress_clear);
-		printf(progress_buffer);
-		printf("\n");
-		fflush(stdout);
-	}
-
-	void add_etc(char*buffer,int progress,int total) {
-		
-		int days,hours,mins,secs;
-		
-		timer.get_etc(days,hours,mins,secs,progress,total);
-		
-		if( days > 0 ) {
-			sprintf(buffer," (ETC: %dd %02d:%02d:%02d)",days,hours,mins,secs);
-			int n = strlen(buffer);
-			buffer[n] = ' ';
-		}
-		else {
-			sprintf(buffer," (ETC: %02d:%02d:%02d)",hours,mins,secs);
-			int n = strlen(buffer);
-			buffer[n] = ' ';
-		}
-	}
-
 };
 
-#endif /// REC_SUBTOMO_H
+#endif /// REC_TOMOGRAMS_H
 
 

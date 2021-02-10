@@ -10,6 +10,34 @@
 using namespace std;
 
 namespace Mrc {
+	
+	typedef struct {
+		uint32 datax;
+		uint32 datay;
+		uint32 dataz;
+		uint32 mode;
+		int32  xstart;
+		int32  ystart;
+		int32  zstart;
+		uint32 gridx;
+		uint32 gridy;
+		uint32 gridz;
+		single xlen; // Cell size; pixel spacing = nlen/gridN
+		single ylen;
+		single zlen;
+		single alpha;
+		single beta;
+		single gamma;
+		uint32 mapc; // 1,2,3
+		uint32 mapr;
+		uint32 maps;
+		single min;
+		single max;
+		single avg;
+		int32  ispg;
+		uint32 nsymbt;
+		uint32 pad[(1024-96)/4];
+	} Header_t;
   
     float get_apix (const char*mapname) {
         FILE*fp=fopen(mapname,"r");

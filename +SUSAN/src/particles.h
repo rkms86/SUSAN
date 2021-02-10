@@ -220,6 +220,7 @@ protected:
 				+ proj*(sizeof(Defocus));                                      /// DEFOCUS PER PROJECTION
 		
 		p_raw = (uint8*)malloc(n_bytes*ptcl);
+		memset(p_raw,0,n_bytes*ptcl);
 	}
 	
 };

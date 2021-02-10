@@ -1,12 +1,12 @@
-#ifndef RECONSTRUCT_ARGS_H
-#define RECONSTRUCT_ARGS_H
+#ifndef REC_TOMOGRAMS_ARGS_H
+#define REC_TOMOGRAMS_ARGS_H
 
 #include <pthread.h>
 #include <getopt.h>
 #include "datatypes.h"
 #include "gpu.h"
 
-namespace ArgsRec {
+namespace ArgsRecTomos {
 
 typedef enum {
 	NO_NORM=0,
@@ -43,33 +43,10 @@ typedef struct {
     float  w_inv_std;
     float  ssnr_F;
     float  ssnr_S;
-    bool   rec_halves;
     
     char   out_pfx[SUSAN_FILENAME_LENGTH];
-    char   ptcls_in[SUSAN_FILENAME_LENGTH];
     char   tomos_in[SUSAN_FILENAME_LENGTH];
 } Info;
-
-uint32 get_pad_type(const char*arg) {
-	uint32 rslt = PAD_ZERO;
-	bool all_ok = false;
-	
-	if( strcmp(arg,"zero") == 0 ) {
-		rslt = PAD_ZERO;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"noise") == 0 ) {
-		rslt = PAD_GAUSSIAN;
-		all_ok = true;
-	}
-	
-	if( !all_ok ) {
-		fprintf(stderr,"Invalid padding type %s. Options are: zero or noise. Defaulting to zero.\n",arg);
-	}
-	
-	return rslt;
-}
 
 uint32 get_norm_type(const char*arg) {
 	uint32 rslt = NO_NORM;
@@ -139,10 +116,6 @@ bool validate(const Info&info) {
 		fprintf(stderr,"Invalid bandpass range: %f - %f.\n",info.fpix_min,info.fpix_max);
 		rslt = false;
 	}
-	if( !IO::exists(info.ptcls_in) ) {
-		fprintf(stderr,"Particles file %s does not exist.\n",info.ptcls_in);
-		rslt = false;
-	}
 	if( !IO::exists(info.tomos_in) ) {
 		fprintf(stderr,"Tomos file %s does not exist.\n",info.tomos_in);
 		rslt = false;
@@ -177,54 +150,45 @@ bool parse_args(Info&info,int ac,char** av) {
 	/// Default values:
 	info.n_gpu      = 0;
     info.n_threads  = 1;
-	info.box_size   = 200;
+	info.box_size   = 50;
     info.fpix_min   = 0;
-    info.fpix_max   = 30;
+    info.fpix_max   = 25;
     info.fpix_roll  = 4;
     info.pad_size   = 0;
-    info.pad_type   = PAD_ZERO;
+    info.pad_type   = PAD_GAUSSIAN;
     info.ctf_type   = WIENER_INV_SSNR;
     info.norm_type  = NO_NORM;
     info.w_inv_ite  = 10;
     info.w_inv_std  = 0.75;
     info.ssnr_F     = 0;
     info.ssnr_S     = 1;
-    info.rec_halves = false;
 	memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
 	memset(info.out_pfx ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
-	memset(info.ptcls_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	memset(info.tomos_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	
 	/// Parse inputs:
 	enum {
 		TOMOS_FILE,
         OUT_PREFIX,
-        PTCLS_FILE,
         N_THREADS,
         GPU_LIST,
         BOX_SIZE,
-        PAD_SIZE,
-        PAD_TYPE,
         NORM_TYPE,
         CTF_TYPE,
         SSNR,
         W_INV_ITE,
         W_INV_STD,
         BANDPASS,
-        ROLLOFF_F,
-        REC_HALVES
+        ROLLOFF_F
     };
 
     int c;
     static struct option long_options[] = {
         {"tomos_file",  1, 0, TOMOS_FILE},
         {"out_prefix",  1, 0, OUT_PREFIX},
-        {"ptcls_file",  1, 0, PTCLS_FILE},
         {"n_threads",   1, 0, N_THREADS },
         {"gpu_list",    1, 0, GPU_LIST  },
         {"box_size",    1, 0, BOX_SIZE  },
-        {"pad_size",    1, 0, PAD_SIZE  },
-        {"pad_type",    1, 0, PAD_TYPE  },
         {"norm_type",   1, 0, NORM_TYPE },
         {"ctf_type",    1, 0, CTF_TYPE  },
         {"ssnr_param",  1, 0, SSNR      },
@@ -232,7 +196,6 @@ bool parse_args(Info&info,int ac,char** av) {
         {"w_inv_gstd",  1, 0, W_INV_STD },
         {"bandpass",    1, 0, BANDPASS  },
         {"rolloff_f",   1, 0, ROLLOFF_F },
-        {"rec_halves",  1, 0, REC_HALVES},
         {0, 0, 0, 0}
     };
     
@@ -247,13 +210,13 @@ bool parse_args(Info&info,int ac,char** av) {
 			case OUT_PREFIX:
 				strcpy(info.out_pfx,optarg);
 				break;
-			case PTCLS_FILE:
-				strcpy(info.ptcls_in,optarg);
-				break;
 			case BOX_SIZE:
 				info.box_size = atoi(optarg);
 				tmp = (float)(info.box_size);
 				info.box_size = (int)(2.0*roundf(tmp/2)); // Force box to be multiple of 2.
+				tmp = (float)(info.box_size);
+				tmp *= 0.414213562373095;
+				info.pad_size = (int)(2.0*roundf((tmp+1)/2)); // Force box to be multiple of 2.
 				break;
 			case N_THREADS:
 				info.n_threads = atoi(optarg);
@@ -266,14 +229,6 @@ bool parse_args(Info&info,int ac,char** av) {
 				}
 				memcpy(info.p_gpu,tmp_uint32,info.n_gpu*sizeof(uint32));
 				delete [] tmp_uint32;
-				break;
-			case PAD_SIZE:
-				info.pad_size = atoi(optarg);
-				tmp = (float)(info.pad_size);
-				info.pad_size = (int)(2.0*roundf(tmp/2)); // Force pad to be multiple of 2.
-				break;
-			case PAD_TYPE:
-				info.pad_type = get_pad_type(optarg);
 				break;
 			case NORM_TYPE:
 				info.norm_type = get_norm_type(optarg);
@@ -302,9 +257,6 @@ bool parse_args(Info&info,int ac,char** av) {
 			case W_INV_STD:
 				info.w_inv_std = atof(optarg);
 				break;
-			case REC_HALVES:
-				info.rec_halves = (atoi(optarg)>0);
-				break;
 			default:
 				printf("Unknown parameter %d\n",c);
 				exit(1);
@@ -316,20 +268,12 @@ bool parse_args(Info&info,int ac,char** av) {
 }
 
 void print(const Info&info,FILE*fp=stdout) {
-	fprintf(stdout,"\tVolume reconstruction");
-	if( info.rec_halves )
-		fprintf(stdout," (including half-sets)");
-	fprintf(stdout,":\n");
+	fprintf(stdout,"\tTomogram reconstruction:\n");
 
-	fprintf(stdout,"\t\tParticles file: %s.\n",info.ptcls_in);
 	fprintf(stdout,"\t\tTomograms file: %s.\n",info.tomos_in);
 	fprintf(stdout,"\t\tOutput prefix: %s.\n",info.out_pfx);
 
-    fprintf(stdout,"\t\tVolume size: %dx%dx%d",info.box_size,info.box_size,info.box_size);
-    if( info.pad_size > 0 ) {
-        fprintf(stdout,", with padding of %d voxels",info.pad_size);
-    }
-    fprintf(stdout,".\n");
+    fprintf(stdout,"\t\tBlock size: %dx%dx%d.\n",info.box_size,info.box_size,info.box_size);
     
     if( info.n_gpu > 1 ) {
         fprintf(stdout,"\t\tUsing %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
@@ -354,13 +298,6 @@ void print(const Info&info,FILE*fp=stdout) {
 	else
 		fprintf(stdout,".\n");
 
-	if( info.pad_size > 0 ) {
-		if( info.pad_type == PAD_ZERO )
-			fprintf(stdout,"\t\tPadding policy: Fill with zeros.\n");
-		if( info.pad_type == PAD_GAUSSIAN )
-			fprintf(stdout,"\t\tPadding policy: Fill with gaussian noise.\n");
-	}
-	
     if( info.ctf_type == NO_INV )
 		fprintf(stdout,"\t\tCTF correction policy: Disabled.\n");
 	if( info.ctf_type == PHASE_FLIP )
@@ -387,5 +324,5 @@ void print(const Info&info,FILE*fp=stdout) {
 
 }
 
-#endif /// RECONSTRUCT_ARGS_H
+#endif /// REC_TOMOGRAMS_ARGS_H
 

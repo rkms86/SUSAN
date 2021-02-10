@@ -25,11 +25,15 @@ set_property(TARGET susan_estimate_ctf PROPERTY CUDA_ARCHITECTURES 52)
 
 add_executable(susan_reconstruct src/reconstruct.cu)
 target_link_libraries(susan_reconstruct cufft)
-set_property(TARGET susan_reconstruct PROPERTY CUDA_ARCHITECTURES 52 60 70)
-#set_property(TARGET susan_reconstruct PROPERTY CUDA_ARCHITECTURES 52)
+#set_property(TARGET susan_reconstruct PROPERTY CUDA_ARCHITECTURES 52 60 70)
+set_property(TARGET susan_reconstruct PROPERTY CUDA_ARCHITECTURES 52)
 
 add_executable(susan_subtomos_rec src/rec_subtomos.cu)
 target_link_libraries(susan_subtomos_rec cufft)
 #set_property(TARGET susan_subtomos_rec PROPERTY CUDA_ARCHITECTURES 52 60 70)
 set_property(TARGET susan_subtomos_rec PROPERTY CUDA_ARCHITECTURES 52)
 
+add_executable(susan_tomograms_rec src/rec_tomograms.cu)
+target_link_libraries(susan_tomograms_rec cufft)
+#set_property(TARGET susan_tomograms_rec PROPERTY CUDA_ARCHITECTURES 52 60 70)
+set_property(TARGET susan_tomograms_rec PROPERTY CUDA_ARCHITECTURES 52)
