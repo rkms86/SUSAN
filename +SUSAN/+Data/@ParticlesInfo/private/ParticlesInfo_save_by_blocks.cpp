@@ -124,7 +124,7 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
         
         /// Alignment per reference/class
         for(int refs=0; refs<num_refs; refs++) {
-            float *cur_ali_info = p_ali_block + refs*7*num_ptcl;
+            float *cur_ali_info = p_ali_block + refs*8*num_ptcl;
             cur_ptcl.ali_eu[refs].x = cur_ali_info[ptcl             ]*DEG2RAD;
             cur_ptcl.ali_eu[refs].y = cur_ali_info[ptcl +   num_ptcl]*DEG2RAD;
             cur_ptcl.ali_eu[refs].z = cur_ali_info[ptcl + 2*num_ptcl]*DEG2RAD;

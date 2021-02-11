@@ -6,6 +6,8 @@
 #include "datatypes.h"
 #include "gpu.h"
 
+#include "angles_symmetry.h"
+
 namespace ArgsRec {
 
 typedef enum {
@@ -44,6 +46,8 @@ typedef struct {
     float  ssnr_F;
     float  ssnr_S;
     bool   rec_halves;
+    
+    char   sym[64];
     
     char   out_pfx[SUSAN_FILENAME_LENGTH];
     char   ptcls_in[SUSAN_FILENAME_LENGTH];
@@ -133,6 +137,23 @@ uint32 get_ctf_type(const char*arg) {
 	return rslt;
 }
 
+void set_symmetry(Info&info,const char*arg) {
+	
+	uint32 num_angs;
+	M33f*p_angs;
+	
+	p_angs = AnglesSymmetry::get_rotation_list(num_angs,arg);
+
+	if( num_angs == 0  ) {
+		strcpy(info.sym,"c1");
+		fprintf(stderr,"Invalid symmetry option %s. Supported: c1, c2, cXXX... Defaulting to c1.\n",arg);
+	}
+	else {
+		strcpy(info.sym,arg);
+		delete [] p_angs;
+	}
+}
+
 bool validate(const Info&info) {
 	bool rslt = true;
 	if( info.fpix_min >= info.fpix_max ) {
@@ -190,10 +211,11 @@ bool parse_args(Info&info,int ac,char** av) {
     info.ssnr_F     = 0;
     info.ssnr_S     = 1;
     info.rec_halves = false;
-	memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
+    memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
 	memset(info.out_pfx ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	memset(info.ptcls_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	memset(info.tomos_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
+	strcpy(info.sym,"c1");
 	
 	/// Parse inputs:
 	enum {
@@ -212,6 +234,7 @@ bool parse_args(Info&info,int ac,char** av) {
         W_INV_STD,
         BANDPASS,
         ROLLOFF_F,
+        SYMMETRY,
         REC_HALVES
     };
 
@@ -232,6 +255,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"w_inv_gstd",  1, 0, W_INV_STD },
         {"bandpass",    1, 0, BANDPASS  },
         {"rolloff_f",   1, 0, ROLLOFF_F },
+        {"symmetry",    1, 0, SYMMETRY  },
         {"rec_halves",  1, 0, REC_HALVES},
         {0, 0, 0, 0}
     };
@@ -301,6 +325,9 @@ bool parse_args(Info&info,int ac,char** av) {
 				break;
 			case W_INV_STD:
 				info.w_inv_std = atof(optarg);
+				break;
+			case SYMMETRY:
+				set_symmetry(info,optarg);
 				break;
 			case REC_HALVES:
 				info.rec_halves = (atoi(optarg)>0);
@@ -381,7 +408,7 @@ void print(const Info&info,FILE*fp=stdout) {
 	if( info.norm_type == ZERO_MEAN_W_STD )
 		fprintf(stdout,"\t\tSubstack normalization policy: Mean=0, Std according to projection weight.\n");
 	
-	
+	fprintf(stdout,"\t\tSymmetry type: %s.\n",info.sym);
 }
 
 

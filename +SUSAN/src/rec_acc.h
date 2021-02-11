@@ -15,6 +15,7 @@
 #include "mrc.h"
 #include "io.h"
 #include "points_provider.h"
+#include "angles_symmetry.h"
 #include "reconstruct_args.h"
 #include <iostream>
 
@@ -291,6 +292,60 @@ public:
 	
 	
 };
+
+class RecSym {
+	
+public:
+	int N;
+	int M;
+	
+	uint32 num_angs;
+	M33f*p_angs;
+	
+	int3 siz;
+	dim3 blk;
+	dim3 grd;
+	
+	GPU::GArrDouble2 t_val;
+	GPU::GArrDouble  t_wgt;
+	
+	RecSym(const int x,const int y,const char*symmetry) {
+		M = x;
+		N = y;
+		
+		p_angs = AnglesSymmetry::get_rotation_list(num_angs,symmetry);
+		
+		siz = make_int3(M,N,N);
+		blk = GPU::get_block_size_2D();
+		grd = GPU::calc_grid_size(blk,M,N,N);
+		
+		if( num_angs > 1 ) {
+			t_val.alloc(M*N*N);
+			t_wgt.alloc(M*N*N);
+		}
+	}
+	
+	~RecSym() {
+		delete [] p_angs;
+	}
+	
+	void apply_sym(GPU::GArrDouble2&vol_acc,GPU::GArrDouble&vol_wgt) {
+		if( num_angs > 1 ) {
+			cudaMemcpy(t_val.ptr,vol_acc.ptr,sizeof(double2)*M*N*N,cudaMemcpyDeviceToDevice);
+			cudaMemcpy(t_wgt.ptr,vol_wgt.ptr,sizeof(double )*M*N*N,cudaMemcpyDeviceToDevice);
+			
+			Rot33 Rsym;
+			for(uint32 i=1;i<num_angs;i++) {
+				Math::set(Rsym,p_angs[i]);
+				V3f tmp;
+				Math::Rmat_eZYZ(tmp,p_angs[i]);
+				GpuKernelsVol::add_symmetry<<<grd,blk>>>(vol_acc.ptr,vol_wgt.ptr,t_val.ptr,t_wgt.ptr,Rsym,M,N);
+			}
+		}
+		
+	}
+};
+
 
 #endif /// REC_ACC_H
 

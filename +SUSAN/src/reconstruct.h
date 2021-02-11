@@ -295,14 +295,20 @@ protected:
 		for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
 			RecBuffer*ptr = (RecBuffer*)stack_buffer.WO_get_buffer();
 			p_ptcls->get(ptr->ptcl,i);
-			read_defocus(ptr);
-			crop_substack(ptr);
-			work_progress++;
-			work_accumul++;
-			if( check_substack(ptr) ) {
-				upload(ptr,stream.strm);
-				stream.sync();
-				stack_buffer.WO_sync(READY);
+			if( check_reference(ptr) ) {
+				read_defocus(ptr);
+				crop_substack(ptr);
+				work_progress++;
+				work_accumul++;
+				if( check_substack(ptr) ) {
+					upload(ptr,stream.strm);
+					stream.sync();
+					stack_buffer.WO_sync(READY);
+				}
+			}
+			else {
+				work_progress++;
+				work_accumul++;
 			}
 		}
 		stack_buffer.WO_sync(DONE);
@@ -329,15 +335,21 @@ protected:
 		memcpy( (void**)(ptr->c_def.ptr), (const void**)(ptr->ptcl.def), sizeof(Defocus)*ptr->K  );
 	}
 	
-	void crop_substack(RecBuffer*ptr) {
-		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
-		M33f R_tmp,R_ali,R_stack,R_gpu;
-		
+	bool check_reference(RecBuffer*ptr) {
 		int r = ptr->ptcl.ref_cix();
 		if( p_info->rec_halves )
 			ptr->r_ix = 2*r + (ptr->ptcl.half_id()-1);
 		else
 			ptr->r_ix = r;
+		
+		return ( ptr->ptcl.ali_w[r] )>0;
+	}
+	
+	void crop_substack(RecBuffer*ptr) {
+		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
+		M33f R_tmp,R_ali,R_stack,R_gpu;
+		
+		int r = ptr->ptcl.ref_cix();
 		
 		/// P_tomo = P_ptcl + t_ali
 		pt_tomo(0) = ptr->ptcl.pos().x + ptr->ptcl.ali_t[r].x;
@@ -634,11 +646,13 @@ protected:
 	void reconstruct_maps(float*vol,GPU::GArrSingle&p_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
 		RecInvWgt inv_wgt(NP,MP,p_info->w_inv_ite,p_info->w_inv_std);
 		RecInvVol inv_vol(N,P);
+		RecSym sym(MP,NP,p_info->sym);
 		char out_file[SUSAN_FILENAME_LENGTH];
 		for(int r=0;r<R;r++) {
 			sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
 			reconstruct_upload(workers[0].c_acc[r],workers[0].c_wgt[r],p_acc,p_wgt);
+			sym.apply_sym(p_acc,p_wgt);
 			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);
@@ -650,12 +664,14 @@ protected:
 		int l = NP*NP*MP;
 		RecInvWgt inv_wgt(NP,MP,p_info->w_inv_ite,p_info->w_inv_std);
 		RecInvVol inv_vol(N,P);
+		RecSym sym(MP,NP,p_info->sym);
 		char out_file[SUSAN_FILENAME_LENGTH];
 		for(int r=0;r<R/2;r++) {
 			
 			sprintf(out_file,"%s_class%03d_half1.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
 			reconstruct_upload(workers[0].c_acc[2*r  ],workers[0].c_wgt[2*r  ],p_acc,p_wgt);
+			sym.apply_sym(p_acc,p_wgt);
 			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);
@@ -664,6 +680,7 @@ protected:
 			sprintf(out_file,"%s_class%03d_half2.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
 			reconstruct_upload(workers[0].c_acc[2*r+1],workers[0].c_wgt[2*r+1],p_acc,p_wgt);
+			sym.apply_sym(p_acc,p_wgt);
 			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);
@@ -674,6 +691,7 @@ protected:
 			sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
 			reconstruct_upload(workers[0].c_acc[2*r  ],workers[0].c_wgt[2*r  ],p_acc,p_wgt);
+			sym.apply_sym(p_acc,p_wgt);
 			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);

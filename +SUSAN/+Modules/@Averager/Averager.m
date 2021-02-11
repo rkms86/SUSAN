@@ -14,6 +14,7 @@ classdef Averager < handle
 %    pad_type  - (string) Type of padding (zero/NOISE).
 %    norm_type - (string) Type of normalization (none,ZERO_MEAN,zero_mean_proj_weight,zero_mean_one_std).
 %    ctf_type  - (string) Type of CTF correction (none/phase_flip,WIENER,wiener_ssnr).
+%    symmetry  - (string) Type of symmetry to be applied.
 %    ssnr      - (struct) Params for the wiener_ssnr correction (~S*e^-F).
 %
 % SUSAN.Modules.Averager Methods:
@@ -30,6 +31,9 @@ classdef Averager < handle
 %                               - zero_mean.
 %                               - zero_mean_one_std.
 %                               - zero_mean_proj_weight.
+%    set_symmetry       - Sets the symmetry type:
+%                               - cX (c1,c2,c3,c4,....).
+%                               - cbo (cuboctahedral).
 %    reconstruct        - performs the reconstruction.
 %    show_cmd           - show the command to execute the reconstruction.
 
@@ -52,6 +56,7 @@ properties(SetAccess=private)
     pad_type  = 'noise';
     norm_type = 'zero_mean';
     ctf_type  = 'wiener';
+    symmetry  = 'c1';
     ssnr      = struct('F',0,'S',1);
 end
     
@@ -145,6 +150,27 @@ methods
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function set_symmetry(obj,type)
+    % SET_SYMMETRY sets the symmetry to be applied.
+    %   SET_SYMMETRY(TYPE) supported values are:
+    %     'none' : No symmetry.
+    %     'cX'   : Copies along Z-axis. X is the number of copies.
+    %     'cbo'  : Cuboctahedral symmetry.
+        obj.symmetry = 'c1';
+
+        if( strcmpi(type,'none') )
+            obj.symmetry = 'c1';
+        elseif( strcmpi(type,'cbo') )
+            obj.symmetry = 'cbo';
+        elseif( lower(type(1)) == 'c' && ~isnan(str2double(type(2:end))) )
+            obj.symmetry = ['c' type(2:end)];
+        else
+            error('Invalid symmetry type. Accepted values: none, cbo, and cXX');
+        end
+        
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function reconstruct(obj,out_prefix,tomo_list_file,particle_list_file,box_size)
     % RECONSTRUCT performs the reconstruction.
     %   RECONSTRUCT(OUT_PFX,TOMOS,PTCLS_IN,BOX_SIZE) reconstruct the volumnes
@@ -216,6 +242,7 @@ methods
         cmd = [cmd ' -w_inv_gstd ' sprintf('%f',obj.inversion.gstd)];
         cmd = [cmd ' -bandpass '   sprintf('%f,%f',R_range(1),R_range(2))];
         cmd = [cmd ' -rolloff_f '  sprintf('%f',obj.bandpass.rolloff)];
+        cmd = [cmd ' -symmetry '   obj.symmetry];
         
         if( obj.rec_halves > 0 )
             cmd = [cmd ' -rec_halves 1'];

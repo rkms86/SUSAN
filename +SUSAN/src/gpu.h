@@ -254,6 +254,82 @@ typedef GTex2D<single> GTex2DSingle;
 typedef GTex2D<float2> GTex2DSingle2;
 
 template<class T>
+class GTex3D {
+
+public:
+    cudaTextureObject_t texture;
+    cudaSurfaceObject_t surface;
+
+protected:
+
+    cudaArray*              g_arr;
+    cudaChannelFormatDesc   chn_desc;
+    struct cudaResourceDesc res_desc;
+    struct cudaTextureDesc  tex_desc;
+
+public:
+    GTex3D() {
+        texture = 0;
+        surface = 0;
+        g_arr   = NULL;
+    }
+
+    ~GTex3D() {
+        free();
+    }
+
+    void alloc(const uint32 x, const uint32 y, const uint32 z) {
+
+        cudaError_t err;
+        cudaExtent vol = {x,y,z};
+        chn_desc = cudaCreateChannelDesc<T>();
+        err = cudaMalloc3DArray(&g_arr, &chn_desc, vol, cudaArraySurfaceLoadStore);
+        if( err != cudaSuccess ) {
+            fprintf(stderr,"Error allocating CUDA 3D array. ");
+            fprintf(stderr,"GPU error: %s.\n",cudaGetErrorString(err));
+            exit(1);
+        }
+
+        memset(&res_desc, 0, sizeof(res_desc));
+        res_desc.resType = cudaResourceTypeArray;
+        res_desc.res.array.array = g_arr;
+
+        memset(&tex_desc, 0, sizeof(tex_desc));
+        tex_desc.addressMode[0]   = cudaAddressModeBorder;
+        tex_desc.addressMode[1]   = cudaAddressModeBorder;
+        tex_desc.addressMode[2]   = cudaAddressModeBorder;
+        tex_desc.filterMode       = cudaFilterModeLinear;
+        tex_desc.readMode         = cudaReadModeElementType;
+        tex_desc.normalizedCoords = 0;
+
+        err = cudaCreateTextureObject(&texture, &res_desc, &tex_desc, NULL);
+        if( err != cudaSuccess ) {
+            fprintf(stderr,"Error creating CUDA texture object. ");
+            fprintf(stderr,"GPU error: %s.\n",cudaGetErrorString(err));
+            exit(1);
+        }
+
+        err = cudaCreateSurfaceObject(&surface, &res_desc);
+        if( err != cudaSuccess ) {
+            fprintf(stderr,"Error creating CUDA surface object. ");
+            fprintf(stderr,"GPU error: %s.\n",cudaGetErrorString(err));
+            exit(1);
+        }
+    }
+
+protected:
+    void free() {
+        if( g_arr   != NULL ) cudaFreeArray(g_arr);
+        if( texture != 0    ) cudaDestroyTextureObject(texture);
+        if( surface != 0    ) cudaDestroySurfaceObject(surface);
+    }
+
+};
+
+typedef GTex3D<float2>  GTex3DSingle2;
+
+
+template<class T>
 class GHost {
 
 public:

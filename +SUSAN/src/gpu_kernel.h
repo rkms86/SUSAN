@@ -175,6 +175,17 @@ __global__ void load_surf(cudaSurfaceObject_t out_surf,const float*p_in,const in
     }
 }
 
+__global__ void load_surf_3(cudaSurfaceObject_t out_surf,const float*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float v = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+        surf3Dwrite<float>(v,out_surf,ss_idx.x*sizeof(float), ss_idx.y, ss_idx.z);
+    }
+}
+
 __global__ void load_surf_abs(cudaSurfaceObject_t out_surf,const float2*p_in,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();

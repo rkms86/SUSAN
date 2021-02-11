@@ -52,9 +52,9 @@ public:
 		ali_eu = (Vec3*  )(info+1);
 		ali_t  =           ali_eu + n_refs;
 		ali_cc = (single*)(ali_t  + n_refs);
-		ali_w  = (single*)(ali_t  + n_refs);
+		ali_w  = (single*)(ali_cc + n_refs);
 		
-		prj_eu = (Vec3*  )(ali_cc + n_refs);
+		prj_eu = (Vec3*  )(ali_w  + n_refs);
 		prj_t  = (Vec2*  )(prj_eu + n_proj);
 		prj_cc = (single*)(prj_t  + n_proj);
 		prj_w  =           prj_cc + n_proj;
