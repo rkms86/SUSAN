@@ -69,6 +69,7 @@ public:
         pseudo_sym_list = AnglesSymmetry::get_rotation_list(pseudo_sym_length,sym_type);
         if( pseudo_sym_list == NULL ) {
             fprintf(stderr,"[ERROR] AnglesSymmetry: Unknown/invalid symmetry: %s.\n",sym_type);
+            exit(1);
         }
     }
 
@@ -114,7 +115,10 @@ public:
     }
 
     bool sym_available() {
-        return ( curr_sym < pseudo_sym_length );
+		if( curr_lvl > 0 )
+			return ( curr_sym < 1 );
+		else
+			return ( curr_sym < pseudo_sym_length );
     }
 
     void sym_next() {

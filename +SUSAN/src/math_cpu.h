@@ -354,6 +354,44 @@ bool normalize(float*ptr,const uint32 length, const float avg, const float old_s
     return true;
 }
 
+bool normalize_non_zero(float*ptr,const uint32 length) {
+    
+    int   num=0;
+    float avg=0;
+    float std=0;
+    uint32 i;
+    
+    for(i=0;i<length;i++) {
+		if( ptr[i] != 0 ) {
+			avg+=ptr[i];
+			num++;
+		}
+	}
+	
+	avg = avg/num;
+	
+	for(i=0;i<length;i++) {
+		if( ptr[i] != 0 ) {
+			ptr[i] = ptr[i] - avg;
+			std = (ptr[i]*ptr[i]);
+		}
+	}
+	
+	std = sqrt( std/(num) );
+	
+	if(std < SUSAN_FLOAT_TOL )
+        return false;
+	
+	
+	for(i=0;i<length;i++) {
+		if( ptr[i] != 0 ) {
+			ptr[i] = ptr[i]/std;
+		}
+	}
+    
+    return true;
+}
+
 bool normalize_masked(float*ptr,const float*msk,const uint32 length, const float new_std=1) {
 
     float count = 0;

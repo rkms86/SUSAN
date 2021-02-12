@@ -34,3 +34,8 @@ add_executable(susan_subtomos_rec src/rec_subtomos.cu)
 target_link_libraries(susan_subtomos_rec cufft)
 #set_property(TARGET susan_subtomos_rec PROPERTY CUDA_ARCHITECTURES 52 60 70)
 set_property(TARGET susan_subtomos_rec PROPERTY CUDA_ARCHITECTURES 52)
+
+add_executable(susan_aligner src/aligner.cu)
+target_link_libraries(susan_aligner cufft)
+#set_property(TARGET susan_aligner PROPERTY CUDA_ARCHITECTURES 52 60 70)
+set_property(TARGET susan_aligner PROPERTY CUDA_ARCHITECTURES 52)
