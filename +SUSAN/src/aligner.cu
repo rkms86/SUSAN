@@ -25,7 +25,7 @@ int main(int ac, char** av) {
 
 	if( ArgsAli::parse_args(info,ac,av) ) {
 		ArgsAli::print(info);
-		PBarrier barrier(2);
+                PBarrier barrier(2);
 		ParticlesRW ptcls(info.ptcls_in);
 		References refs(info.refs_file);
 		Tomograms tomos(info.tomo_file);
@@ -33,11 +33,13 @@ int main(int ac, char** av) {
 		StackReader stkrdr(&ptcls,&tomos,&barrier);
 		AliPool pool(&info,&refs,tomos.num_proj,ptcls.n_ptcl,stkrdr,info.n_threads);
 		
-		stkrdr.start();
+                stkrdr.start();
 		pool.start();
 		
 		stkrdr.wait();
 		pool.wait();
+
+                ptcls.save(info.ptcls_out);
 	}
 	else {
 		fprintf(stderr,"Error parsing input arguments.\n");

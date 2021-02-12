@@ -179,6 +179,9 @@ protected:
 				insert_vol(vol,ss_data,buffer,stream);
 				reconstruct_core(p_vol,inv_wgt,inv_vol,vol.vol_acc,vol.vol_wgt);
 				cudaMemcpy((void*)map,(const void*)p_vol.ptr,sizeof(float)*N*N*N,cudaMemcpyDeviceToHost);
+                                float avg,std;
+                                Math::get_avg_std(avg,std,map,N*N*N);
+                                Math::normalize(map,N*N*N,avg,std);
 				sprintf(em_file,"%s/particle_%06d.em",p_info->out_dir,buffer.ptcl.ptcl_id());
 				EM::write(map,N,N,N,em_file);
 				stream.sync();
@@ -260,19 +263,19 @@ protected:
 				/// Crop
 				if( ss_cropper.check_point(pt_crop) ) {
 					ss_cropper.crop(ptr.c_stk.ptr,p_stack,pt_crop,k);
-					if( p_info->norm_type == ArgsRec::NormalizationType_t::NO_NORM ) {
+                                        if( p_info->norm_type == ArgsRecSubtomo::NormalizationType_t::NO_NORM ) {
 						Math::get_avg_std(ptr.c_pad.ptr[k].x,ptr.c_pad.ptr[k].y,ptr.c_stk.ptr,N*N);
 					}
-					if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN ) {
+                                        if( p_info->norm_type == ArgsRecSubtomo::NormalizationType_t::ZERO_MEAN ) {
 						ptr.c_pad.ptr[k].x = 0;
 						ptr.c_pad.ptr[k].y = ss_cropper.normalize_zero_mean(ptr.c_stk.ptr,k);
 					}
-					if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN_1_STD ) {
+                                        if( p_info->norm_type == ArgsRecSubtomo::NormalizationType_t::ZERO_MEAN_1_STD ) {
 						ptr.c_pad.ptr[k].x = 0;
 						ptr.c_pad.ptr[k].y = 1;
 						ss_cropper.normalize_zero_mean_one_std(ptr.c_stk.ptr,k);
 					}
-					if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN_W_STD ) {
+                                        if( p_info->norm_type == ArgsRecSubtomo::NormalizationType_t::ZERO_MEAN_W_STD ) {
 						ptr.c_pad.ptr[k].x = 0;
 						ptr.c_pad.ptr[k].y = ptr.ptcl.prj_w[k];
 						ss_cropper.normalize_zero_mean_w_std(ptr.c_stk.ptr,ptr.ptcl.prj_w[k],k);
@@ -307,22 +310,22 @@ protected:
 	}
 
 	void add_data(RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
-		if( pad_type == ArgsRec::PaddingType_t::PAD_ZERO )
+                if( pad_type == ArgsRecSubtomo::PaddingType_t::PAD_ZERO )
 			ss_data.pad_zero(stream);
-		if( pad_type == ArgsRec::PaddingType_t::PAD_GAUSSIAN )
+                if( pad_type == ArgsRecSubtomo::PaddingType_t::PAD_GAUSSIAN )
 			ss_data.pad_normal(ptr.g_pad,ptr.K,stream);
 		
 		ss_data.add_data(ptr.g_stk,ptr.g_ali,ptr.K,stream);
 	}
 	
 	void correct_ctf(RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
-		if( ctf_type == ArgsRec::InversionType_t::NO_INV )
+                if( ctf_type == ArgsRecSubtomo::InversionType_t::NO_INV )
 			ss_data.set_no_ctf(bandpass,ptr.K,stream);
-		if( ctf_type == ArgsRec::InversionType_t::PHASE_FLIP )
+                if( ctf_type == ArgsRecSubtomo::InversionType_t::PHASE_FLIP )
 			ss_data.set_phase_flip(ptr.ctf_vals,ptr.g_def,bandpass,ptr.K,stream);
-		if( ctf_type == ArgsRec::InversionType_t::WIENER_INV )
+                if( ctf_type == ArgsRecSubtomo::InversionType_t::WIENER_INV )
 			ss_data.set_wiener(ptr.ctf_vals,ptr.g_def,bandpass,ptr.K,stream);
-		if( ctf_type == ArgsRec::InversionType_t::WIENER_INV_SSNR )
+                if( ctf_type == ArgsRecSubtomo::InversionType_t::WIENER_INV_SSNR )
 			ss_data.set_wiener_ssnr(ptr.ctf_vals,ptr.g_def,bandpass,ssnr,ptr.K,stream);
 			
 	}

@@ -21,7 +21,6 @@ public:
     single *mask;
     uint32 box_size;
     uint32 numel;
-    single mask_numel;
 
     bool   has_half_maps() { return (half_A != NULL) && (half_B != NULL); }
     bool   has_ref_map()   { return (map    != NULL); }

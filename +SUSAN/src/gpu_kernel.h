@@ -186,6 +186,19 @@ __global__ void load_surf_3(cudaSurfaceObject_t out_surf,const float*p_in,const 
     }
 }
 
+__global__ void load_surf_3(cudaSurfaceObject_t out_surf,const float2*p_in,const int3 ss_siz,bool conjugate=false) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float2 v = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+        if( conjugate )
+            v.y = -v.y;
+        surf3Dwrite<float2>(v,out_surf,ss_idx.x*sizeof(float2), ss_idx.y, ss_idx.z);
+    }
+}
+
 __global__ void load_surf_abs(cudaSurfaceObject_t out_surf,const float2*p_in,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
@@ -324,6 +337,56 @@ __global__ void radial_ps_avg(float*p_avg,float*p_wgt,const float*p_in,const int
     }
 }
 
+__global__ void radial_ps_avg(float*p_avg,float*p_wgt,const float2*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float2 val = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+        float  x = ss_idx.x;
+        float  y = ss_idx.y-ss_siz.y/2;
+        float  R = l2_distance(x,y);
+        int    r = (int)roundf(R);
+        int  idx = r + ss_siz.x*ss_idx.z;
+        float out = l2_distance(val.x,val.y);
+        if( r < ss_siz.x ) {
+            atomicAdd(p_avg + idx,out);
+            atomicAdd(p_wgt + idx,1.0);
+        }
+    }
+}
+
+__global__ void radial_ps_norm(float2*p_data,const float*p_avg,const float*p_wgt,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float2 val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
+        float  x = ss_idx.x;
+        float  y = ss_idx.y-ss_siz.y/2;
+        float  R = l2_distance(x,y);
+        int    r = (int)roundf(R);
+        int  idx = r + ss_siz.x*ss_idx.z;
+
+        if( r < ss_siz.x ) {
+            float avg = p_avg[idx];
+            float wgt = p_wgt[idx];
+
+            if( wgt > 0 ) {
+                avg = avg/wgt;
+                if( avg > 0.000001 ) {
+                    val.x = val.x/avg;
+                    val.y = val.y/avg;
+                }
+            }
+
+            p_data[ get_3d_idx(ss_idx,ss_siz) ] = val;
+        }
+    }
+}
+
 __global__ void divide(float*p_avg,const float*p_wgt,const int3 ss_siz) {
 	
 	int3 ss_idx = get_th_idx();
@@ -338,18 +401,18 @@ __global__ void divide(float*p_avg,const float*p_wgt,const int3 ss_siz) {
     }
 }
 
-__global__ void load_pad(float*p_out,const float*p_in,const int half_pad,const int3 ss_raw,const int3 ss_pad) {
-	
-	int3 ss_idx = get_th_idx();
-	
+__global__ void load_pad(float*p_out,const float*p_in,const int3 half_pad,const int3 ss_raw,const int3 ss_pad) {
+
+    int3 ss_idx = get_th_idx();
+
     if( ss_idx.x < ss_raw.x && ss_idx.y < ss_raw.y && ss_idx.z < ss_raw.z ) {
 
-		int idx_in  = get_3d_idx(ss_idx,ss_raw);
-		int idx_out = get_3d_idx(ss_idx.x+half_pad,ss_idx.y+half_pad,ss_idx.z,ss_pad);
-		float data = p_in[idx_in];
-		p_out[idx_out] = data;
-	}
-		
+        int idx_in  = get_3d_idx(ss_idx,ss_raw);
+        int idx_out = get_3d_idx(ss_idx.x+half_pad.x,ss_idx.y+half_pad.y,ss_idx.z+half_pad.z,ss_pad);
+        float data = p_in[idx_in];
+        p_out[idx_out] = data;
+    }
+
 }
 
 __global__ void remove_pad_vol(float*p_out,const float*p_in,const int half_pad,const int3 ss_raw,const int3 ss_pad) {
@@ -411,31 +474,14 @@ __global__ void multiply(float2*p_out,const double2*p_acc,const double*p_wgt,con
     }
 }
 
+__global__ void rotate_post(Proj2D*g_tlt,Rot33 R,Proj2D*g_tlt_in,const int in_K) {
 
-/*
-__global__ void fftshift_and_load_surf(cudaSurfaceObject_t out_surf, const float*p_in, const int N, const int K)
-{
-    int thx, thy, thz;
-    get_th_idx(thx,thy,thz);
+    int3 ss_idx = get_th_idx();
 
-    if( thx < N && thy < N && thz < K ) {
-        float val = p_in[ get_3d_idx(thx,thy,thz,N,N) ];
-        int x = fftshift_idx(thx,N/2);
-        int y = fftshift_idx(thy,N/2);
-        surf2DLayeredwrite<float>(val,out_surf,x*sizeof(float),y,thz);
-    }
-}
+    if( ss_idx.x < in_K*9 && ss_idx.y == 0 && ss_idx.z == 0 ) {
 
-__global__ void rotate_post( Proj2D*g_tlt, Rot33 R, Proj2D*g_tlt_in, const int in_K ) {
-
-    int thx = threadIdx.x + blockIdx.x*blockDim.x;
-    int thy = threadIdx.y + blockIdx.y*blockDim.y;
-    int thz = threadIdx.z + blockIdx.z*blockDim.z;
-
-    if( thx < in_K*9 && thy == 0 && thz == 0 ) {
-
-        int mod_z = thx%9;
-        int z = (thx - mod_z)/9;
+        int mod_z = ss_idx.x%9;
+        int z = (ss_idx.x - mod_z)/9;
         int x = mod_z % 3;
         int y = (mod_z - x)/3;
 
@@ -454,22 +500,20 @@ __global__ void rotate_post( Proj2D*g_tlt, Rot33 R, Proj2D*g_tlt_in, const int i
 
     __syncthreads();
 
-    if( thx < in_K && thy == 0 && thz == 0 ) {
-        g_tlt[thx].w = g_tlt_in[thx].w;
+    if( ss_idx.x < in_K && ss_idx.y == 0 && ss_idx.z == 0 ) {
+        g_tlt[ss_idx.x].w = g_tlt_in[ss_idx.x].w;
     }
 
 }
 
-__global__ void rotate_pre( Proj2D*g_tlt, Rot33 R, Proj2D*g_tlt_in, const int in_K ) {
+__global__ void rotate_pre(Proj2D*g_tlt,Rot33 R,Proj2D*g_tlt_in,const int in_K) {
 
-    int thx = threadIdx.x + blockIdx.x*blockDim.x;
-    int thy = threadIdx.y + blockIdx.y*blockDim.y;
-    int thz = threadIdx.z + blockIdx.z*blockDim.z;
+    int3 ss_idx = get_th_idx();
 
-    if( thx < in_K*9 && thy == 0 && thz == 0 ) {
+    if( ss_idx.x < in_K*9 && ss_idx.y == 0 && ss_idx.z == 0 ) {
 
-        int mod_z = thx%9;
-        int z = (thx - mod_z)/9;
+        int mod_z = ss_idx.x%9;
+        int z = (ss_idx.x - mod_z)/9;
         int x = mod_z % 3;
         int y = (mod_z - x)/3;
 
@@ -488,13 +532,49 @@ __global__ void rotate_pre( Proj2D*g_tlt, Rot33 R, Proj2D*g_tlt_in, const int in
 
     __syncthreads();
 
-    if( thx < in_K && thy == 0 && thz == 0 ) {
-        g_tlt[thx].w = g_tlt_in[thx].w;
+    if( ss_idx.x < in_K && ss_idx.y == 0 && ss_idx.z == 0 ) {
+        g_tlt[ss_idx.x].w = g_tlt_in[ss_idx.x].w;
     }
 
+}
+
+__global__ void apply_radial_wgt(float2*p_data,const float w_total,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        int idx = get_3d_idx(ss_idx,ss_siz);
+        float2 val = p_data[ idx ];
+
+        float w_off = 1/w_total;
+        float w = ss_idx.x;
+        w = w/ss_siz.y;
+        w = (1-w_off)*w + w_off;
+        val.x = w*val.x;
+        val.y = w*val.y;
+
+        p_data[ idx ] = val;
+    }
+}
+
+
+/*
+__global__ void fftshift_and_load_surf(cudaSurfaceObject_t out_surf, const float*p_in, const int N, const int K)
+{
+    int thx, thy, thz;
+    get_th_idx(thx,thy,thz);
+
+    if( thx < N && thy < N && thz < K ) {
+        float val = p_in[ get_3d_idx(thx,thy,thz,N,N) ];
+        int x = fftshift_idx(thx,N/2);
+        int y = fftshift_idx(thy,N/2);
+        surf2DLayeredwrite<float>(val,out_surf,x*sizeof(float),y,thz);
+    }
 }*/
 
 }
 
 #endif /// GPU_KERNEL_H
+
 

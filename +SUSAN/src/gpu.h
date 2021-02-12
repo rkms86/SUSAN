@@ -259,10 +259,9 @@ class GTex3D {
 public:
     cudaTextureObject_t texture;
     cudaSurfaceObject_t surface;
+    cudaArray*          g_arr;
 
 protected:
-
-    cudaArray*              g_arr;
     cudaChannelFormatDesc   chn_desc;
     struct cudaResourceDesc res_desc;
     struct cudaTextureDesc  tex_desc;

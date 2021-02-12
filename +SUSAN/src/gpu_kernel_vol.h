@@ -20,6 +20,12 @@ using namespace GpuKernels;
 
 namespace GpuKernelsVol {
 
+__device__ void  rot_pt_XY(Vec3&out,const Rot33&R,const Vec3&in) {
+    out.x = R.xx*in.x + R.xy*in.y;
+    out.y = R.yx*in.x + R.yy*in.y;
+    out.z = R.zx*in.x + R.zy*in.y;
+}
+
 __device__ void  rot_inv_pt(float&x,float&y,float&z,const Rot33&R,const Vec3&in) {
     x = R.xx*in.x + R.yx*in.y + R.zx*in.z;
     y = R.xy*in.x + R.yy*in.y + R.zy*in.z;
@@ -134,6 +140,47 @@ __global__ void insert_stk(double2*p_acc,double*p_wgt,
         }
     }
 
+}
+
+__global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pTlt,
+                            const float3 bandpass,const int M, const int N, const int K)
+{
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < K ) {
+
+        float2 val = {0,0};
+
+        if( pTlt[ss_idx.z].w > 0 ) {
+            Vec3 pt_in;
+            pt_in.x = ss_idx.x;
+            pt_in.y = ss_idx.y - N/2;
+            pt_in.z = 0;
+
+            float R = l2_distance(pt_in.x,pt_in.y);
+            float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+
+            if( bp > 0.05 ) {
+                Vec3 pt_out;
+                rot_pt_XY(pt_out,pTlt[ss_idx.z].R,pt_in);
+
+                bool should_conjugate = false;
+                if( pt_out.x < 0 ) {
+                    pt_out.x = -pt_out.x;
+                    pt_out.y = -pt_out.y;
+                    pt_out.z = -pt_out.z;
+                    should_conjugate = true;
+
+                    val = tex3D<float2>(vol, pt_out.x+0.5, pt_out.y+N/2+0.5, pt_out.z+N/2+0.5);
+
+                    if( should_conjugate )
+                        val.y = -val.y;
+                }
+            }
+        }
+
+        p_out[ ss_idx.x + M*ss_idx.y + M*N*ss_idx.z ] = val;
+    }
 }
 
 __global__ void invert_wgt(double*p_data,const int3 ss_siz) {

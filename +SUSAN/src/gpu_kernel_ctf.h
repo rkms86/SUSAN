@@ -589,7 +589,7 @@ __global__ void ctf_stk_phase_flip( cudaSurfaceObject_t s_stk,cudaSurfaceObject_
     }
 }
 
-__global__ void ctf_stk_wiener( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_ctf,const float2*g_data, 
+__global__ void ctf_stk_wiener( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_ctf,const float2*g_data,
                                 const CtfConst ctf_const,const Defocus*def,const float3 bandpass,const int3 ss_siz)
 {
 	
@@ -673,7 +673,111 @@ __global__ void ctf_stk_wiener_ssnr( cudaSurfaceObject_t s_stk,cudaSurfaceObject
     }
 }
 
+__global__ void create_ctf( float*g_ctf,const CtfConst ctf_const,const Defocus*def,const int3 ss_siz) {
+
+        int3 ss_idx = get_th_idx();
+
+        if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+            float x,y,R;
+            get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+
+            float s = calc_s(R,ss_siz.y,ctf_const.apix);
+            float z = calc_def(x,y,def[ss_idx.z]);
+            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
+            float ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
+            if( def[ss_idx.z].Bfactor > 0 )
+            ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
+            g_ctf[get_3d_idx(ss_idx,ss_siz)] = ctf;
+
+        }
+}
+
+__global__ void correct_stk_wiener( float2*g_data,const float*g_ctf,const Defocus*def,const float3 bandpass,const CtfConst ctf_const,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        long ix = get_3d_idx(ss_idx,ss_siz);
+        float2 val = {0,0};
+
+        float x,y,R;
+        get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+
+        float max_R = bandpass.y;
+        if( def[ss_idx.z].max_res > 0 )
+        max_R = min(max_R,def[ss_idx.z].max_res);
+        float w = get_bp_wgt(bandpass.x,max_R,bandpass.z,R);
+
+        if( w > 0.05 ) {
+            val = g_data[ ix ];
+
+            float ctf = g_ctf [ ix ];
+
+            float s = calc_s(R,ss_siz.y,ctf_const.apix);;
+            if( def[ss_idx.z].ExpFilt > 0 )
+                w *= calc_bfactor(s,def[ss_idx.z].ExpFilt);
+
+            val.x = w*ctf*val.x;
+            val.y = w*ctf*val.y;
+            ctf *= ctf;
+            if( ctf < 0.0001 ) {
+                ctf = 1;
+            }
+            val.x = val.x/ctf;
+            val.y = val.y/ctf;
+        }
+
+        g_data[ix] = val;
+
+    }
+}
+
+__global__ void correct_stk_wiener_ssnr( float2*g_data,const float*g_ctf,const Defocus*def,const float ssnr_F,const float ssnr_S,const float3 bandpass,const CtfConst ctf_const,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        long ix = get_3d_idx(ss_idx,ss_siz);
+        float2 val = {0,0};
+
+        float x,y,R;
+        get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+
+        float max_R = bandpass.y;
+        if( def[ss_idx.z].max_res > 0 )
+        max_R = min(max_R,def[ss_idx.z].max_res);
+        float w = get_bp_wgt(bandpass.x,max_R,bandpass.z,R);
+
+        if( w > 0.05 ) {
+            val = g_data[ ix ];
+
+            float ctf = g_ctf [ ix ];
+
+            float s = calc_s(R,ss_siz.y,ctf_const.apix);;
+            if( def[ss_idx.z].ExpFilt > 0 )
+                w *= calc_bfactor(s,def[ss_idx.z].ExpFilt);
+
+            val.x = w*ctf*val.x;
+            val.y = w*ctf*val.y;
+            ctf *= ctf;
+            ctf += calc_ssnr(R,ssnr_F,ssnr_S);
+            if( ctf < 0.0001 ) {
+                ctf = 1;
+            }
+            val.x = val.x/ctf;
+            val.y = val.y/ctf;
+        }
+
+        g_data[ix] = val;
+
+    }
+}
+
 }
 
 #endif /// GPU_KERNEL_CTF_H
+
 

@@ -34,7 +34,8 @@ typedef enum {
 
 typedef enum {
 	ELLIPSOID,
-	CYLINDER
+        CYLINDER,
+        CIRCLE,
 } OffsetType_t;
 
 typedef struct {
@@ -218,6 +219,14 @@ bool validate(const Info&info) {
 		fprintf(stderr,"References file %s does not exist.\n",info.refs_file);
 		rslt = false;
 	}
+        else {
+            References refs(info.refs_file);
+            refs.check_size(info.box_size,info.ali_halves);
+            /*if( !refs.check_size(info.box_size,info.ali_halves) ) {
+                    fprintf(stderr,"Error on reference file %s.\n",info.refs_file);
+                    rslt = false;
+            }*/
+        }
 	if( !IO::exists(info.tomo_file) ) {
 		fprintf(stderr,"Tomos file %s does not exist.\n",info.tomo_file);
 		rslt = false;
@@ -245,13 +254,7 @@ bool validate(const Info&info) {
 			}
 		}
 	}
-	
-	References refs(info.refs_file);
-	if( !refs.check_size(info.box_size,info.ali_halves) ) {
-		fprintf(stderr,"Error on reference file %s.\n",info.refs_file);
-		rslt = false;
-	}
-	
+
 	return rslt;
 };
 
@@ -452,6 +455,10 @@ bool parse_args(Info&info,int ac,char** av) {
         } /// switch
     } /// while(c)
     
+    if( info.type == 2 ) {
+        info.off_type = CIRCLE;
+    }
+
     return validate(info);
 }
 
@@ -561,14 +568,19 @@ void print(const Info&info,FILE*fp=stdout) {
 	uint32_t total_points=0;
 	if( info.off_type == ELLIPSOID ) {
 		Vec3*pt = PointsProvider::ellipsoid(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
-		fprintf(stdout,"\t\tEllipsoid offset search: ");
+                fprintf(stdout,"\t\tEllipsoid offset search (3D): ");
 		delete [] pt;
 	}
 	if( info.off_type == CYLINDER ) {
 		Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
-		fprintf(stdout,"\t\tCylindrical offset search: ");
+                fprintf(stdout,"\t\tCylindrical offset search (3D): ");
 		delete [] pt;
-	}
+        }
+        if( info.off_type == CIRCLE ) {
+                Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
+                fprintf(stdout,"\t\tCircular offset search (2D): ");
+                delete [] pt;
+        }
 	
 	fprintf(stdout,"Range=[%.2f,%.2f,%.2f], Step=%.2f. Total points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
 }

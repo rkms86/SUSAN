@@ -9,15 +9,18 @@
 #include "particles.h"
 #include "tomogram.h"
 #include "reference.h"
+#include "ref_maps.h"
 #include "stack_reader.h"
 #include "gpu.h"
 #include "gpu_kernel.h"
+#include "gpu_rand.h"
 #include "gpu_kernel_ctf.h"
 #include "substack_crop.h"
 #include "mrc.h"
 #include "io.h"
 #include "points_provider.h"
-#include "rec_acc.h"
+#include "angles_provider.h"
+#include "ref_ali.h"
 #include "aligner_args.h"
 
 typedef enum {
@@ -73,9 +76,20 @@ public:
 	float3  bandpass;
 	float2  ssnr; /// x=F; y=S;
 	DoubleBufferHandler *p_buffer;
+        RefMap              *p_refs;
 	
+        const char*psym;
+        float2 cone; /// x=range; y=step
+        float2 inplane; /// x=range; y=step
+        uint32 ref_level;
+        uint32 ref_factor;
+        uint32 off_type;
+        float4 off_par;
+
 	bool drift2D;
 	bool drift3D;
+
+        AnglesProvider ang_prov;
 	
 	AliGpuWorker() {
 	}
@@ -96,16 +110,33 @@ protected:
 		int current_cmd;
 		GPU::Stream stream;
 		stream.configure();
-		//RecSubstack ss_data(M,N,max_K,P,stream);
-		//RecAcc vols[R];
-		//for(int r=0;r<R;r++)
-		//	vols[r].alloc(MP,NP,max_K);
-		
+
+                AliSubstack ss_data(M,N,max_K,P,stream);
+
+                AliData ali_data(MP,NP,max_K,off_par,off_type);
+
+                GPU::GArrSingle ctf_wgt;
+                ctf_wgt.alloc(MP*NP*max_K);
+
+                int num_vols = R;
+                if( ali_halves ) num_vols = 2*R;
+                AliRef vols[num_vols];
+                allocate_references(vols);
+
+                ang_prov.cone_range = cone.x;
+                ang_prov.cone_step  = cone.y;
+                ang_prov.inplane_range = inplane.x;
+                ang_prov.inplane_step  = inplane.y;
+                ang_prov.refine_factor = ref_factor;
+                ang_prov.refine_level  = ref_level;
+                ang_prov.set_symmetry(psym);
+
+                GPU::sync();
+
 		while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
 			switch(current_cmd) {
 				case ALI_3D:
-					align3D(stream);
-					//align3D(vols,ss_data,stream);
+                                        align3D(vols,ctf_wgt,ss_data,ali_data,stream);
 					break;
 				default:
 					break;
@@ -114,45 +145,164 @@ protected:
 		
 		GPU::sync();
 	}
-	
-	void align3D(GPU::Stream&stream) {
+
+        void allocate_references(AliRef*vols) {
+            GPU::GArrSingle  g_raw;
+            GPU::GArrSingle  g_pad;
+            GPU::GArrSingle2 g_fou;
+
+            g_raw.alloc(N*N*N);
+            g_pad.alloc(NP*NP*NP);
+            g_fou.alloc(MP*NP*NP);
+
+            GpuFFT::FFT3D fft3;
+            fft3.alloc(NP);
+
+            if( ali_halves ) {
+                for(int r=0;r<R;r++) {
+                    upload_ref(g_pad,g_raw,p_refs[r].half_A);
+                    exec_fft3(g_fou,g_pad,fft3);
+                    vols[2*r  ].allocate(g_fou,MP,NP);
+
+                    upload_ref(g_pad,g_raw,p_refs[r].half_B);
+                    exec_fft3(g_fou,g_pad,fft3);
+                    vols[2*r+1].allocate(g_fou,MP,NP);
+                }
+            }
+            else {
+                for(int r=0;r<R;r++) {
+                    upload_ref(g_pad,g_raw,p_refs[r].map);
+                    exec_fft3(g_fou,g_pad,fft3);
+                    vols[r].allocate(g_fou,MP,NP);
+                }
+            }
+        }
+
+        void upload_ref(GPU::GArrSingle&g_pad,GPU::GArrSingle&g_raw,single*data) {
+            cudaError_t err = cudaMemcpy((void*)g_raw.ptr,(const void*)data,sizeof(single)*N*N*N,cudaMemcpyHostToDevice);
+            if( err != cudaSuccess ) {
+                fprintf(stderr,"Error uploading volume to CUDA memory. ");
+                fprintf(stderr,"GPU error: %s.\n",cudaGetErrorString(err));
+                exit(1);
+            }
+            g_pad.clear();
+
+            int3 pad = make_int3(P/2,P/2,P/2);
+            int3 ss_raw = make_int3(N,N,N);
+            int3 ss_pad = make_int3(NP,NP,NP);
+
+            dim3 blk = GPU::get_block_size_2D();
+            dim3 grd = GPU::calc_grid_size(blk,N,N,N);
+
+            GpuKernels::load_pad<<<grd,blk>>>(g_pad.ptr,g_raw.ptr,pad,ss_raw,ss_pad);
+        }
+
+        void exec_fft3(GPU::GArrSingle2&g_fou,GPU::GArrSingle&g_pad,GpuFFT::FFT3D&fft3) {
+            dim3 blk = GPU::get_block_size_2D();
+            dim3 grdR = GPU::calc_grid_size(blk,NP,NP,NP);
+            dim3 grdC = GPU::calc_grid_size(blk,MP,NP,NP);
+            GpuKernels::fftshift3D<<<grdR,blk>>>(g_pad.ptr,NP);
+            fft3.exec(g_fou.ptr,g_pad.ptr);
+            GpuKernels::fftshift3D<<<grdC,blk>>>(g_fou.ptr,MP,NP);
+        }
+
+        void align3D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,GPU::Stream&stream) {
 		p_buffer->RO_sync();
 		while( p_buffer->RO_get_status() > DONE ) {
 			if( p_buffer->RO_get_status() == READY ) {
 				AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
-				//add_data(ss_data,ptr,stream);
-				//correct_ctf(ss_data,ptr,stream);
+                                create_ctf(ctf_wgt,ptr,stream);
+                                add_data(ss_data,ctf_wgt,ptr,stream);
+                                angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,stream);
+                                //correct_ctf(ss_data,ptr,stream);
 				//insert_vol(vols[ptr->r_ix],ss_data,ptr,stream);
-				//stream.sync();
+                                stream.sync();
 			}
 			p_buffer->RO_sync();
 		}
 	}
+
+        void create_ctf(GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,GPU::Stream&stream) {
+            int3 ss = make_int3(MP,NP,ptr->K);
+            dim3 blk = GPU::get_block_size_2D();
+            dim3 grd = GPU::calc_grid_size(blk,MP,NP,ptr->K);
+            GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_wgt.ptr,ptr->ctf_vals,ptr->g_def.ptr,ss);
+        }
 	
-	/*void insert_loop(RecAcc*vols,RecSubstack&ss_data,GPU::Stream&stream) {
-		p_buffer->RO_sync();
-		while( p_buffer->RO_get_status() > DONE ) {
-			if( p_buffer->RO_get_status() == READY ) {
-				RecBuffer*ptr = (RecBuffer*)p_buffer->RO_get_buffer();
-				add_data(ss_data,ptr,stream);
-				correct_ctf(ss_data,ptr,stream);
-				insert_vol(vols[ptr->r_ix],ss_data,ptr,stream);
-				stream.sync();
-			}
-			p_buffer->RO_sync();
-		}
-	}
-	
-	void add_data(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
-		if( pad_type == ArgsRec::PaddingType_t::PAD_ZERO )
+        void add_data(AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,GPU::Stream&stream) {
+                if( pad_type == ArgsAli::PaddingType_t::PAD_ZERO )
 			ss_data.pad_zero(stream);
-		if( pad_type == ArgsRec::PaddingType_t::PAD_GAUSSIAN )
+                if( pad_type == ArgsAli::PaddingType_t::PAD_GAUSSIAN )
 			ss_data.pad_normal(ptr->g_pad,ptr->K,stream);
 		
 		ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
+
+                if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK )
+                    ss_data.correct_wiener(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
+                if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_SSNR )
+                    ss_data.correct_wiener_ssnr(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ssnr,ptr->K,stream);
+                if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
+                    ss_data.correct_wiener_whitening(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
+
+                float w_total=0;
+                for(int k=0;k<ptr->K;k++) {
+                    w_total += ptr->c_ali.ptr[k].w;
+                }
+
+                ss_data.apply_radial_wgt(w_total,ptr->K,stream);
+
 	}
 	
-	void correct_ctf(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
+        void angular_search_3D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,GPU::Stream&stream) {
+            Rot33 R;
+            //single max_cc=0,cc;
+            //int max_idx=0,idx;
+            M33f max_R,R_ite,R_tmp;
+            M33f R_lvl = Eigen::MatrixXf::Identity(3,3);
+
+            for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
+                for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
+                    for( ang_prov.cone_init(); ang_prov.cone_available(); ang_prov.cone_next() ) {
+                        for( ang_prov.inplane_init(); ang_prov.inplane_available(); ang_prov.inplane_next() ) {
+
+                            ang_prov.get_current_R(R_ite);
+                            R_tmp = R_ite*R_lvl;
+                            Math::set(R,R_tmp);
+                            ali_data.rotate_post(R,ptr->g_ali,ptr->K,stream);
+                            ali_data.project(vol.ref,bandpass,ptr->K,stream);
+
+                            /*g_refs[vol_ix].extract_stack(g_ext.g_tlt,g_ext.g_stk_f,gpu_in.cur_K,stream_process);
+                            g_ext.cross_correlate_and_fft(g_stk.g_stk_f,g_ctf.g_ptr,gpu_in.cur_K,stream_process);
+                            g_cc.fftshift_and_set(g_ext.g_stk_r,gpu_in.cur_K,stream_process);
+                            g_wbp.reconstruct(g_cc.text_obj,g_ext.g_tlt,gpu_in.cur_K,stream_process);
+                            g_wbp.get_max(cc,idx);
+                            if( cc > max_cc ) {
+                                max_idx = idx;
+                                max_cc  = cc;
+                                max_R   = R_tmp;
+                            }*/
+                        }
+                    }
+                }
+                R_lvl = max_R;
+            }
+        }
+
+        /*void insert_loop(RecAcc*vols,RecSubstack&ss_data,GPU::Stream&stream) {
+                p_buffer->RO_sync();
+                while( p_buffer->RO_get_status() > DONE ) {
+                        if( p_buffer->RO_get_status() == READY ) {
+                                RecBuffer*ptr = (RecBuffer*)p_buffer->RO_get_buffer();
+                                add_data(ss_data,ptr,stream);
+                                correct_ctf(ss_data,ptr,stream);
+                                insert_vol(vols[ptr->r_ix],ss_data,ptr,stream);
+                                stream.sync();
+                        }
+                        p_buffer->RO_sync();
+                }
+        }
+
+        void correct_ctf(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
 		if( ctf_type == ArgsRec::InversionType_t::NO_INV )
 			ss_data.set_no_ctf(bandpass,ptr->K,stream);
 		if( ctf_type == ArgsRec::InversionType_t::PHASE_FLIP )
@@ -160,8 +310,8 @@ protected:
 		if( ctf_type == ArgsRec::InversionType_t::WIENER_INV )
 			ss_data.set_wiener(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
 		if( ctf_type == ArgsRec::InversionType_t::WIENER_INV_SSNR )
-			ss_data.set_wiener_ssnr(ptr->ctf_vals,ptr->g_def,bandpass,ssnr,ptr->K,stream);
-			
+                        ss_data.set_wiener_ssnr(ptr->ctf_vals,ptr->g_def,bandpass,ssnr,ptr->K,stream);
+
 	}
 	
 	void insert_vol(RecAcc&vol,RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
@@ -181,7 +331,7 @@ public:
 	float           *p_stack;
 	ParticlesSubset *p_ptcls;
 	Tomogram        *p_tomo;
-	References      *p_refs;
+        RefMap          *p_refs;
 	int gpu_ix;
 	int max_K;
 	int N;
@@ -205,7 +355,7 @@ public:
 	~AliRdrWorker() {
 	}
 	
-	void setup_global_data(int id,References*in_p_refs,int in_max_K,ArgsAli::Info*info,WorkerCommand*in_worker_cmd) {
+        void setup_global_data(int id,RefMap*in_p_refs,int in_R,int in_max_K,ArgsAli::Info*info,WorkerCommand*in_worker_cmd) {
 		worker_id  = id;
 		worker_cmd = in_worker_cmd;
 		
@@ -214,7 +364,6 @@ public:
 		max_K    = in_max_K;
 		pad_type = info->pad_type;
 
-		
 		N = info->box_size;
 		M = (N/2)+1;
 		P = info->pad_size;
@@ -223,7 +372,7 @@ public:
 		MP = (NP/2)+1;
 		
 		p_refs = in_p_refs;
-		R = p_refs->num_refs;
+                R = in_R;
 		
 		drift2D = true;
 		drift3D = true;
@@ -283,6 +432,7 @@ protected:
 		gpu_worker.M          = M;
 		gpu_worker.P          = P;
 		gpu_worker.R          = R;
+                gpu_worker.p_refs     = p_refs;
 		gpu_worker.ali_halves = p_info->ali_halves;
 		gpu_worker.pad_type   = pad_type;
 		gpu_worker.ctf_type   = p_info->ctf_type;
@@ -294,7 +444,19 @@ protected:
 		gpu_worker.ssnr.y     = p_info->ssnr_S;
 		gpu_worker.drift2D    = drift2D;
 		gpu_worker.drift3D    = drift3D;
-		gpu_worker.start();
+                gpu_worker.cone.x     = p_info->cone_range;
+                gpu_worker.cone.y     = p_info->cone_step;
+                gpu_worker.inplane.x  = p_info->inplane_range;
+                gpu_worker.inplane.y  = p_info->inplane_step;
+                gpu_worker.ref_factor = p_info->refine_factor;
+                gpu_worker.ref_level  = p_info->refine_level;
+                gpu_worker.off_type   = p_info->off_type;
+                gpu_worker.off_par.x  = p_info->off_x;
+                gpu_worker.off_par.y  = p_info->off_y;
+                gpu_worker.off_par.z  = p_info->off_z;
+                gpu_worker.off_par.w  = p_info->off_s;
+                gpu_worker.psym       = p_info->pseudo_sym;
+                gpu_worker.start();
 	}
 	
 	void crop_loop(DoubleBufferHandler&stack_buffer,GPU::Stream&stream) {
@@ -305,7 +467,7 @@ protected:
 			read_defocus(ptr);
 			work_progress++;
 			work_accumul++;
-			for(int r=0;r<p_refs->num_refs;r++) {
+                        for(int r=0;r<R;r++) {
 				crop_substack(ptr,r);
 				if( check_substack(ptr) ) {
 					upload(ptr,stream.strm);
@@ -342,7 +504,10 @@ protected:
 		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
 		M33f R_tmp,R_ali,R_stack,R_gpu;
 		
-		ptr->r_ix = r;
+                if( p_info->ali_halves )
+                        ptr->r_ix = 2*r + (ptr->ptcl.half_id()-1);
+                else
+                        ptr->r_ix = r;
 		
 		/// P_tomo = P_ptcl + t_ali
 		if( drift3D ) {
@@ -435,7 +600,7 @@ protected:
 			}
 		}
 	}
-		
+
 	bool check_substack(AliBuffer*ptr) {
 		bool rslt = false;
 		for(int k=0;k<ptr->K;k++) {
@@ -460,7 +625,7 @@ public:
 	AliRdrWorker  *workers;
 	ArgsAli::Info *p_info;
 	WorkerCommand w_cmd;
-	References    *p_refs;
+        RefMap        *p_refs;
 	int max_K;
 	int N;
 	int M;
@@ -479,12 +644,10 @@ public:
 	 : PoolCoordinator(stkrdr,in_num_threads), w_cmd(2*in_num_threads+1) {
 		workers  = new AliRdrWorker[in_num_threads];
 		p_info   = info;
-		p_refs   = in_p_refs;
-		max_K    = in_max_K;
+                max_K    = in_max_K;
 		n_ptcls  = num_ptcls;
 		N = info->box_size;
-		M = (N/2)+1;
-		R = p_refs->num_refs;
+                M = (N/2)+1;
 		P = info->pad_size;
 		NP = N+P;
 		MP = (NP/2)+1;
@@ -495,17 +658,27 @@ public:
 		progress_buffer[67] = 0;
 		progress_clear [66] = '\r';
 		progress_clear [67] = 0;
+
+                load_references(in_p_refs);
 	}
 	
 	~AliPool() {
+                delete [] p_refs;
 		delete [] workers;
 	}
 	
 protected:
+        void load_references(References*in_p_refs) {
+            R = in_p_refs->num_refs;
+            p_refs = new RefMap[R];
+            for(int r=0;r<R;r++) {
+                p_refs[r].load(in_p_refs->at(r));
+            }
+        }
 
 	void coord_init() {
 		for(int i=0;i<p_info->n_threads;i++) {
-			workers[i].setup_global_data(i,p_refs,max_K,p_info,&w_cmd);
+                        workers[i].setup_global_data(i,p_refs,R,max_K,p_info,&w_cmd);
 			workers[i].start();
 		}
 		progress_start();

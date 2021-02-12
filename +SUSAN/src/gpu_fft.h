@@ -107,6 +107,30 @@ public:
     }
 };
 
+class IFFT2D : public XFFT_base {
+public:
+    void alloc(const int X, const int Y, const int Z) {
+        int rank = 2;
+        int m[2] = {Y, Y};
+        int odist = Y*Y;
+        int idist = X*Y;
+        int onembed[] = {Y, Y};
+        int inembed[] = {Y, X};
+        int istride = 1;
+        int ostride = 1;
+
+        if ( cufftPlanMany(&handler, rank, m, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2R, Z) != CUFFT_SUCCESS ) {
+            fprintf(stderr,"Error allocating inverse FFT2D batch.\n");
+            exit(1);
+
+        }
+    }
+
+    void exec(float*g_out, float2*g_in) {
+        cufftExecC2R(handler,g_in,g_out);
+    }
+};
+
 class FFT3D : public XFFT_base {
 public:
     void alloc(const int N) {
