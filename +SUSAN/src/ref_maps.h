@@ -73,6 +73,7 @@ public:
                         fprintf(stderr,"Error normalizing map %s\n",ref_info.map);
                         exit(1);
                     }
+                    Math::mul(map,mask,numel);
                 }
 
                 if( half_A != NULL ) {
@@ -80,6 +81,7 @@ public:
                         fprintf(stderr,"Error normalizing map %s\n",ref_info.h1);
                         exit(1);
                     }
+                    Math::mul(half_A,mask,numel);
                 }
 
                 if( half_B != NULL ) {
@@ -87,6 +89,7 @@ public:
                         fprintf(stderr,"Error normalizing map %s\n",ref_info.h2);
                         exit(1);
                     }
+                    Math::mul(half_A,mask,numel);
                 }
             }
 

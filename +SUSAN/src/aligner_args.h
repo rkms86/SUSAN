@@ -29,7 +29,8 @@ typedef enum {
 	ON_REFERENCE,
 	ON_SUBSTACK,
 	ON_SUBSTACK_SSNR,
-	ON_SUBSTACK_WHITENING
+        ON_SUBSTACK_WHITENING,
+        ON_SUBSTACK_PHASE
 } CtfCorrectionType_t;
 
 typedef enum {
@@ -155,7 +156,12 @@ uint32 get_ctf_type(const char*arg) {
 		rslt = ON_SUBSTACK_WHITENING;
 		all_ok = true;
 	}
-	
+
+        if( strcmp(arg,"wiener_phase") == 0 ) {
+                rslt = ON_SUBSTACK_PHASE;
+                all_ok = true;
+        }
+
 	if( !all_ok ) {
 		fprintf(stderr,"Invalid ctf correction type %s. Options are: none, on_reference, on_substack, wiener_ssnr and wiener_white. Defaulting to on_reference.\n",arg);
 	}
@@ -457,6 +463,7 @@ bool parse_args(Info&info,int ac,char** av) {
     
     if( info.type == 2 ) {
         info.off_type = CIRCLE;
+        info.off_s = 1;
     }
 
     return validate(info);

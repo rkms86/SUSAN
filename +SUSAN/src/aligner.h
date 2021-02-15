@@ -43,6 +43,7 @@ public:
 	CtfConst ctf_vals;
 	int      K;
 	int      r_ix;
+        int      class_ix;
 	
 	AliBuffer(int N,int max_k) {
 		c_stk.alloc(N*N*max_k);
@@ -102,7 +103,7 @@ protected:
 	int MP;
 
 	void main() {
-		
+
 		NP = N+P;
 		MP = (NP/2)+1;
 		
@@ -113,7 +114,7 @@ protected:
 
                 AliSubstack ss_data(M,N,max_K,P,stream);
 
-                AliData ali_data(MP,NP,max_K,off_par,off_type);
+                AliData ali_data(MP,NP,max_K,off_par,off_type,stream);
 
                 GPU::GArrSingle ctf_wgt;
                 ctf_wgt.alloc(MP*NP*max_K);
@@ -135,11 +136,14 @@ protected:
 
 		while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
 			switch(current_cmd) {
-				case ALI_3D:
-                                        align3D(vols,ctf_wgt,ss_data,ali_data,stream);
-					break;
-				default:
-					break;
+                            case ALI_3D:
+                                align3D(vols,ctf_wgt,ss_data,ali_data,stream);
+                                break;
+                            case ALI_2D:
+                                align2D(vols,ctf_wgt,ss_data,ali_data,stream);
+                                break;
+                            default:
+                                    break;
 			}
 		}
 		
@@ -213,20 +217,45 @@ protected:
 				AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
                                 create_ctf(ctf_wgt,ptr,stream);
                                 add_data(ss_data,ctf_wgt,ptr,stream);
+                                add_rec_weight(ss_data,ptr,stream);
                                 angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,stream);
-                                //correct_ctf(ss_data,ptr,stream);
-				//insert_vol(vols[ptr->r_ix],ss_data,ptr,stream);
                                 stream.sync();
+                                set_classification(ptr);
 			}
 			p_buffer->RO_sync();
 		}
 	}
+
+        void align2D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,GPU::Stream&stream) {
+                p_buffer->RO_sync();
+                while( p_buffer->RO_get_status() > DONE ) {
+                        if( p_buffer->RO_get_status() == READY ) {
+                                AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
+                                create_ctf(ctf_wgt,ptr,stream);
+                                add_data(ss_data,ctf_wgt,ptr,stream);
+                                angular_search_2D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,stream);
+                                stream.sync();
+                        }
+                        p_buffer->RO_sync();
+                }
+        }
 
         void create_ctf(GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,GPU::Stream&stream) {
             int3 ss = make_int3(MP,NP,ptr->K);
             dim3 blk = GPU::get_block_size_2D();
             dim3 grd = GPU::calc_grid_size(blk,MP,NP,ptr->K);
             GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_wgt.ptr,ptr->ctf_vals,ptr->g_def.ptr,ss);
+
+            /*static bool flag = true;
+            if( flag ) {
+                flag = false;
+                stream.sync();
+                float*tmp = new float[MP*NP*ptr->K];
+                GPU::download_async(tmp,ctf_wgt.ptr,MP*NP*ptr->K,stream.strm);
+                stream.sync();
+                Mrc::write(tmp,MP,NP,ptr->K,"ctf.mrc");
+                delete [] tmp;
+            }*/
         }
 	
         void add_data(AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,GPU::Stream&stream) {
@@ -237,26 +266,40 @@ protected:
 		
 		ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
 
+                /*static bool flag = true;
+                if( flag ) {
+                    flag = false;
+                    stream.sync();
+                    float*tmp = new float[NP*NP*ptr->K];
+                    GPU::download_async(tmp,ss_data.ss_padded.ptr,NP*NP*ptr->K,stream.strm);
+                    stream.sync();
+                    Mrc::write(tmp,NP,NP,ptr->K,"data.mrc");
+                    delete [] tmp;
+                }*/
+
                 if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK )
                     ss_data.correct_wiener(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
                 if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_SSNR )
                     ss_data.correct_wiener_ssnr(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ssnr,ptr->K,stream);
-                if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
-                    ss_data.correct_wiener_whitening(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
-
+                if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING ) {
+                    ss_data.correct_wiener(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
+                    //ss_data.whitening_filter(ptr->K,stream);
+                }
+	}
+	
+        void add_rec_weight(AliSubstack&ss_data,AliBuffer*ptr,GPU::Stream&stream) {
                 float w_total=0;
                 for(int k=0;k<ptr->K;k++) {
                     w_total += ptr->c_ali.ptr[k].w;
                 }
-
                 ss_data.apply_radial_wgt(w_total,ptr->K,stream);
+        }
 
-	}
-	
         void angular_search_3D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,GPU::Stream&stream) {
+
             Rot33 R;
-            //single max_cc=0,cc;
-            //int max_idx=0,idx;
+            single max_cc=0,cc;
+            int max_idx=0,idx;
             M33f max_R,R_ite,R_tmp;
             M33f R_lvl = Eigen::MatrixXf::Identity(3,3);
 
@@ -271,57 +314,219 @@ protected:
                             ali_data.rotate_post(R,ptr->g_ali,ptr->K,stream);
                             ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
-                            /*g_refs[vol_ix].extract_stack(g_ext.g_tlt,g_ext.g_stk_f,gpu_in.cur_K,stream_process);
-                            g_ext.cross_correlate_and_fft(g_stk.g_stk_f,g_ctf.g_ptr,gpu_in.cur_K,stream_process);
-                            g_cc.fftshift_and_set(g_ext.g_stk_r,gpu_in.cur_K,stream_process);
-                            g_wbp.reconstruct(g_cc.text_obj,g_ext.g_tlt,gpu_in.cur_K,stream_process);
-                            g_wbp.get_max(cc,idx);
+                            if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE )
+                                ali_data.multiply(ctf_wgt,ptr->K,stream);
+
+                            ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
+
+                            if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
+                                ss_data.whitening_filter(ali_data.prj_c,ptr->K,stream);
+
+                            if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_PHASE ) {
+                                ss_data.norm_complex(ali_data.prj_c,ptr->K,stream);
+                            }
+
+                            ali_data.invert_fourier(ptr->K,stream);
+
+                            /*static bool flag = true;
+                            if( flag ) {
+                                flag = false;
+                                float *tmp = new float[NP*NP*ptr->K];
+                                GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
+                                stream.sync();
+                                Mrc::write(tmp,NP,NP,ptr->K,"cc.mrc");
+                                delete [] tmp;
+                            }*/
+
+                            ali_data.sparse_reconstruct(ptr->g_ali,ptr->K,stream);
+                            stream.sync();
+                            ali_data.get_max_cc(cc,idx,ali_data.c_cc);
                             if( cc > max_cc ) {
                                 max_idx = idx;
                                 max_cc  = cc;
                                 max_R   = R_tmp;
+                            }
+
+                            /*static bool flag = true;
+                            if( flag ) {
+                                flag = false;
+                                FILE*fp=fopen("create_cc_rec.m","w");
+                                fprintf(fp,"cc_rec=zeros(%d,%d,%d);\n",N,N,N);
+                                for(int n=0;n<ali_data.n_pts;n++) {
+                                    int xx = (int)(ali_data.c_pts[n].x) + N/2 + 1;
+                                    int yy = (int)(ali_data.c_pts[n].y) + N/2 + 1;
+                                    int zz = (int)(ali_data.c_pts[n].z) + N/2 + 1;
+                                    fprintf(fp,"cc_rec(%3d,%3d,%3d) = %.4f;\n",xx,yy,zz,ali_data.c_cc[n]);
+                                }
+                                fclose(fp);
                             }*/
-                        }
-                    }
-                }
+
+                        } // INPLANE
+                    } // CONE
+                } // SYMMETRY
                 R_lvl = max_R;
+            } // REFINE
+
+            update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix);
+        }
+
+        void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,GPU::Stream&stream) {
+
+            ang_prov.refine_level = 0;
+            Rot33 R;
+            M33f R_ite;
+
+            single max_cc[ptr->K]={0};
+            single ite_cc[ptr->K];
+            int max_idx[ptr->K]={0};
+            int ite_idx[ptr->K];
+            M33f max_R[ptr->K];
+
+            for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
+                for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
+                    for( ang_prov.cone_init(); ang_prov.cone_available(); ang_prov.cone_next() ) {
+                        for( ang_prov.inplane_init(); ang_prov.inplane_available(); ang_prov.inplane_next() ) {
+
+                            ang_prov.get_current_R(R_ite);
+                            Math::set(R,R_ite);
+                            ali_data.rotate_pre(R,ptr->g_ali,ptr->K,stream);
+                            ali_data.project(vol.ref,bandpass,ptr->K,stream);
+
+                            if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE )
+                                ali_data.multiply(ctf_wgt,ptr->K,stream);
+
+                            ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
+
+                            if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
+                                ss_data.whitening_filter(ali_data.prj_c,ptr->K,stream);
+
+                            if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_PHASE ) {
+                                ss_data.norm_complex(ali_data.prj_c,ptr->K,stream);
+                            }
+
+                            ali_data.invert_fourier(ptr->K,stream);
+
+                            /*static bool flag = true;
+                            if( flag ) {
+                                flag = false;
+                                float *tmp = new float[NP*NP*ptr->K];
+                                GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
+                                stream.sync();
+                                Mrc::write(tmp,NP,NP,ptr->K,"cc.mrc");
+                                delete [] tmp;
+                            }*/
+
+                            ali_data.extract_cc(ite_cc,ite_idx,ptr->K,stream);
+
+                            for(int i=0;i<ptr->K;i++) {
+                                if( ite_cc[i] > max_cc[i] ) {
+                                    max_idx[i] = ite_idx[i];
+                                    max_cc[i]  = ite_cc[i];
+                                    max_R[i]   = R_ite;
+                                }
+                            }
+
+                            /*static bool flag = true;
+                            if( flag ) {
+                                flag = false;
+                                FILE*fp=fopen("create_cc_rec.m","w");
+                                fprintf(fp,"cc_rec=zeros(%d,%d,%d);\n",N,N,N);
+                                for(int n=0;n<ali_data.n_pts;n++) {
+                                    int xx = (int)(ali_data.c_pts[n].x) + N/2 + 1;
+                                    int yy = (int)(ali_data.c_pts[n].y) + N/2 + 1;
+                                    int zz = (int)(ali_data.c_pts[n].z) + N/2 + 1;
+                                    fprintf(fp,"cc_rec(%3d,%3d,%3d) = %.4f;\n",xx,yy,zz,ali_data.c_cc[n]);
+                                }
+                                fclose(fp);
+                            }*/
+
+                        } // INPLANE
+                    } // CONE
+                } // SYMMETRY
+            } // REFINE
+
+            for(int i=0;i<ptr->K;i++) {
+                update_particle_2D(ptr->ptcl,max_R[i],ali_data.c_pts[max_idx[i]],max_cc[i],i);
             }
         }
 
-        /*void insert_loop(RecAcc*vols,RecSubstack&ss_data,GPU::Stream&stream) {
-                p_buffer->RO_sync();
-                while( p_buffer->RO_get_status() > DONE ) {
-                        if( p_buffer->RO_get_status() == READY ) {
-                                RecBuffer*ptr = (RecBuffer*)p_buffer->RO_get_buffer();
-                                add_data(ss_data,ptr,stream);
-                                correct_ctf(ss_data,ptr,stream);
-                                insert_vol(vols[ptr->r_ix],ss_data,ptr,stream);
-                                stream.sync();
-                        }
-                        p_buffer->RO_sync();
+        void update_particle_3D(Particle&ptcl,const M33f&R,const Vec3&t,const single cc, const int ref_ix) {
+
+            ptcl.ali_cc[ref_ix] = cc;
+
+            if( cc > 0 ) {
+                M33f Rprv;
+                V3f eu_prv;
+                eu_prv(0) = ptcl.ali_eu[ref_ix].x;
+                eu_prv(1) = ptcl.ali_eu[ref_ix].y;
+                eu_prv(2) = ptcl.ali_eu[ref_ix].z;
+                Math::eZYZ_Rmat(Rprv,eu_prv);
+                M33f Rnew = R*Rprv;
+                Math::Rmat_eZYZ(eu_prv,Rnew);
+                ptcl.ali_eu[ref_ix].x = eu_prv(0);
+                ptcl.ali_eu[ref_ix].y = eu_prv(1);
+                ptcl.ali_eu[ref_ix].z = eu_prv(2);
+
+                V3f tp,tt;
+                tp(0) = t.x;
+                tp(1) = t.y;
+                tp(2) = t.z;
+                tt = Rnew.transpose()*tp;
+
+                if( drift3D ) {
+                    ptcl.ali_t[ref_ix].x += tt(0);
+                    ptcl.ali_t[ref_ix].y += tt(1);
+                    ptcl.ali_t[ref_ix].z += tt(2);
                 }
+                else {
+                    ptcl.ali_t[ref_ix].x = tt(0);
+                    ptcl.ali_t[ref_ix].y = tt(1);
+                    ptcl.ali_t[ref_ix].z = tt(2);
+                }
+            }
         }
 
-        void correct_ctf(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
-		if( ctf_type == ArgsRec::InversionType_t::NO_INV )
-			ss_data.set_no_ctf(bandpass,ptr->K,stream);
-		if( ctf_type == ArgsRec::InversionType_t::PHASE_FLIP )
-			ss_data.set_phase_flip(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
-		if( ctf_type == ArgsRec::InversionType_t::WIENER_INV )
-			ss_data.set_wiener(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
-		if( ctf_type == ArgsRec::InversionType_t::WIENER_INV_SSNR )
-                        ss_data.set_wiener_ssnr(ptr->ctf_vals,ptr->g_def,bandpass,ssnr,ptr->K,stream);
+        void update_particle_2D(Particle&ptcl,const M33f&R,const Vec3&t,const single cc, const int prj_ix) {
 
-	}
-	
-	void insert_vol(RecAcc&vol,RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
-		vol.insert(ss_data.ss_tex,ss_data.ss_ctf,ptr->g_ali,bandpass,ptr->K,stream);
-	}
-	
-	void download_vol(double2*p_acc,double*p_wgt,RecAcc&vol) {
-		cudaMemcpy( (void*)(p_acc), (const void*)vol.vol_acc.ptr, sizeof(double2)*NP*NP*MP, cudaMemcpyDeviceToHost);
-		cudaMemcpy( (void*)(p_wgt), (const void*)vol.vol_wgt.ptr, sizeof(double )*NP*NP*MP, cudaMemcpyDeviceToHost);
-	}*/
+            if( ptcl.prj_w[prj_ix] > 0 && cc > 0 ) {
+                ptcl.prj_cc[prj_ix] = cc;
+
+                M33f Rprv;
+                V3f eu_prv;
+                eu_prv(0) = ptcl.prj_eu[prj_ix].x;
+                eu_prv(1) = ptcl.prj_eu[prj_ix].y;
+                eu_prv(2) = ptcl.prj_eu[prj_ix].z;
+                Math::eZYZ_Rmat(Rprv,eu_prv);
+                M33f Rnew = R*Rprv;
+                Math::Rmat_eZYZ(eu_prv,Rnew);
+                ptcl.prj_eu[prj_ix].x = eu_prv(0);
+                ptcl.prj_eu[prj_ix].y = eu_prv(1);
+                ptcl.prj_eu[prj_ix].z = eu_prv(2);
+
+                if( drift2D ) {
+                    ptcl.ali_t[prj_ix].x += t.x;
+                    ptcl.ali_t[prj_ix].y += t.y;
+                }
+                else {
+                    ptcl.ali_t[prj_ix].x = t.x;
+                    ptcl.ali_t[prj_ix].y = t.y;
+                }
+            }
+        }
+
+        void set_classification(AliBuffer*ptr) {
+            if( ptr->class_ix+1 == ptr->ptcl.n_refs ) {
+                float max_cc = ptr->ptcl.ali_cc[0];
+                ptr->ptcl.ref_cix() = 0;
+                for(int i=0;i<ptr->ptcl.n_refs;i++) {
+                    if( max_cc < ptr->ptcl.ali_cc[i] ) {
+                        max_cc = ptr->ptcl.ali_cc[i];
+                        ptr->ptcl.ref_cix() = i;
+                    }
+                }
+            }
+        }
+
 };
 
 class AliRdrWorker : public Worker {
@@ -504,6 +709,8 @@ protected:
 		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
 		M33f R_tmp,R_ali,R_stack,R_gpu;
 		
+                ptr->class_ix = r;
+
                 if( p_info->ali_halves )
                         ptr->r_ix = 2*r + (ptr->ptcl.half_id()-1);
                 else
@@ -690,7 +897,11 @@ protected:
 		for(int i=0;i<p_info->n_threads;i++) {
 			workers[i].setup_working_data(stack,&ptcls,&tomo);
 		}
-		w_cmd.send_command(AliCmd::ALI_3D);
+                if( p_info->type == 3 )
+                    w_cmd.send_command(AliCmd::ALI_3D);
+                if( p_info->type == 2 )
+                    w_cmd.send_command(AliCmd::ALI_2D);
+
 		
 		show_progress(ptcls.n_ptcl);
 		

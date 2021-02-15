@@ -363,24 +363,25 @@ __global__ void radial_ps_norm(float2*p_data,const float*p_avg,const float*p_wgt
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-        float2 val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
+        float2 val = {0,0};
         float  x = ss_idx.x;
         float  y = ss_idx.y-ss_siz.y/2;
         float  R = l2_distance(x,y);
         int    r = (int)roundf(R);
-        int  idx = r + ss_siz.x*ss_idx.z;
 
         if( r < ss_siz.x ) {
+            val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
+            int  idx = r + ss_siz.x*ss_idx.z;
             float avg = p_avg[idx];
             float wgt = p_wgt[idx];
 
-            if( wgt > 0 ) {
-                avg = avg/wgt;
-                if( avg > 0.000001 ) {
-                    val.x = val.x/avg;
-                    val.y = val.y/avg;
-                }
-            }
+            wgt = max(wgt,1.0);
+            avg = avg/wgt;
+            if( avg < 0.00001 )
+                avg = 1.0;
+
+            val.x = val.x/avg;
+            val.y = val.y/avg;
 
             p_data[ get_3d_idx(ss_idx,ss_siz) ] = val;
         }
@@ -398,6 +399,20 @@ __global__ void divide(float*p_avg,const float*p_wgt,const int3 ss_siz) {
 		float wgt = p_wgt[ idx ];
 		if( wgt < 1 ) wgt = 1;
 		p_avg[ idx ] = val/wgt;
+    }
+}
+
+__global__ void divide(float2*p_avg,const float wgt,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        int idx = get_3d_idx(ss_idx,ss_siz);
+        float2 val = p_avg[ idx ];
+        val.x = val.x/wgt;
+        val.y = val.y/wgt;
+        p_avg[ idx ] = val;
     }
 }
 
@@ -471,6 +486,37 @@ __global__ void multiply(float2*p_out,const double2*p_acc,const double*p_wgt,con
 		rslt.x = (float)(val.x*wgt*scale);
 		rslt.y = (float)(val.y*wgt*scale);
 		p_out[ idx ] = rslt;
+    }
+}
+
+__global__ void multiply(float2*p_out,const float*p_wgt,const int3 ss_siz,const float scale=1.0) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+                int idx = get_3d_idx(ss_idx,ss_siz);
+                float2 val = p_out[ idx ];
+                float  wgt = p_wgt[ idx ];
+                float2 rslt;
+                rslt.x = (val.x*wgt*scale);
+                rslt.y = (val.y*wgt*scale);
+                p_out[ idx ] = rslt;
+    }
+}
+
+__global__ void multiply(float2*p_out,const float2*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+                int idx = get_3d_idx(ss_idx,ss_siz);
+                float2 val = p_out[ idx ];
+                float2 wgt = p_in [ idx ];
+                float2 rslt;
+                rslt = cuCmulf(val,wgt);
+                p_out[ idx ] = rslt;
     }
 }
 
@@ -553,6 +599,26 @@ __global__ void apply_radial_wgt(float2*p_data,const float w_total,const int3 ss
         w = (1-w_off)*w + w_off;
         val.x = w*val.x;
         val.y = w*val.y;
+
+        p_data[ idx ] = val;
+    }
+}
+
+__global__ void norm_complex(float2*p_data,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        int idx = get_3d_idx(ss_idx,ss_siz);
+        float2 val = p_data[ idx ];
+
+        float wgt = l2_distance(val.x,val.y);
+        if( wgt < 0.000001 )
+            wgt = 1;
+
+        val.x = val.x*wgt;
+        val.y = val.y*wgt;
 
         p_data[ idx ] = val;
     }

@@ -25,7 +25,6 @@ public:
     single  *prj_w;
     Defocus *def;
 
-protected:
 	uint32  n_proj;
 	uint32  n_refs;
 	

@@ -170,12 +170,12 @@ __global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pT
                     pt_out.y = -pt_out.y;
                     pt_out.z = -pt_out.z;
                     should_conjugate = true;
-
-                    val = tex3D<float2>(vol, pt_out.x+0.5, pt_out.y+N/2+0.5, pt_out.z+N/2+0.5);
-
-                    if( should_conjugate )
-                        val.y = -val.y;
                 }
+
+                val = tex3D<float2>(vol, pt_out.x+0.5, pt_out.y+N/2+0.5, pt_out.z+N/2+0.5);
+
+                if( should_conjugate )
+                    val.y = -val.y;
             }
         }
 
@@ -291,7 +291,7 @@ __global__ void add_symmetry(double2*p_val,double*p_wgt,
                              const double2*t_val, const double*t_wgt,
                              Rot33 Rsym, const int M, const int N)
 {
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 	
     if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < N ) {
 
@@ -401,6 +401,53 @@ __global__ void add_symmetry(double2*p_val,double*p_wgt,
             p_wgt[idx] = wgt;
         }
     }
+
+}
+
+__global__ void reconstruct_pts(float*p_cc,const Proj2D*pTlt,cudaTextureObject_t ss_cc,
+                                const Vec3*p_pts,const int n_pts,const int N,const int K) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < n_pts && ss_idx.y < 1 && ss_idx.z < 1 ) {
+
+        float cc = 0;
+        Vec3  pt = p_pts[ss_idx.x];
+        single x,y;
+        single off = (single)(N/2) + 0.5;
+
+        for(int z=0;z<K;z++) {
+            if( pTlt[z].w > 0 ) {
+                rot_inv_pt_XY(x,y,pTlt[z].R,pt);
+                cc += tex2DLayered<float>(ss_cc,x+off,y+off,z);
+            }
+        }
+
+        p_cc[ss_idx.x] = cc;
+
+    }
+
+
+}
+
+
+__global__ void extract_pts(float*p_cc,const float*p_data,const Vec3*p_pts,const int n_pts,const int N,const int K) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < n_pts && ss_idx.y < 1 && ss_idx.z < K ) {
+
+        Vec3  pt = p_pts[ss_idx.x];
+
+        int x = (int)pt.x + N/2;
+        int y = (int)pt.y + N/2;
+
+        float cc = p_data[x + y*N + ss_idx.z*N*N];
+
+        p_cc[ss_idx.x + n_pts*ss_idx.z] = cc;
+
+    }
+
 
 }
 
