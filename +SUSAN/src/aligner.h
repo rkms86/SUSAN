@@ -367,7 +367,7 @@ protected:
                 R_lvl = max_R;
             } // REFINE
 
-            update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix);
+            update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
         }
 
         void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,GPU::Stream&stream) {
@@ -446,11 +446,11 @@ protected:
             } // REFINE
 
             for(int i=0;i<ptr->K;i++) {
-                update_particle_2D(ptr->ptcl,max_R[i],ali_data.c_pts[max_idx[i]],max_cc[i],i);
+                update_particle_2D(ptr->ptcl,max_R[i],ali_data.c_pts[max_idx[i]],max_cc[i],i,ptr->ctf_vals.apix);
             }
         }
 
-        void update_particle_3D(Particle&ptcl,const M33f&R,const Vec3&t,const single cc, const int ref_ix) {
+        void update_particle_3D(Particle&ptcl,const M33f&R,const Vec3&t,const single cc, const int ref_ix,const float apix) {
 
             ptcl.ali_cc[ref_ix] = cc;
 
@@ -474,19 +474,19 @@ protected:
                 tt = Rnew.transpose()*tp;
 
                 if( drift3D ) {
-                    ptcl.ali_t[ref_ix].x += tt(0);
-                    ptcl.ali_t[ref_ix].y += tt(1);
-                    ptcl.ali_t[ref_ix].z += tt(2);
+                    ptcl.ali_t[ref_ix].x += tt(0)*apix;
+                    ptcl.ali_t[ref_ix].y += tt(1)*apix;
+                    ptcl.ali_t[ref_ix].z += tt(2)*apix;
                 }
                 else {
-                    ptcl.ali_t[ref_ix].x = tt(0);
-                    ptcl.ali_t[ref_ix].y = tt(1);
-                    ptcl.ali_t[ref_ix].z = tt(2);
+                    ptcl.ali_t[ref_ix].x = tt(0)*apix;
+                    ptcl.ali_t[ref_ix].y = tt(1)*apix;
+                    ptcl.ali_t[ref_ix].z = tt(2)*apix;
                 }
             }
         }
 
-        void update_particle_2D(Particle&ptcl,const M33f&R,const Vec3&t,const single cc, const int prj_ix) {
+        void update_particle_2D(Particle&ptcl,const M33f&R,const Vec3&t,const single cc, const int prj_ix,const float apix) {
 
             if( ptcl.prj_w[prj_ix] > 0 && cc > 0 ) {
                 ptcl.prj_cc[prj_ix] = cc;
@@ -504,12 +504,12 @@ protected:
                 ptcl.prj_eu[prj_ix].z = eu_prv(2);
 
                 if( drift2D ) {
-                    ptcl.ali_t[prj_ix].x += t.x;
-                    ptcl.ali_t[prj_ix].y += t.y;
+                    ptcl.ali_t[prj_ix].x += t.x*apix;
+                    ptcl.ali_t[prj_ix].y += t.y*apix;
                 }
                 else {
-                    ptcl.ali_t[prj_ix].x = t.x;
-                    ptcl.ali_t[prj_ix].y = t.y;
+                    ptcl.ali_t[prj_ix].x = t.x*apix;
+                    ptcl.ali_t[prj_ix].y = t.y*apix;
                 }
             }
         }
