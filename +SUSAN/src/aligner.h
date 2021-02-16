@@ -409,16 +409,6 @@ protected:
 
                             ali_data.invert_fourier(ptr->K,stream);
 
-                            /*static bool flag = true;
-                            if( flag ) {
-                                flag = false;
-                                float *tmp = new float[NP*NP*ptr->K];
-                                GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
-                                stream.sync();
-                                Mrc::write(tmp,NP,NP,ptr->K,"cc.mrc");
-                                delete [] tmp;
-                            }*/
-
                             ali_data.extract_cc(ite_cc,ite_idx,ptr->K,stream);
 
                             for(int i=0;i<ptr->K;i++) {
@@ -428,6 +418,22 @@ protected:
                                     max_R[i]   = R_ite;
                                 }
                             }
+
+                            static bool flag = true;
+                            if( flag ) {
+                                flag = false;
+                                float *tmp = new float[NP*NP*ptr->K];
+                                GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
+                                stream.sync();
+                                Mrc::write(tmp,NP,NP,ptr->K,"cc.mrc");
+                                delete [] tmp;
+                                FILE*fp=fclose("pts.txt","w");
+                                for(int i=0;i<ptr->K;i++) {
+                                    fprintf(fp,"%3d: %10.4f : %6.1f,%6.1f,%6.1f\n",i+1,max_cc[i],ali_data.c_pts[max_idx[i]].x,ali_data.c_pts[max_idx[i]].y,ali_data.c_pts[max_idx[i]].z);
+                                }
+                                fclose(fp);
+                            }
+
 
                             /*static bool flag = true;
                             if( flag ) {
