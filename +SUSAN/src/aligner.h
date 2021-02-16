@@ -419,7 +419,7 @@ protected:
                                 }
                             }
 
-                            static bool flag = true;
+                            /*static bool flag = true;
                             if( flag ) {
                                 flag = false;
                                 float *tmp = new float[NP*NP*ptr->K];
@@ -432,8 +432,7 @@ protected:
                                     fprintf(fp,"%3d: %10.4f : %6.1f,%6.1f,%6.1f\n",i+1,max_cc[i],ali_data.c_pts[max_idx[i]].x,ali_data.c_pts[max_idx[i]].y,ali_data.c_pts[max_idx[i]].z);
                                 }
                                 fclose(fp);
-                            }
-
+                            }*/
 
                             /*static bool flag = true;
                             if( flag ) {
@@ -513,12 +512,12 @@ protected:
                 ptcl.prj_eu[prj_ix].z = eu_prv(2);
 
                 if( drift2D ) {
-                    ptcl.ali_t[prj_ix].x += t.x*apix;
-                    ptcl.ali_t[prj_ix].y += t.y*apix;
+                    ptcl.ali_t[prj_ix].x -= t.x*apix;
+                    ptcl.ali_t[prj_ix].y -= t.y*apix;
                 }
                 else {
-                    ptcl.ali_t[prj_ix].x = t.x*apix;
-                    ptcl.ali_t[prj_ix].y = t.y*apix;
+                    ptcl.ali_t[prj_ix].x = -t.x*apix;
+                    ptcl.ali_t[prj_ix].y = -t.y*apix;
                 }
             }
         }
