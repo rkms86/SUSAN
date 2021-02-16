@@ -23,6 +23,7 @@ properties
     cc_threshold      single  = 0.5;
     fsc_threshold     single  = 0.143;
     fsc_plot_step     single  = 5;
+    padding           uint32  = 0;
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -30,6 +31,7 @@ end
 
 properties(Access=private)
     starting_datetime
+    ite_dir
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -50,14 +52,19 @@ methods
             error('1 or 2 input arguments required.');
         end
         
-        obj.aligner  = SUSAN.Modules.Aligner;
+        obj.aligner = SUSAN.Modules.Aligner;
+        obj.aligner.set_ctf_correction('on_reference',1,0);
+        obj.aligner.set_padding_policy('noise');
+        obj.aligner.set_normalization('zm');
+        
         obj.averager = SUSAN.Modules.Averager;
-        obj.averager.set_ctf_inversion();
+        obj.averager.set_ctf_correction('wiener',0.5,0);
+        obj.averager.set_padding_policy('noise');
+        obj.averager.set_normalization('zm');
         obj.averager.rec_halves = true;
-        obj.averager.ssnr_s = 0.5;
-        obj.averager.ssnr_f = 0;
         obj.averager.bandpass.highpass = 0;
         obj.averager.bandpass.lowpass  = obj.box_size/2-1;
+        obj.averager.bandpass.rolloff  = 3;
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -113,9 +120,9 @@ methods
             mkdir(cur_dir);
         end
         
+        obj.ite_dir = cur_dir;
+        
         [cur_refs,cur_part] = obj.get_iterations_files(iter_number);
-        obj.aligner.working_dir = [cur_dir '/tmp/'];
-        obj.averager.working_dir = [cur_dir '/tmp/'];
         
         fp_log = obj.log_init(cur_dir,iter_number);
         
@@ -451,12 +458,16 @@ methods(Access=private)
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function exec_alignment(obj,ptcls_out,refs,ptcls_in,fp_log)
+        log_txt = [obj.ite_dir '/stdout.alignment'];
         if( obj.alignment_type == 3 )
             fprintf('  [3D Alignment] Start:\n');
             obj.log_align3D_starts(fp_log,refs,ptcls_in);
             tic;
             obj.aligner.type = 3;
-            obj.aligner.align(ptcls_out,refs,obj.tomogram_file,ptcls_in);
+            cmd = obj.aligner.show_cmd(ptcls_out,refs,obj.tomogram_file,ptcls_in,obj.box_size);
+            if( system(['set -o pipefail; ' cmd ' | tee -a ' log_txt]) ~=0 )
+                error('Aligner crashed.');
+            end
             t = toc;
             fprintf('  [3D Alignment] Finished using %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
             obj.log_align_ends(fp_log,t);
@@ -465,7 +476,10 @@ methods(Access=private)
             obj.log_align2D_starts(fp_log,refs,ptcls_in);
             tic;
             obj.aligner.type = 2;
-            obj.aligner.align(ptcls_out,refs,obj.tomogram_file,ptcls_in);
+            cmd = obj.aligner.show_cmd(ptcls_out,refs,obj.tomogram_file,ptcls_in,obj.box_size);
+            if( system(['set -o pipefail; ' cmd ' | tee -a ' log_txt]) ~=0 )
+                error('Aligner crashed.');
+            end
             t = toc;
             fprintf('  [2D Alignment] Finished using %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
             obj.log_align_ends(fp_log,t);
@@ -525,11 +539,16 @@ methods(Access=private)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function exec_averaging(obj,cur_refs,cur_dir,tmp_part,prv_refs,ptcls_count,fp_log)
         
+        log_txt = [obj.ite_dir '/stdout.reconstruction'];
+        
         obj.log_reconstruction_starts(fp_log,size(ptcls_count,1));
         
         fprintf('  [Reconstruct Maps] Start:\n');
         tic;
-        obj.averager.reconstruct([cur_dir '/map'],obj.tomogram_file,tmp_part,obj.box_size);
+        cmd = obj.averager.show_cmd([cur_dir '/map'],obj.tomogram_file,tmp_part,obj.box_size);
+        if( system(['set -o pipefail; ' cmd ' | tee -a ' log_txt]) ~=0 )
+            error('Reconstruction crashed.');
+        end
         t = toc;
         fprintf('  [Reconstruct Maps] Finished using %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
         obj.log_reconstruct_time(fp_log,t);

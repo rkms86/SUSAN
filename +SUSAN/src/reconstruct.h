@@ -317,8 +317,8 @@ protected:
 	void read_defocus(RecBuffer*ptr) {
 		ptr->K = p_tomo->stk_dim.z;
 		
-		float lambda = Math::get_lambda( p_tomo->KV );
-		
+                float lambda = Math::get_lambda( p_tomo->KV );
+
 		ptr->ctf_vals.AC = p_tomo->AC;
 		ptr->ctf_vals.CA = sqrt(1-p_tomo->AC*p_tomo->AC);
 		ptr->ctf_vals.apix = p_tomo->pix_size;
@@ -342,7 +342,10 @@ protected:
 		else
 			ptr->r_ix = r;
 		
-		return ( ptr->ptcl.ali_w[r] )>0;
+                if( p_info->rec_halves )
+                    return ( ptr->ptcl.ali_w[r] >0 ) && ( ptr->ptcl.half_id() > 0 );
+                else
+                    return ( ptr->ptcl.ali_w[r] )>0;
 	}
 	
 	void crop_substack(RecBuffer*ptr) {
@@ -619,7 +622,7 @@ protected:
 				Math::sum(workers[0].c_acc[r],workers[i].c_acc[r],l);
 				Math::sum(workers[0].c_wgt[r],workers[i].c_wgt[r],l);
 			}
-		}
+                }
 	}
 	
 	void reconstruct_results() {
@@ -652,10 +655,11 @@ protected:
 			sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
 			reconstruct_upload(workers[0].c_acc[r],workers[0].c_wgt[r],p_acc,p_wgt);
-			sym.apply_sym(p_acc,p_wgt);
+                        sym.apply_sym(p_acc,p_wgt);
 			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
-			Mrc::write(vol,N,N,N,out_file);
+                        Mrc::write(vol,N,N,N,out_file);
+                        Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
 			printf(" Done.\n");
 		}
 	}
@@ -675,6 +679,7 @@ protected:
 			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);
+                        Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
 			printf(" Done.\n");
 			
 			sprintf(out_file,"%s_class%03d_half2.mrc",p_info->out_pfx,r+1);
@@ -684,6 +689,7 @@ protected:
 			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);
+                        Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
 			printf(" Done.\n");
 			
 			Math::sum(workers[0].c_acc[2*r],workers[0].c_acc[2*r+1],l);
@@ -695,6 +701,7 @@ protected:
 			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);
+                        Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
 			printf(" Done.\n");
 			
 		}
@@ -715,7 +722,7 @@ protected:
 		cudaMemcpy((void*)vol,(const void*)p_vol.ptr,sizeof(float)*N*N*N,cudaMemcpyDeviceToHost);
 		float avg,std;
 		Math::get_avg_std(avg,std,vol,N*N*N);
-		if( !Math::normalize(vol,N*N*N,avg,std,1.0) ) {
+                if( !Math::normalize(vol,N*N*N,avg,std,1.0) ) {
 			Math::randn(vol,N*N*N);
 			printf("(Empty, filling with noise)");
 		}

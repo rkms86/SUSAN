@@ -59,11 +59,12 @@ __device__ bool  get_mirror_index(int&x,int&y,int&z,bool&was_inverted,const int 
 	return get_mirror_index(x,y,z,M,N);
 }
 
-__device__ int get_ix_3d(bool&should_conj,const int x,const int y,const int z,const int M,const int N) {
+__device__ int get_ix_3d(bool&should_read,bool&should_conj,const int x,const int y,const int z,const int M,const int N) {
 	int wx=x;
 	int wy=y;
 	int wz=z;
 	should_conj = false;
+        should_read = false;
 	
 	if(x<0) {
 		wx = -wx;
@@ -74,6 +75,9 @@ __device__ int get_ix_3d(bool&should_conj,const int x,const int y,const int z,co
 	
 	wy += N/2;
 	wz += N/2;
+
+        if( wx < M && wy < N && wz < N )
+            should_read = true;
 	
 	return wx + wy*M + wz*M*N;
 }
@@ -260,7 +264,7 @@ __global__ void inv_wgt_ite_divide(double*p_vol_wgt, const double*p_conv,const i
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 		long idx = get_3d_idx(ss_idx,ss_siz);
         double den = p_conv[idx];
-        den = fmax(den,1e-5);
+        den = fmax(den,1e-3);
         p_vol_wgt[ idx ] = fmin(p_vol_wgt[ idx ] / den, 1e10);
     }
 }
@@ -304,98 +308,113 @@ __global__ void add_symmetry(double2*p_val,double*p_wgt,
 
         if( R < (N/2) ) {
 
-			long idx = ss_idx.x + ss_idx.y*M + ss_idx.z*M*N;
+            long idx = ss_idx.x + ss_idx.y*M + ss_idx.z*M*N;
             double2 val = p_val[idx];
             double  wgt = p_wgt[idx];
             float x,y,z;
 
-			bool should_conj = false;
-			
-			rot_inv_pt(x,y,z,Rsym,pt);
-			
-			int p_x = floor(x);
-			int p_y = floor(y);
-			int p_z = floor(z);
-			float w_x = x - floor(x);
-			float w_y = y - floor(y);
-			float w_z = z - floor(z);
-			
-			int     read_idx;
-			double2 read_val;
-			double  read_wgt;
-			float   w;
-			
-			read_idx = get_ix_3d(should_conj,p_x  ,p_y  ,p_z  ,M,N);
-			read_val = t_val[read_idx];
-			read_wgt = t_wgt[read_idx];
-			if(should_conj) read_val.y = -read_val.y;
-			w = (1-w_x)*(1-w_y)*(1-w_z);
-			val.x += w*read_val.x;
-			val.y += w*read_val.y;
-			wgt   += w*read_wgt;
-			
-			read_idx = get_ix_3d(should_conj,p_x+1,p_y  ,p_z  ,M,N);
-			read_val = t_val[read_idx];
-			read_wgt = t_wgt[read_idx];
-			if(should_conj) read_val.y = -read_val.y;
-			w = (  w_x)*(1-w_y)*(1-w_z);
-			val.x += w*read_val.x;
-			val.y += w*read_val.y;
-			wgt   += w*read_wgt;
-			
-			read_idx = get_ix_3d(should_conj,p_x  ,p_y+1,p_z  ,M,N);
-			read_val = t_val[read_idx];
-			read_wgt = t_wgt[read_idx];
-			if(should_conj) read_val.y = -read_val.y;
-			w = (1-w_x)*(  w_y)*(1-w_z);
-			val.x += w*read_val.x;
-			val.y += w*read_val.y;
-			wgt   += w*read_wgt;
-			
-			read_idx = get_ix_3d(should_conj,p_x+1,p_y+1,p_z  ,M,N);
-			read_val = t_val[read_idx];
-			read_wgt = t_wgt[read_idx];
-			if(should_conj) read_val.y = -read_val.y;
-			w = (  w_x)*(  w_y)*(1-w_z);
-			val.x += w*read_val.x;
-			val.y += w*read_val.y;
-			wgt   += w*read_wgt;
-			
-			read_idx = get_ix_3d(should_conj,p_x  ,p_y  ,p_z+1,M,N);
-			read_val = t_val[read_idx];
-			read_wgt = t_wgt[read_idx];
-			if(should_conj) read_val.y = -read_val.y;
-			w = (1-w_x)*(1-w_y)*(  w_z);
-			val.x += w*read_val.x;
-			val.y += w*read_val.y;
-			wgt   += w*read_wgt;
-			
-			read_idx = get_ix_3d(should_conj,p_x+1,p_y  ,p_z+1,M,N);
-			read_val = t_val[read_idx];
-			read_wgt = t_wgt[read_idx];
-			if(should_conj) read_val.y = -read_val.y;
-			w = (  w_x)*(1-w_y)*(  w_z);
-			val.x += w*read_val.x;
-			val.y += w*read_val.y;
-			wgt   += w*read_wgt;
-			
-			read_idx = get_ix_3d(should_conj,p_x  ,p_y+1,p_z+1,M,N);
-			read_val = t_val[read_idx];
-			read_wgt = t_wgt[read_idx];
-			if(should_conj) read_val.y = -read_val.y;
-			w = (1-w_x)*(  w_y)*(  w_z);
-			val.x += w*read_val.x;
-			val.y += w*read_val.y;
-			wgt   += w*read_wgt;
-			
-			read_idx = get_ix_3d(should_conj,p_x+1,p_y+1,p_z+1,M,N);
-			read_val = t_val[read_idx];
-			read_wgt = t_wgt[read_idx];
-			if(should_conj) read_val.y = -read_val.y;
-			w = (  w_x)*(  w_y)*(  w_z);
-			val.x += w*read_val.x;
-			val.y += w*read_val.y;
-			wgt   += w*read_wgt;
+            bool should_conj = false;
+            bool should_read = false;
+
+            rot_inv_pt(x,y,z,Rsym,pt);
+
+            int p_x = floor(x);
+            int p_y = floor(y);
+            int p_z = floor(z);
+            float w_x = x - floor(x);
+            float w_y = y - floor(y);
+            float w_z = z - floor(z);
+
+            int     read_idx;
+            double2 read_val;
+            double  read_wgt;
+            float   w;
+
+            read_idx = get_ix_3d(should_read,should_conj,p_x  ,p_y  ,p_z  ,M,N);
+            read_val = t_val[read_idx];
+            read_wgt = t_wgt[read_idx];
+            if(should_conj) read_val.y = -read_val.y;
+            w = (1-w_x)*(1-w_y)*(1-w_z);
+            val.x += w*read_val.x;
+            val.y += w*read_val.y;
+            wgt   += w*read_wgt;
+
+            read_idx = get_ix_3d(should_read,should_conj,p_x+1,p_y  ,p_z  ,M,N);
+            if( should_read ) {
+                read_val = t_val[read_idx];
+                read_wgt = t_wgt[read_idx];
+                if(should_conj) read_val.y = -read_val.y;
+                w = (  w_x)*(1-w_y)*(1-w_z);
+                val.x += w*read_val.x;
+                val.y += w*read_val.y;
+                wgt   += w*read_wgt;
+            }
+
+            read_idx = get_ix_3d(should_read,should_conj,p_x  ,p_y+1,p_z  ,M,N);
+            if( should_read ) {
+                read_val = t_val[read_idx];
+                read_wgt = t_wgt[read_idx];
+                if(should_conj) read_val.y = -read_val.y;
+                w = (1-w_x)*(  w_y)*(1-w_z);
+                val.x += w*read_val.x;
+                val.y += w*read_val.y;
+                wgt   += w*read_wgt;
+            }
+
+            read_idx = get_ix_3d(should_read,should_conj,p_x+1,p_y+1,p_z  ,M,N);
+            if( should_read ) {
+                read_val = t_val[read_idx];
+                read_wgt = t_wgt[read_idx];
+                if(should_conj) read_val.y = -read_val.y;
+                w = (  w_x)*(  w_y)*(1-w_z);
+                val.x += w*read_val.x;
+                val.y += w*read_val.y;
+                wgt   += w*read_wgt;
+            }
+
+            read_idx = get_ix_3d(should_read,should_conj,p_x  ,p_y  ,p_z+1,M,N);
+            if( should_read ) {
+                read_val = t_val[read_idx];
+                read_wgt = t_wgt[read_idx];
+                if(should_conj) read_val.y = -read_val.y;
+                w = (1-w_x)*(1-w_y)*(  w_z);
+                val.x += w*read_val.x;
+                val.y += w*read_val.y;
+                wgt   += w*read_wgt;
+            }
+
+            read_idx = get_ix_3d(should_read,should_conj,p_x+1,p_y  ,p_z+1,M,N);
+            if( should_read ) {
+                read_val = t_val[read_idx];
+                read_wgt = t_wgt[read_idx];
+                if(should_conj) read_val.y = -read_val.y;
+                w = (  w_x)*(1-w_y)*(  w_z);
+                val.x += w*read_val.x;
+                val.y += w*read_val.y;
+                wgt   += w*read_wgt;
+            }
+
+            read_idx = get_ix_3d(should_read,should_conj,p_x  ,p_y+1,p_z+1,M,N);
+            if( should_read ) {
+                read_val = t_val[read_idx];
+                read_wgt = t_wgt[read_idx];
+                if(should_conj) read_val.y = -read_val.y;
+                w = (1-w_x)*(  w_y)*(  w_z);
+                val.x += w*read_val.x;
+                val.y += w*read_val.y;
+                wgt   += w*read_wgt;
+            }
+
+            read_idx = get_ix_3d(should_read,should_conj,p_x+1,p_y+1,p_z+1,M,N);
+            if( should_read ) {
+                read_val = t_val[read_idx];
+                read_wgt = t_wgt[read_idx];
+                if(should_conj) read_val.y = -read_val.y;
+                w = (  w_x)*(  w_y)*(  w_z);
+                val.x += w*read_val.x;
+                val.y += w*read_val.y;
+                wgt   += w*read_wgt;
+            }
 
             p_val[idx] = val;
             p_wgt[idx] = wgt;

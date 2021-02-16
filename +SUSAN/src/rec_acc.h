@@ -315,7 +315,7 @@ public:
 		
 		p_angs = AnglesSymmetry::get_rotation_list(num_angs,symmetry);
 		
-		siz = make_int3(M,N,N);
+                siz = make_int3(M,N,N);
 		blk = GPU::get_block_size_2D();
 		grd = GPU::calc_grid_size(blk,M,N,N);
 		
@@ -334,12 +334,16 @@ public:
 			cudaMemcpy(t_val.ptr,vol_acc.ptr,sizeof(double2)*M*N*N,cudaMemcpyDeviceToDevice);
 			cudaMemcpy(t_wgt.ptr,vol_wgt.ptr,sizeof(double )*M*N*N,cudaMemcpyDeviceToDevice);
 			
+                        GPU::sync();
+
 			Rot33 Rsym;
 			for(uint32 i=1;i<num_angs;i++) {
-				Math::set(Rsym,p_angs[i]);
-				V3f tmp;
-				Math::Rmat_eZYZ(tmp,p_angs[i]);
+                                Math::set(Rsym,p_angs[i]);
+                                //V3f tmp;
+                                //Math::Rmat_eZYZ(tmp,p_angs[i]);
+                                //printf("%3d: %f %f %f\n",i,tmp(0)*RAD2DEG,tmp(1)*RAD2DEG,tmp(2)*RAD2DEG);
 				GpuKernelsVol::add_symmetry<<<grd,blk>>>(vol_acc.ptr,vol_wgt.ptr,t_val.ptr,t_wgt.ptr,Rsym,M,N);
+                                GPU::sync();
 			}
 		}
 		

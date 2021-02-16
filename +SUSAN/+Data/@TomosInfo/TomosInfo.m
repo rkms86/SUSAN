@@ -171,16 +171,18 @@ methods
             fields = 'Full';
         end
     
+        t = 1:obj.num_proj(tomo_ix);
+        
         if( SUSAN.Utils.is_extension(filename,'.defocus') )
             def = SUSAN.IO.read_defocus(filename);
-            obj.defocus(1:size(def,1),1:3,tomo_ix) = def;
+            obj.defocus(t,1:3,tomo_ix) = def;
             
         elseif( SUSAN.Utils.is_extension(filename,'.txt') )
             fp = fopen(filename,'r');
             data = fscanf(fp,'%f',[8 inf]);
             fclose(fp);
             
-            obj.defocus(:,:,tomo_ix) = data';
+            obj.defocus(t,:,tomo_ix) = data';
             
             if( strcmp(fields,'Basic') )
                 obj.defocus(:,5:7,:) = 0;

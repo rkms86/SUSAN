@@ -24,7 +24,7 @@ function ptcls_out = discard_closer(ptcls_in,min_dist_angs)
         n = sum(t_idx);
         data = [ptcls_in.position(t_idx,:)+ptcls_in.ali_t(t_idx,:,1) ptcls_in.ali_cc(t_idx,:) (0:(n-1))'];
         data = sortrows(data,4,'descend');
-        cur_idx = ParticlesGeom_select_min_dist(data',single(min_dist));
+        cur_idx = ParticlesGeom_select_min_dist(data',single(min_dist_angs));
         idx = [idx; cur_idx];
         fprintf('        Tomogram %d: from %7d to %7d particles\n',tomos_id(i),n,sum(cur_idx));
     end

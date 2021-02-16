@@ -25,7 +25,7 @@ public:
 		tomos = tomos_in;
 		ptcls = ptcls_in;
 		
-		int numel = get_tomos_max_numel();
+		long numel = get_tomos_max_numel();
 		
 		buffer_a = new StackBuffer(numel);
 		buffer_b = new StackBuffer(numel);
@@ -71,7 +71,7 @@ protected:
 	}
 	
 	/// CTOR Methods
-	int get_tomos_max_numel() {
+	long get_tomos_max_numel() {
 		uint32 X=0,Y=0,Z=0;
 		for(int i=0;i<tomos->num_tomo;i++) {
 			if( tomos->at(i).stk_dim.x > X )

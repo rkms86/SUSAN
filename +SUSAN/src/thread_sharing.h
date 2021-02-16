@@ -81,9 +81,9 @@ public:
 	float *stack;
 	ParticlesSubset ptcls;
 	int tomo_ix;
-	int numel;
+	long numel;
 	
-	StackBuffer(int in_numel) {
+	StackBuffer(long in_numel) {
 		numel = in_numel;
 		stack = new float[numel];
 		tomo_ix = 0;

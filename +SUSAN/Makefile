@@ -4,4 +4,5 @@ subsystem:
 	#$(MAKE) -C +Modules/@Aligner/private
 	$(MAKE) -C +Utils/private/
 	#$(MAKE) -C +Project/@Manager/private
+	$(MAKE) -C +Data/+Particles/+Geom/private
 

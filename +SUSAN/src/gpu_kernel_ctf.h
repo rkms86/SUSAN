@@ -453,7 +453,7 @@ __global__ void normalize_amplitude(float*p_data,float*radial_ia,const int3 ss_s
 		float y = ss_idx.y-Nh;
 		float R = l2_distance(x,y);
 		
-		int r = (int)round(R);
+		int r = (int)roundf(R);
 		float val = 0.5;
 		int idx = get_3d_idx(ss_idx,ss_siz);
 		

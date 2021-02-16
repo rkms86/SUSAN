@@ -376,11 +376,14 @@ protected:
             Rot33 R;
             M33f R_ite;
 
-            single max_cc[ptr->K]={0};
+            single max_cc[ptr->K];
             single ite_cc[ptr->K];
-            int max_idx[ptr->K]={0};
+            int max_idx[ptr->K];
             int ite_idx[ptr->K];
             M33f max_R[ptr->K];
+
+           memset(max_cc,0,sizeof(single)*ptr->K);
+           memset(max_idx,0,sizeof(single)*ptr->K);
 
             for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
                 for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
