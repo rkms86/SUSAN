@@ -551,7 +551,7 @@ protected:
 		return count;
 	}
 
-	void progress_start() {
+        virtual void progress_start() {
 		timer.tic();
 		sprintf(progress_buffer,"        Filling fourier space: Buffering...");
 		int n = strlen(progress_buffer);
@@ -561,7 +561,7 @@ protected:
 		fflush(stdout);
 	}
 
-	void show_progress(const int ptcls_in_tomo) {
+        virtual void show_progress(const int ptcls_in_tomo) {
 		int cur_progress=0;
 		while( (cur_progress=count_progress()) < ptcls_in_tomo ) {
 			memset(progress_buffer,' ',66);
@@ -586,7 +586,7 @@ protected:
 		}
 	}
 	
-	void show_done() {
+        virtual void show_done() {
 		memset(progress_buffer,' ',66);
 		sprintf(progress_buffer,"        Filling fourier space: 100.00%%%%");
 		int n = strlen(progress_buffer);
@@ -625,7 +625,7 @@ protected:
                 }
 	}
 	
-	void reconstruct_results() {
+        virtual void reconstruct_results() {
 		GPU::set_device( p_info->p_gpu[0] );
 		
 		GPU::GArrDouble  p_wgt;

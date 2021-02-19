@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.3)
 project(SUSAN LANGUAGES CXX CUDA)
+find_package(MPI 3)
 
 #set(CMAKE_BUILD_TYPE Debug)
 
@@ -10,6 +11,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_CUDA_STANDARD 11)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+set(CUDA_ARCHS 52)
+#set(CUDA_ARCHS 52 60 70)
 
 string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored")
@@ -22,20 +26,27 @@ string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --display_error_number")
 
 add_executable(susan_estimate_ctf src/estimate_ctf.cu)
 target_link_libraries(susan_estimate_ctf cufft)
-#set_property(TARGET susan_estimate_ctf PROPERTY CUDA_ARCHITECTURES 52 60 70)
-set_property(TARGET susan_estimate_ctf PROPERTY CUDA_ARCHITECTURES 52)
+set_property(TARGET susan_estimate_ctf PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
 
 add_executable(susan_reconstruct src/reconstruct.cu)
 target_link_libraries(susan_reconstruct cufft)
-#set_property(TARGET susan_reconstruct PROPERTY CUDA_ARCHITECTURES 52 60 70)
-set_property(TARGET susan_reconstruct PROPERTY CUDA_ARCHITECTURES 52)
+set_property(TARGET susan_reconstruct PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
 
 add_executable(susan_subtomos_rec src/rec_subtomos.cu)
 target_link_libraries(susan_subtomos_rec cufft)
-#set_property(TARGET susan_subtomos_rec PROPERTY CUDA_ARCHITECTURES 52 60 70)
-set_property(TARGET susan_subtomos_rec PROPERTY CUDA_ARCHITECTURES 52)
+set_property(TARGET susan_subtomos_rec PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
 
 add_executable(susan_aligner src/aligner.cu)
 target_link_libraries(susan_aligner cufft)
-#set_property(TARGET susan_aligner PROPERTY CUDA_ARCHITECTURES 52 60 70)
-set_property(TARGET susan_aligner PROPERTY CUDA_ARCHITECTURES 52)
+set_property(TARGET susan_aligner PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
+
+
+if( MPI_FOUND )
+add_executable(susan_reconstruct_mpi src/reconstruct_mpi.cu)
+target_compile_definitions(susan_reconstruct_mpi PUBLIC OPENMPI)
+target_link_libraries(susan_reconstruct_mpi cufft ${MPI_CXX_LIBRARIES})
+#target_link_options(susan_reconstruct_mpi MPI_CXX_LINK_FLAGS)
+target_include_directories(susan_reconstruct_mpi PUBLIC ${MPI_CXX_INCLUDE_DIRS})
+set_property(TARGET susan_reconstruct_mpi PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
+
+endif( MPI_FOUND )

@@ -227,45 +227,45 @@ protected:
 class ParticlesRW : public Particles {
 	
 public:
-	ParticlesRW(const char*filename) {
-		
-		FILE*fp = fopen(filename,"rb");
+    ParticlesRW(const char*filename) {
+
+        FILE*fp = fopen(filename,"rb");
         char signature[9];
         if( !IO::check_fread(signature, sizeof(char), 8, fp) ) {
             fprintf(stderr,"Reading %s: truncated file while reading signature.\n",filename);
-            exit(0);
+            exit(1);
         }
 
         signature[8] = 0;
         if( strcmp(signature,"SsaPtcl1") != 0) {
             fprintf(stderr,"Trying to read %s: wrong file signature %s.\n",filename,signature);
-            exit(0);
+            exit(1);
         }
 
         uint32_t lengths[3];
         if( !IO::check_fread(lengths, sizeof(uint32_t), 3, fp) ) {
             fprintf(stderr,"Reading %s: truncated file while reading sizes.\n",filename);
-            exit(0);
+            exit(1);
         }
         n_ptcl = lengths[0];
         n_proj = lengths[1];
         n_refs = lengths[2];
-        
+
         allocate(n_ptcl,n_proj,n_refs);
-        
-		if( !IO::check_fread(p_raw,n_bytes,n_ptcl,fp) ) {
-			fprintf(stderr,"Reading %s: truncated file while reading particles information.\n",filename);
+
+        if( !IO::check_fread(p_raw,n_bytes,n_ptcl,fp) ) {
+            fprintf(stderr,"Reading %s: truncated file while reading particles information.\n",filename);
             exit(0);
-		}
+        }
 
         fclose(fp);
-	}
-	
-	~ParticlesRW() {
-		free(p_raw);
-	}
-	
-	void save(const char*filename) {
+    }
+
+    ~ParticlesRW() {
+            free(p_raw);
+    }
+
+    void save(const char*filename) {
         FILE*fp = fopen(filename,"wb");
         char signature[] = "SsaPtcl1";
         uint32_t lengths[3];
@@ -386,16 +386,16 @@ public:
 
 class ParticlesMem : public Particles {
 public:
-	ParticlesMem(uint32 ptcl,uint32 proj,uint32 refs) {
-		n_ptcl = ptcl;
-		n_proj = proj;
-		n_refs = refs;
-		allocate(ptcl,proj,refs);
-	}
-	
-	~ParticlesMem() {
-		free(p_raw);
-	}
+    ParticlesMem(uint32 ptcl,uint32 proj,uint32 refs) {
+        n_ptcl = ptcl;
+        n_proj = proj;
+        n_refs = refs;
+        allocate(ptcl,proj,refs);
+    }
+
+    ~ParticlesMem() {
+            free(p_raw);
+    }
 };
 
 class ParticlesSubset : public Particles {
@@ -417,7 +417,7 @@ public:
 			p_raw  = ptcls_in.p_raw;
 			length = 0;
 		}
-	}
+        }
 };
 
 #endif /// PARTICLES_H
