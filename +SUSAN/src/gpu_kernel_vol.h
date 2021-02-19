@@ -470,6 +470,45 @@ __global__ void extract_pts(float*p_cc,const float*p_data,const Vec3*p_pts,const
 
 }
 
+__global__ void multiply_vol2(float2*p_out,cudaTextureObject_t vol_tex,const float2*p_data,
+                              Rot33 R,const float3 bandpass,const int M, const int N)
+{
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < N ) {
+
+        float2 val = {0,0};
+
+        Vec3 pt_in;
+        pt_in.x = ss_idx.x;
+        pt_in.y = ss_idx.y - N/2;
+        pt_in.z = ss_idx.z - N/2;
+
+        float R = l2_distance(pt_in.x,pt_in.y,pt_in.z);
+        float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+
+        if( bp > 0.05 ) {
+            Vec3 pt_out;
+            rot_pt_XY(pt_out,pTlt[ss_idx.z].R,pt_in);
+
+            bool should_conjugate = false;
+            if( pt_out.x < 0 ) {
+                pt_out.x = -pt_out.x;
+                pt_out.y = -pt_out.y;
+                pt_out.z = -pt_out.z;
+                should_conjugate = true;
+            }
+
+            val = tex3D<float2>(vol, pt_out.x+0.5, pt_out.y+N/2+0.5, pt_out.z+N/2+0.5);
+
+            if( should_conjugate )
+                val.y = -val.y;
+        }
+
+        p_out[ ss_idx.x + M*ss_idx.y + M*N*ss_idx.z ] = val;
+    }
+}
+
 
 }
 

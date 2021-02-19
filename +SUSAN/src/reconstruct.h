@@ -647,16 +647,14 @@ protected:
 	}
 	
 	void reconstruct_maps(float*vol,GPU::GArrSingle&p_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
-		RecInvWgt inv_wgt(NP,MP,p_info->w_inv_ite,p_info->w_inv_std);
-		RecInvVol inv_vol(N,P);
-		RecSym sym(MP,NP,p_info->sym);
-		char out_file[SUSAN_FILENAME_LENGTH];
+                char out_file[SUSAN_FILENAME_LENGTH];
 		for(int r=0;r<R;r++) {
 			sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
 			reconstruct_upload(workers[0].c_acc[r],workers[0].c_wgt[r],p_acc,p_wgt);
-                        sym.apply_sym(p_acc,p_wgt);
-			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
+                        reconstruct_sym(p_acc,p_wgt);
+                        reconstruct_invert(p_wgt);
+                        reconstruct_core(p_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
                         Mrc::write(vol,N,N,N,out_file);
                         Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
@@ -666,17 +664,15 @@ protected:
 	
 	void reconstruct_halves(float*vol,GPU::GArrSingle&p_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
 		int l = NP*NP*MP;
-		RecInvWgt inv_wgt(NP,MP,p_info->w_inv_ite,p_info->w_inv_std);
-		RecInvVol inv_vol(N,P);
-		RecSym sym(MP,NP,p_info->sym);
-		char out_file[SUSAN_FILENAME_LENGTH];
+                char out_file[SUSAN_FILENAME_LENGTH];
 		for(int r=0;r<R/2;r++) {
 			
 			sprintf(out_file,"%s_class%03d_half1.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
 			reconstruct_upload(workers[0].c_acc[2*r  ],workers[0].c_wgt[2*r  ],p_acc,p_wgt);
-			sym.apply_sym(p_acc,p_wgt);
-			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
+                        reconstruct_sym(p_acc,p_wgt);
+                        reconstruct_invert(p_wgt);
+                        reconstruct_core(p_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);
                         Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
@@ -685,8 +681,9 @@ protected:
 			sprintf(out_file,"%s_class%03d_half2.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
 			reconstruct_upload(workers[0].c_acc[2*r+1],workers[0].c_wgt[2*r+1],p_acc,p_wgt);
-			sym.apply_sym(p_acc,p_wgt);
-			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
+                        reconstruct_sym(p_acc,p_wgt);
+                        reconstruct_invert(p_wgt);
+                        reconstruct_core(p_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);
                         Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
@@ -697,8 +694,9 @@ protected:
 			sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
 			reconstruct_upload(workers[0].c_acc[2*r  ],workers[0].c_wgt[2*r  ],p_acc,p_wgt);
-			sym.apply_sym(p_acc,p_wgt);
-			reconstruct_core(p_vol,inv_wgt,inv_vol,p_acc,p_wgt);
+                        reconstruct_sym(p_acc,p_wgt);
+                        reconstruct_invert(p_wgt);
+                        reconstruct_core(p_vol,p_acc,p_wgt);
 			reconstruct_download(vol,p_vol);
 			Mrc::write(vol,N,N,N,out_file);
                         Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
@@ -711,11 +709,21 @@ protected:
 		cudaMemcpy((void*)p_acc.ptr,(const void*)c_acc,sizeof(double2)*MP*NP*NP,cudaMemcpyHostToDevice);
 		cudaMemcpy((void*)p_wgt.ptr,(const void*)c_wgt,sizeof(double )*MP*NP*NP,cudaMemcpyHostToDevice);
 	}
+
+        void reconstruct_sym(GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
+            RecSym sym(MP,NP,p_info->sym);
+            sym.apply_sym(p_acc,p_wgt);
+        }
+
+        void reconstruct_invert(GPU::GArrDouble&p_wgt) {
+            RecInvWgt inv_wgt(NP,MP,p_info->w_inv_ite,p_info->w_inv_std);
+            inv_wgt.invert(p_wgt);
+        }
 	
-	void reconstruct_core(GPU::GArrSingle&p_vol,RecInvWgt&inv_wgt,RecInvVol&inv_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
-		inv_wgt.invert(p_wgt);
-		inv_vol.apply_inv_wgt(p_acc,p_wgt);
-		inv_vol.invert_and_extract(p_vol);
+        void reconstruct_core(GPU::GArrSingle&p_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
+            RecInvVol inv_vol(N,P);
+            inv_vol.apply_inv_wgt(p_acc,p_wgt);
+            inv_vol.invert_and_extract(p_vol);
 	}
 	
 	void reconstruct_download(float*vol,GPU::GArrSingle&p_vol) {

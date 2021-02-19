@@ -231,7 +231,7 @@ methods
             error('Input must be a ParticlesInfo object');
         end
     
-        if( obj.num_references ~= ptcls.num_references )
+        if( obj.n_refs ~= ptcls.n_refs )
             error('Inconsistency: different number of classes');
         end
         
@@ -253,7 +253,7 @@ methods
         obj.prj_w     = cat(3, obj.prj_w    , ptcls.prj_w    );
         obj.defocus   = cat(3, obj.defocus  , ptcls.defocus  );
         
-        [~,ix] = sort(obj.tomo_id);
+        [~,ix] = sortrows([obj.tomo_id obj.ptcl_id]);
         
         
         obj.ptcl_id   = obj.ptcl_id(ix);

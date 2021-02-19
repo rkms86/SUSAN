@@ -149,9 +149,10 @@ public:
 class IFFT3D : public XFFT_base {
 public:
     void alloc(const int N) {
-		
-		if ( cufftPlan3d(&handler, N, N, N, CUFFT_C2R ) != CUFFT_SUCCESS ) {
-            fprintf(stderr,"Error allocating inverse FFT3D.\n");
+
+        cufftResult err = cufftPlan3d(&handler, N, N, N, CUFFT_C2R );
+        if( err != CUFFT_SUCCESS ) {
+            fprintf(stderr,"Error allocating inverse FFT3D [Code error: %d].\n",err);
             exit(1);
         }
     }

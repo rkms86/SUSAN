@@ -8,6 +8,7 @@
 
 #include "datatypes.h"
 #include "io.h"
+#include "mrc.h"
 #include "memory.h"
 
 typedef struct {

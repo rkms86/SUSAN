@@ -82,8 +82,7 @@ public:
 		dim3 grd_fou = GPU::calc_grid_size(blk,MP,NP,k);
 		GpuKernels::load_pad<<<grd_raw,blk,0,stream.strm>>>(ss_padded.ptr,g_data.ptr,pad,ss_raw,ss_pad);
 		GpuKernels::fftshift2D<<<grd_pad,blk,0,stream.strm>>>(ss_padded.ptr,ss_pad);
-		fft2.exec(ss_fourier.ptr,ss_padded.ptr);
-                GpuKernels::fftshift2D<<<grd_pad,blk,0,stream.strm>>>(ss_padded.ptr,ss_pad); // TO REMOVE
+                fft2.exec(ss_fourier.ptr,ss_padded.ptr);
                 GpuKernels::fftshift2D<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,ss_fou);
 		GpuKernels::subpixel_shift<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,g_ali.ptr,ss_fou);
 	}

@@ -32,7 +32,7 @@ function rot_shift_ref(ptcls_in,euZYZ,t,ref)
 
     [tmp_e,tmp_t] = ParticlesGeom_rot_shift(single(R),single(t),ptcls_in.ali_eZYZ(:,:,ref),ptcls_in.ali_t(:,:,ref));
 
-    ptcls_in.ali_eZYZ(:,:,ref_ix) = tmp_e;
-    ptcls_in.ali_t   (:,:,ref_ix) = tmp_t;
+    ptcls_in.ali_eZYZ(:,:,ref) = tmp_e;
+    ptcls_in.ali_t   (:,:,ref) = tmp_t;
 
 end

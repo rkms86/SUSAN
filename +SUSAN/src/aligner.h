@@ -297,7 +297,7 @@ protected:
 
         void angular_search_3D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,GPU::Stream&stream) {
 
-            Rot33 R;
+            Rot33 Rot;
             single max_cc=0,cc;
             int max_idx=0,idx;
             M33f max_R,R_ite,R_tmp;
@@ -310,8 +310,8 @@ protected:
 
                             ang_prov.get_current_R(R_ite);
                             R_tmp = R_ite*R_lvl;
-                            Math::set(R,R_tmp);
-                            ali_data.rotate_post(R,ptr->g_ali,ptr->K,stream);
+                            Math::set(Rot,R_tmp);
+                            ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
                             ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
                             if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE )
@@ -373,7 +373,7 @@ protected:
         void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,GPU::Stream&stream) {
 
             ang_prov.refine_level = 0;
-            Rot33 R;
+            Rot33 Rot;
             M33f R_ite;
 
             single max_cc[ptr->K];
@@ -391,8 +391,8 @@ protected:
                         for( ang_prov.inplane_init(); ang_prov.inplane_available(); ang_prov.inplane_next() ) {
 
                             ang_prov.get_current_R(R_ite);
-                            Math::set(R,R_ite);
-                            ali_data.rotate_pre(R,ptr->g_ali,ptr->K,stream);
+                            Math::set(Rot,R_ite);
+                            ali_data.rotate_pre(Rot,ptr->g_ali,ptr->K,stream);
                             ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
                             if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE )
@@ -458,7 +458,7 @@ protected:
             }
         }
 
-        void update_particle_3D(Particle&ptcl,const M33f&R,const Vec3&t,const single cc, const int ref_ix,const float apix) {
+        void update_particle_3D(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int ref_ix,const float apix) {
 
             ptcl.ali_cc[ref_ix] = cc;
 
@@ -469,7 +469,7 @@ protected:
                 eu_prv(1) = ptcl.ali_eu[ref_ix].y;
                 eu_prv(2) = ptcl.ali_eu[ref_ix].z;
                 Math::eZYZ_Rmat(Rprv,eu_prv);
-                M33f Rnew = R*Rprv;
+                M33f Rnew = Rot*Rprv;
                 Math::Rmat_eZYZ(eu_prv,Rnew);
                 ptcl.ali_eu[ref_ix].x = eu_prv(0);
                 ptcl.ali_eu[ref_ix].y = eu_prv(1);
@@ -494,7 +494,7 @@ protected:
             }
         }
 
-        void update_particle_2D(Particle&ptcl,const M33f&R,const Vec3&t,const single cc, const int prj_ix,const float apix) {
+        void update_particle_2D(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int prj_ix,const float apix) {
 
             if( ptcl.prj_w[prj_ix] > 0 && cc > 0 ) {
                 ptcl.prj_cc[prj_ix] = cc;
@@ -505,7 +505,7 @@ protected:
                 eu_prv(1) = ptcl.prj_eu[prj_ix].y;
                 eu_prv(2) = ptcl.prj_eu[prj_ix].z;
                 Math::eZYZ_Rmat(Rprv,eu_prv);
-                M33f Rnew = R*Rprv;
+                M33f Rnew = Rot*Rprv;
                 Math::Rmat_eZYZ(eu_prv,Rnew);
                 ptcl.prj_eu[prj_ix].x = eu_prv(0);
                 ptcl.prj_eu[prj_ix].y = eu_prv(1);
