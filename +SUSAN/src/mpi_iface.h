@@ -85,6 +85,10 @@ public:
         return num_nodes>1;
     }
 
+    void print_info() {
+        printf("\t\tMPI nodes: %d\n",num_nodes);
+    }
+
     Particles*scatter_particles(MpiScatterInfo&scatter_info,Particles*ptcls_in) {
         uint32 data[3];
         if( is_main_node() ) {
@@ -127,12 +131,12 @@ public:
             ParticlesSubset ptcls_gather;
             for(int i=1;i<num_nodes;i++) {
                 ptcls_gather.set((*ptcls_in),offset,scatter_info.count_per_node[i]);
-                MPI_Recv((void*)ptcls_gather.p_raw,ptcls_gather.n_bytes*ptcls_gather.n_ptcl,MPI_BYTE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                MPI_Recv((void*)ptcls_gather.p_raw,ptcls_gather.n_bytes*ptcls_gather.n_ptcl,MPI_BYTE,i,2,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
                 offset += scatter_info.count_per_node[i];
             }
         }
         else {
-            MPI_Send((void*)ptcls_scattered->p_raw,ptcls_scattered->n_bytes*ptcls_scattered->n_ptcl,MPI_BYTE,0,0,MPI_COMM_WORLD);
+            MPI_Send((void*)ptcls_scattered->p_raw,ptcls_scattered->n_bytes*ptcls_scattered->n_ptcl,MPI_BYTE,0,2,MPI_COMM_WORLD);
         }
     }
 

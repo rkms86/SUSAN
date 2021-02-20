@@ -77,10 +77,35 @@ public:
     }
 
     void align() {
+        V3f eu;
         for(int r=0;r<R;r++) {
             printf("\tAligning reference %2d...",r+1); fflush(stdout);
             align_half_maps(Rali[r],Tali[r],p_refs[r]);
-            printf(" Done.\n"); fflush(stdout);
+            Math::Rmat_eZYZ(eu,Rali[r]);
+            eu *= RAD2DEG;
+            printf(" R=[%7.2f %7.2f %7.2f] t=[%4.1f %4.1f %4.1f] Done.\n",eu(0),eu(1),eu(2),Tali[r](0),Tali[r](1),Tali[r](2)); fflush(stdout);
+        }
+    }
+
+    void update_ptcls(Particles&ptcls) {
+        Particle ptcl;
+        M33f Rold,Rnew;
+        V3f eu;
+        int r;
+        for(int i=0;i<ptcls.n_ptcl;i++) {
+            ptcls.get(ptcl,i);
+            if( ptcl.half_id() == 2 ) {
+                r = ptcl.ref_cix();
+                eu(0) = ptcl.ali_eu[r].x;
+                eu(1) = ptcl.ali_eu[r].y;
+                eu(2) = ptcl.ali_eu[r].z;
+                Math::eZYZ_Rmat(Rold,eu);
+                Rnew = Rali[r]*Rold;
+                Math::Rmat_eZYZ(eu,Rnew);
+                ptcl.ali_eu[r].x = eu(0);
+                ptcl.ali_eu[r].y = eu(1);
+                ptcl.ali_eu[r].z = eu(2);
+            }
         }
     }
 
@@ -140,36 +165,13 @@ protected:
                         R_tmp = R_ite*R_lvl;
                         Math::set(Rot,R_tmp);
 
-                        cross_correlate(c_cc,Rot,vol_a,vol_b);
+                        cross_correlate(cc,idx,Rot,vol_a,vol_b);
 
-                        /*
-
-                        ali_data.rotate_post(R,ptr->g_ali,ptr->K,stream);
-                        ali_data.project(vol.ref,bandpass,ptr->K,stream);
-
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE )
-                            ali_data.multiply(ctf_wgt,ptr->K,stream);
-
-                        ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
-
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
-                            ss_data.whitening_filter(ali_data.prj_c,ptr->K,stream);
-
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_PHASE ) {
-                            ss_data.norm_complex(ali_data.prj_c,ptr->K,stream);
-                        }
-
-                        ali_data.invert_fourier(ptr->K,stream);
-
-                        ali_data.sparse_reconstruct(ptr->g_ali,ptr->K,stream);
-                        stream.sync();
-                        ali_data.get_max_cc(cc,idx,ali_data.c_cc);
                         if( cc > max_cc ) {
                             max_idx = idx;
                             max_cc  = cc;
                             R_ref   = R_tmp;
-                        }*/
-
+                        }
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
@@ -200,10 +202,22 @@ protected:
     }
 
     void cross_correlate(float&cc,int&idx,Rot33&Rot,GPU::GTex3DSingle2&vol_in_a,GPU::GArrSingle2&vol_in_b) {
-        int3 siz = make_int3(M,N,N);
         dim3 blk = GPU::get_block_size_2D();
-        dim3 grd = GPU::calc_grid_size(blk,M,N,N);
+        dim3 grdR = GPU::calc_grid_size(blk,N,N,N);
+        dim3 grdC = GPU::calc_grid_size(blk,M,N,N);
+        float den = N*N*N;
+        GpuKernelsVol::multiply_vol2<<<grdC,blk>>>(vol_cc.ptr,vol_in_a.texture,vol_in_b.ptr,Rot,bandpass,M,N,den*den);
+        GpuKernels::fftshift3D<<<grdC,blk>>>(vol_cc.ptr,M,N);
+        ifft3.exec(real_buffer.ptr,vol_cc.ptr);
+        GpuKernels::fftshift3D<<<grdR,blk>>>(real_buffer.ptr,N);
 
+        blk.x = 1024;
+        blk.y = 1;
+        blk.z = 1;
+        grdR.x = GPU::div_round_up(n_pts,1024);
+        grdR.y = 1;
+        grdR.z = 1;
+        GpuKernelsVol::extract_pts<<<grdR,blk>>>(g_cc.ptr,real_buffer.ptr,g_pts.ptr,n_pts,N);
         cudaMemcpy((void*)c_cc,(const void*)g_cc.ptr,sizeof(single)*n_pts,cudaMemcpyDeviceToHost);
         cc = 0;
         for(int i=0;i<n_pts;i++) {

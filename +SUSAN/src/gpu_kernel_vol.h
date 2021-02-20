@@ -20,6 +20,12 @@ using namespace GpuKernels;
 
 namespace GpuKernelsVol {
 
+__device__ void  rot_pt(float&x,float&y,float&z,const Rot33&R,const Vec3&in) {
+    x = R.xx*in.x + R.xy*in.y + R.xz*in.z;
+    y = R.yx*in.x + R.yy*in.y + R.yz*in.z;
+    z = R.zx*in.x + R.zy*in.y + R.zz*in.z;
+}
+
 __device__ void  rot_pt_XY(Vec3&out,const Rot33&R,const Vec3&in) {
     out.x = R.xx*in.x + R.xy*in.y;
     out.y = R.yx*in.x + R.yy*in.y;
@@ -471,11 +477,13 @@ __global__ void extract_pts(float*p_cc,const float*p_data,const Vec3*p_pts,const
 }
 
 __global__ void multiply_vol2(float2*p_out,cudaTextureObject_t vol_tex,const float2*p_data,
-                              Rot33 R,const float3 bandpass,const int M, const int N)
+                              const Rot33 Rot,const float3 bandpass,const int M, const int N,const float den=1)
 {
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < N ) {
+
+        long idx = ss_idx.x + ss_idx.y*M + ss_idx.z*M*N;
 
         float2 val = {0,0};
 
@@ -485,28 +493,56 @@ __global__ void multiply_vol2(float2*p_out,cudaTextureObject_t vol_tex,const flo
         pt_in.z = ss_idx.z - N/2;
 
         float R = l2_distance(pt_in.x,pt_in.y,pt_in.z);
-        float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+        float w = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
 
-        if( bp > 0.05 ) {
-            Vec3 pt_out;
-            rot_pt_XY(pt_out,pTlt[ss_idx.z].R,pt_in);
+        if( w > 0.05 ) {
+            w = w/den;
+            float x,y,z;
+            rot_pt(x,y,z,Rot,pt_in);
 
-            bool should_conjugate = false;
-            if( pt_out.x < 0 ) {
-                pt_out.x = -pt_out.x;
-                pt_out.y = -pt_out.y;
-                pt_out.z = -pt_out.z;
-                should_conjugate = true;
+            bool should_conj=false;
+            if( x < 0 ) {
+                x = -x;
+                y = -y;
+                z = -z;
+                should_conj=true;
             }
 
-            val = tex3D<float2>(vol, pt_out.x+0.5, pt_out.y+N/2+0.5, pt_out.z+N/2+0.5);
+            float2 val_a = tex3D<float2>(vol_tex,x+0.5,y+N/2+0.5,z+N/2+0.5);
 
-            if( should_conjugate )
-                val.y = -val.y;
+            if( should_conj )
+                val_a.y = -val_a.y;
+
+            float2 val_b = p_data[idx];
+
+            val = cuCmulf(val_a,val_b);
+            val.x *= w;
+            val.y *= w;
         }
 
-        p_out[ ss_idx.x + M*ss_idx.y + M*N*ss_idx.z ] = val;
+        p_out[ idx ] = val;
     }
+}
+
+__global__ void extract_pts(float*p_cc,const float*p_data,const Vec3*p_pts,const int n_pts,const int N) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < n_pts && ss_idx.y < 1 && ss_idx.z < 1 ) {
+
+        Vec3  pt = p_pts[ss_idx.x];
+
+        int x = (int)pt.x + N/2;
+        int y = (int)pt.y + N/2;
+        int z = (int)pt.z + N/2;
+
+        float cc = p_data[x + y*N + z*N*N];
+
+        p_cc[ss_idx.x] = cc;
+
+    }
+
+
 }
 
 

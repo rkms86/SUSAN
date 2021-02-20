@@ -28,8 +28,8 @@ int main(int ac, char** av) {
 
                 RefsAligner aligner(&info,&refs);
                 aligner.align();
-
-                //ptcls.save(info.ptcls_out);
+                aligner.update_ptcls(ptcls);
+                ptcls.save(info.ptcls_out);
 	}
 	else {
 		fprintf(stderr,"Error parsing input arguments.\n");

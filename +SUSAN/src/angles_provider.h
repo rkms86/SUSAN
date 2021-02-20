@@ -166,18 +166,28 @@ public:
     }
 
     void print_curr_angles() {
-        printf("    %d: [ %7.2f %7.2f %7.2f ]\n",curr_lvl,eu1,eu2,eu3);
+        M33f R;
+        V3f eu;
+        get_current_R(R);
+        Rmat_eZYZ(eu,R);
+        eu *= RAD2DEG;
+        printf("    %d: [ %7.2f %7.2f %7.2f ]\n",curr_lvl,eu(0),eu(1),eu(2));
     }
 
     void get_current_R(M33f&R) {
-        M33f Rtmp;
+        M33f Rcone,Rinplane;
         V3f eu;
-        eu(0) = eu1;
-        eu(1) = eu2;
-        eu(2) = eu3-eu1;
-        eu *= M_PI/180;
-        eZYZ_Rmat(Rtmp,eu);
-        R = Rtmp*pseudo_sym_list[curr_sym];
+        eu(0) =  eu1;
+        eu(1) =  eu2;
+        eu(2) = -eu1;
+        eu *= DEG2RAD;
+        eZYZ_Rmat(Rcone,eu);
+        eu(0) = eu3;
+        eu(1) = 0;
+        eu(2) = 0;
+        eu *= DEG2RAD;
+        eZYZ_Rmat(Rinplane,eu);
+        R = Rcone*Rinplane*pseudo_sym_list[curr_sym];
     }
 
     void get_current_R(Rot33&R) {
