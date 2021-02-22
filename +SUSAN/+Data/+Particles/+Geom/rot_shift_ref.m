@@ -3,7 +3,7 @@ function rot_shift_ref(ptcls_in,euZYZ,t,ref)
 %   ROT_SHIFT_REF(PTCLS,R,T,REF) Aplies the rotation R and then the shift T
 %   to the reference/class REF of the particles PTCLS_IN. R can be a 3D
 %   rotation matrix or euler angles in the ZYZ format. T is a 3 elements
-%   vector.
+%   vector in angstroms.
 
     if( ~isa(ptcls_in,'SUSAN.Data.ParticlesInfo') )
         error('First argument must be a SUSAN.Data.ParticlesInfo object.');

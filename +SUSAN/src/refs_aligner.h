@@ -90,7 +90,7 @@ public:
     void update_ptcls(Particles&ptcls) {
         Particle ptcl;
         M33f Rold,Rnew;
-        V3f eu;
+        V3f eu,delta;
         int r;
         for(int i=0;i<ptcls.n_ptcl;i++) {
             ptcls.get(ptcl,i);
@@ -105,6 +105,10 @@ public:
                 ptcl.ali_eu[r].x = eu(0);
                 ptcl.ali_eu[r].y = eu(1);
                 ptcl.ali_eu[r].z = eu(2);
+                delta = p_info->pix_size*Rnew.transpose()*Tali[r];
+                ptcl.ali_t[r].x += delta(0);
+                ptcl.ali_t[r].y += delta(1);
+                ptcl.ali_t[r].z += delta(2);
             }
         }
     }

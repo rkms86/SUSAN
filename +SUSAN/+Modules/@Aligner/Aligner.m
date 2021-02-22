@@ -444,7 +444,7 @@ methods
         offset_str = [offset_str sprintf('%f',obj.offset.step)];
         cmd = [cmd ' -cone '       sprintf('%f,%f',obj.cone.range,obj.cone.step)];
         cmd = [cmd ' -inplane '    sprintf('%f,%f',obj.inplane.range,obj.inplane.step)];
-        cmd = [cmd ' -refine '     sprintf('%d,%d',obj.refine.level,obj.refine.factor)];
+        cmd = [cmd ' -refine '     sprintf('%d,%d',obj.refine.factor,obj.refine.level)];
         cmd = [cmd ' -off_type '   obj.offset.type];
         cmd = [cmd ' -off_params ' offset_str];
         
@@ -611,70 +611,6 @@ methods(Access=private)
     end
     
 end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-methods(Static, Access=private)
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    function rslt = check_input(particle_list_out,reference_list,tomo_list,particle_list_in)
-        rslt = true;
-        if( ~ischar(particle_list_out) )
-            warning([particle_list_out ' must be a char array.']);
-            rslt = false;
-        end
-        
-        if( ~ischar(reference_list) )
-            warning([reference_list ' must be a char array.']);
-            rslt = false;
-        end
-        
-        if( ~ischar(tomo_list) )
-            warning([tomo_list ' must be a char array.']);
-            rslt = false;
-        end
-        
-        if( ~ischar(particle_list_in) )
-            warning([particle_list_in ' must be a char array.']);
-            rslt = false;
-        end
-        
-        if( rslt )
-        
-            if( exist(reference_list,'file') )
-                if( ~SUSAN.Utils.is_extension(reference_list,'refstxt') )
-                    warning(['File "' reference_list '" is not a SUSAN reference list file.']);
-                    rslt = false;
-                end
-            else
-                warning(['File "' reference_list '" does not exist.']);
-                    rslt = false;
-            end
-
-            if( exist(tomo_list,'file') )
-                if( ~SUSAN.Utils.is_extension(tomo_list,'tomostxt') )
-                    warning(['File "' tomo_list '" is not a SUSAN tomogram list file.']);
-                    rslt = false;
-                end
-            else
-                warning(['File "' tomo_list '" does not exist.']);
-                    rslt = false;
-            end
-
-            if( exist(particle_list_in,'file') )
-                if( ~SUSAN.Utils.is_extension(particle_list_in,'ptclsraw') )
-                    warning(['File "' particle_list_in '" is not a SUSAN particle list file.']);
-                    rslt = false;
-                end
-            else
-                warning(['File "' particle_list_in '" does not exist.']);
-                    rslt = false;
-            end
-            
-        end
-    end
-end
-
 
 end
 

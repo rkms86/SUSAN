@@ -35,6 +35,7 @@ typedef struct {
     float  off_y;
     float  off_z;
     float  off_s;
+    float  pix_size;
 
     char   refs_file[SUSAN_FILENAME_LENGTH];
     char   ptcls_out[SUSAN_FILENAME_LENGTH];
@@ -118,6 +119,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.off_y         = 0;
     info.off_z         = 0;
     info.off_s         = 1;
+    info.pix_size      = 1;
     memset(info.refs_file,0,SUSAN_FILENAME_LENGTH*sizeof(char));
     memset(info.ptcls_out,0,SUSAN_FILENAME_LENGTH*sizeof(char));
     memset(info.ptcls_in ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
@@ -135,7 +137,8 @@ bool parse_args(Info&info,int ac,char** av) {
         INPLANE,
         REFINE,
         OFF_TYPE,
-        OFF_PARAM
+        OFF_PARAM,
+        PIX_SIZE
     };
 
     int c;
@@ -152,6 +155,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"refine",      1, 0, REFINE    },
         {"off_type",    1, 0, OFF_TYPE  },
         {"off_params",  1, 0, OFF_PARAM },
+        {"pix_size",    1, 0, PIX_SIZE  },
         {0, 0, 0, 0}
     };
     
@@ -212,6 +216,9 @@ bool parse_args(Info&info,int ac,char** av) {
                 info.off_s = tmp_single[3];
                 delete [] tmp_single;
                 break;
+            case PIX_SIZE:
+                info.pix_size = atof(optarg);
+                break;
             default:
                 printf("Unknown parameter %d\n",c);
                 exit(1);
@@ -258,7 +265,7 @@ void print(const Info&info,FILE*fp=stdout) {
     fprintf(stdout,"\t\tReference file: %s.\n",info.refs_file);
     fprintf(stdout,"\t\tParticles out:  %s.\n",info.ptcls_out);
 
-    fprintf(stdout,"\t\tVolume size: %dx%dx%d.\n",info.box_size,info.box_size,info.box_size);
+    fprintf(stdout,"\t\tVolume size: %dx%dx%d. (Voxel size: %.3f)\n",info.box_size,info.box_size,info.box_size,info.pix_size);
     
     fprintf(stdout,"\t\tUsing 1 GPU (GPU id: %d).\n",info.gpu_ix);
 

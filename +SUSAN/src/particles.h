@@ -14,8 +14,8 @@
 class Particle {
 	
 public:
-	PtclInf *info;
-	Vec3    *ali_eu;  /// radians
+    PtclInf *info;
+    Vec3    *ali_eu;  /// radians
     Vec3    *ali_t;   /// Angstroms
     single  *ali_cc;
     single  *ali_w;
@@ -25,76 +25,75 @@ public:
     single  *prj_w;
     Defocus *def;
 
-	uint32  n_proj;
-	uint32  n_refs;
+    uint32  n_proj;
+    uint32  n_refs;
 	
 public:
-	Particle() {
-		info   = NULL;
-		ali_eu = NULL;
-		ali_t  = NULL;
-		ali_cc = NULL;
-		prj_eu = NULL;
-		prj_t  = NULL;
-		prj_cc = NULL;
-		prj_w  = NULL;
-		def    = NULL;
-	}
-	
-	void set(uint8*ptr,uint32 proj,uint32 refs) {
-		
-		n_proj = proj;
-		n_refs = refs;
-		
-		info   = (PtclInf*)ptr;
-		
-		ali_eu = (Vec3*  )(info+1);
-		ali_t  =           ali_eu + n_refs;
-		ali_cc = (single*)(ali_t  + n_refs);
-		ali_w  = (single*)(ali_cc + n_refs);
-		
-		prj_eu = (Vec3*  )(ali_w  + n_refs);
-		prj_t  = (Vec2*  )(prj_eu + n_proj);
-		prj_cc = (single*)(prj_t  + n_proj);
-		prj_w  =           prj_cc + n_proj;
-		
-		def    = (Defocus*)(prj_w + n_proj);
-	}
+    Particle() {
+        info   = NULL;
+        ali_eu = NULL;
+        ali_t  = NULL;
+        ali_cc = NULL;
+        prj_eu = NULL;
+        prj_t  = NULL;
+        prj_cc = NULL;
+        prj_w  = NULL;
+        def    = NULL;
+    }
 
-	uint32& ptcl_id() {
-		return info->ptcl_id;
-	}
-	
+    void set(uint8*ptr,uint32 proj,uint32 refs) {
+
+        n_proj = proj;
+        n_refs = refs;
+
+        info   = (PtclInf*)ptr;
+
+        ali_eu = (Vec3*  )(info+1);
+        ali_t  =           ali_eu + n_refs;
+        ali_cc = (single*)(ali_t  + n_refs);
+        ali_w  = (single*)(ali_cc + n_refs);
+
+        prj_eu = (Vec3*  )(ali_w  + n_refs);
+        prj_t  = (Vec2*  )(prj_eu + n_proj);
+        prj_cc = (single*)(prj_t  + n_proj);
+        prj_w  =           prj_cc + n_proj;
+
+        def    = (Defocus*)(prj_w + n_proj);
+    }
+
+    uint32& ptcl_id() {
+        return info->ptcl_id;
+    }
+
     uint32& tomo_id() {
-		return info->tomo_id;
-	}
-	
+        return info->tomo_id;
+    }
+
     uint32& tomo_cix() {
-		return info->tomo_cix;
-	}
-	
+        return info->tomo_cix;
+    }
+
     Vec3&   pos() {
-		return info->pos;
-	}
-	
+        return info->pos;
+    }
+
     uint32& ref_cix() {
-		return info->ref_cix;
-	}
-	
+        return info->ref_cix;
+    }
+
     uint32& half_id() {
-		return info->half_id;
-	}
-	
+        return info->half_id;
+    }
+
     single& extra_1() {
-		return info->extra_1;
-	}
-	
+        return info->extra_1;
+    }
+
     single& extra_2() {
-		return info->extra_2;
-	}
-	
-	void print() {
-        V3f euZYZ;
+        return info->extra_2;
+    }
+
+    void print() {
         printf("  ID:         %d\n" ,ptcl_id());
         printf("  Tomo ID:    %d (%d)\n",tomo_id(),tomo_cix());
         printf("  Position:   %.1f,%.1f,%.1f\n",pos().x,pos().y,pos().z);
@@ -103,64 +102,62 @@ public:
         printf("  Extras:     %f %f\n",extra_1(),extra_2());
         printf("  References:\n");
         for( uint32 refs = 0; refs < n_refs; refs++ ) {
-			printf("    %2d [",refs);
-			printf( "%8.3f", ali_eu[refs].x*180/M_PI);
-			printf(" %8.3f", ali_eu[refs].y*180/M_PI);
-			printf(" %8.3f", ali_eu[refs].z*180/M_PI);
+            printf("    %2d [",refs);
+            printf( "%8.3f", ali_eu[refs].x*180/M_PI);
+            printf(" %8.3f", ali_eu[refs].y*180/M_PI);
+            printf(" %8.3f", ali_eu[refs].z*180/M_PI);
             printf("] [");
-			printf( "%7.2f", ali_t[refs].x);
-			printf(" %7.2f", ali_t[refs].y);
-			printf(" %7.2f", ali_t[refs].z);
-			
-			printf("] (%f %f)\n",ali_cc[refs],ali_w[refs]);
+            printf( "%7.2f", ali_t[refs].x);
+            printf(" %7.2f", ali_t[refs].y);
+            printf(" %7.2f", ali_t[refs].z);
+            printf("] (%f %f)\n",ali_cc[refs],ali_w[refs]);
         }
 
         printf("  2D Refine:\n");
         for( uint32 proj = 0; proj < n_proj; proj++ ) {
-			printf("    %2d [",proj);
-			printf( "%8.3f", prj_eu[proj].x*180/M_PI);
-			printf(" %8.3f", prj_eu[proj].y*180/M_PI);
-			printf(" %8.3f", prj_eu[proj].z*180/M_PI);
+            printf("    %2d [",proj);
+            printf( "%8.3f", prj_eu[proj].x*180/M_PI);
+            printf(" %8.3f", prj_eu[proj].y*180/M_PI);
+            printf(" %8.3f", prj_eu[proj].z*180/M_PI);
             printf("] [");
-			printf( "%7.2f", prj_eu[proj].x);
-			printf(" %7.2f", prj_eu[proj].y);
-			
-			printf("] (%f)",prj_cc[proj]);
-			printf("(%f)\n",prj_w [proj]);
+            printf( "%7.2f", prj_eu[proj].x);
+            printf(" %7.2f", prj_eu[proj].y);
+            printf("] (%f)",prj_cc[proj]);
+            printf("(%f)\n",prj_w [proj]);
         }
 
         printf("  Defocus:\n");
         for( uint32 proj = 0; proj < n_proj; proj++ ) {
-			printf("    %2d |",proj);
-			printf(" %10.2f %10.2f %8.3f |",def[proj].U,def[proj].V,def[proj].angle);
-			printf(" %7.2f %7.2f %7.2f |"  ,def[proj].Bfactor,def[proj].ExpFilt,def[proj].max_res);
+            printf("    %2d |",proj);
+            printf(" %10.2f %10.2f %8.3f |",def[proj].U,def[proj].V,def[proj].angle);
+            printf(" %7.2f %7.2f %7.2f |"  ,def[proj].Bfactor,def[proj].ExpFilt,def[proj].max_res);
             printf(" %8.4f\n",def[proj].score);
         }
     }
 
 public:
-	void copy(Particle&ptcl_in) {
-		ptcl_id()  = ptcl_in.ptcl_id();
-		tomo_id()  = ptcl_in.tomo_id();
-		tomo_cix() = ptcl_in.tomo_cix();
-		pos().x    = ptcl_in.pos().x;
-		pos().y    = ptcl_in.pos().y;
-		pos().z    = ptcl_in.pos().z;
-		ref_cix()  = ptcl_in.ref_cix();
-		half_id()  = ptcl_in.half_id();
-		extra_1()  = ptcl_in.extra_1();
-		extra_2()  = ptcl_in.extra_2();
-		memcpy(info  ,ptcl_in.info  ,sizeof(PtclInf)       );
-		memcpy(ali_eu,ptcl_in.ali_eu,sizeof(Vec3   )*n_refs);
-		memcpy(ali_t ,ptcl_in.ali_t ,sizeof(Vec3   )*n_refs);
-		memcpy(ali_cc,ptcl_in.ali_cc,sizeof(single )*n_refs);
-		memcpy(ali_w ,ptcl_in.ali_w ,sizeof(single )*n_refs);
-		memcpy(prj_eu,ptcl_in.prj_eu,sizeof(Vec3   )*n_proj);
-		memcpy(prj_t ,ptcl_in.prj_t ,sizeof(Vec2   )*n_proj);
-		memcpy(prj_cc,ptcl_in.prj_cc,sizeof(single )*n_proj);
-		memcpy(prj_w ,ptcl_in.prj_w ,sizeof(single )*n_proj);
-		memcpy(def   ,ptcl_in.def   ,sizeof(Defocus)*n_proj);
-	}
+    void copy(Particle&ptcl_in) {
+        ptcl_id()  = ptcl_in.ptcl_id();
+        tomo_id()  = ptcl_in.tomo_id();
+        tomo_cix() = ptcl_in.tomo_cix();
+        pos().x    = ptcl_in.pos().x;
+        pos().y    = ptcl_in.pos().y;
+        pos().z    = ptcl_in.pos().z;
+        ref_cix()  = ptcl_in.ref_cix();
+        half_id()  = ptcl_in.half_id();
+        extra_1()  = ptcl_in.extra_1();
+        extra_2()  = ptcl_in.extra_2();
+        memcpy(info  ,ptcl_in.info  ,sizeof(PtclInf)       );
+        memcpy(ali_eu,ptcl_in.ali_eu,sizeof(Vec3   )*n_refs);
+        memcpy(ali_t ,ptcl_in.ali_t ,sizeof(Vec3   )*n_refs);
+        memcpy(ali_cc,ptcl_in.ali_cc,sizeof(single )*n_refs);
+        memcpy(ali_w ,ptcl_in.ali_w ,sizeof(single )*n_refs);
+        memcpy(prj_eu,ptcl_in.prj_eu,sizeof(Vec3   )*n_proj);
+        memcpy(prj_t ,ptcl_in.prj_t ,sizeof(Vec2   )*n_proj);
+        memcpy(prj_cc,ptcl_in.prj_cc,sizeof(single )*n_proj);
+        memcpy(prj_w ,ptcl_in.prj_w ,sizeof(single )*n_proj);
+        memcpy(def   ,ptcl_in.def   ,sizeof(Defocus)*n_proj);
+    }
 
 };
 
@@ -174,25 +171,25 @@ public:
     uint32 n_bytes;
     
 public:
-	Particles() {
-		n_ptcl = 0;
-		n_proj = 0;
-		n_refs = 0;
-		n_bytes = 0;
-	}
+    Particles() {
+        n_ptcl = 0;
+        n_proj = 0;
+        n_refs = 0;
+        n_bytes = 0;
+    }
 
-	bool get(Particle&ptcl,uint32 ix=0) {
-		if( ix < n_ptcl ) {
-			ptcl.set(p_raw+ix*n_bytes,n_proj,n_refs);
-			return true;
-		}
-		return false;
-	}
+    bool get(Particle&ptcl,uint32 ix=0) {
+        if( ix < n_ptcl ) {
+            ptcl.set(p_raw+ix*n_bytes,n_proj,n_refs);
+            return true;
+        }
+        return false;
+    }
 	
 public:
-	static bool check_signature(const char*filename) {
-		bool rslt = true;
-		FILE*fp = fopen(filename,"rb");
+    static bool check_signature(const char*filename) {
+        bool rslt = true;
+        FILE*fp = fopen(filename,"rb");
         char signature[9];
         if( !IO::check_fread(signature, sizeof(char), 8, fp) ) {
             fprintf(stderr,"Reading %s: truncated file while reading signature.\n",filename);
@@ -200,27 +197,27 @@ public:
         }
         fclose(fp);
 
-		if( rslt ) {
-			signature[8] = 0;
-			if( strcmp(signature,"SsaPtcl1") != 0) {
-				fprintf(stderr,"Trying to read %s: wrong file signature %s.\n",filename,signature);
-				rslt = false;
-			}			
-		}
-        
+        if( rslt ) {
+            signature[8] = 0;
+            if( strcmp(signature,"SsaPtcl1") != 0) {
+                fprintf(stderr,"Trying to read %s: wrong file signature %s.\n",filename,signature);
+                rslt = false;
+            }
+        }
+
         return rslt;
-	}
+    }
 	
 protected:
-	void allocate(uint32 ptcl,uint32 proj,uint32 refs) {
-		n_bytes = sizeof(PtclInf)
-				+ refs*(sizeof(Vec3)+sizeof(Vec3)+sizeof(float)+sizeof(float)) /// 3D ALIGNMENT PER CLASS/REF
-				+ proj*(sizeof(Vec3)+sizeof(Vec2)+sizeof(float)+sizeof(float)) /// 2D ALIGNMENT PER PROJECTION
-				+ proj*(sizeof(Defocus));                                      /// DEFOCUS PER PROJECTION
-		
-		p_raw = (uint8*)malloc(n_bytes*ptcl);
-		memset(p_raw,0,n_bytes*ptcl);
-	}
+    void allocate(uint32 ptcl,uint32 proj,uint32 refs) {
+        n_bytes = sizeof(PtclInf)
+                + refs*(sizeof(Vec3)+sizeof(Vec3)+sizeof(float)+sizeof(float)) /// 3D ALIGNMENT PER CLASS/REF
+                + proj*(sizeof(Vec3)+sizeof(Vec2)+sizeof(float)+sizeof(float)) /// 2D ALIGNMENT PER PROJECTION
+                + proj*(sizeof(Defocus));                                      /// DEFOCUS PER PROJECTION
+
+        p_raw = (uint8*)malloc(n_bytes*ptcl);
+        memset(p_raw,0,n_bytes*ptcl);
+    }
 	
 };
 
@@ -255,7 +252,7 @@ public:
 
         if( !IO::check_fread(p_raw,n_bytes,n_ptcl,fp) ) {
             fprintf(stderr,"Reading %s: truncated file while reading particles information.\n",filename);
-            exit(0);
+            exit(1);
         }
 
         fclose(fp);
@@ -283,63 +280,63 @@ public:
 class ParticlesInStream : public Particles {
 	
 protected:
-	FILE   *fp; 
-	uint32 counter;
+    FILE   *fp;
+    uint32 counter;
 	
 public:
-	ParticlesInStream(const char*filename) {
-		
-		fp = fopen(filename,"rb");
+    ParticlesInStream(const char*filename) {
+
+        fp = fopen(filename,"rb");
         char signature[9];
         if( !IO::check_fread(signature, sizeof(char), 8, fp) ) {
             fprintf(stderr,"Reading %s: truncated file while reading signature.\n",filename);
-            exit(0);
+            exit(1);
         }
 
         signature[8] = 0;
         if( strcmp(signature,"SsaPtcl1") != 0) {
             fprintf(stderr,"Trying to read %s: wrong file signature %s.\n",filename,signature);
-            exit(0);
+            exit(1);
         }
 
         uint32_t lengths[3];
         if( !IO::check_fread(lengths, sizeof(uint32_t), 3, fp) ) {
             fprintf(stderr,"Reading %s: truncated file while reading sizes.\n",filename);
-            exit(0);
+            exit(1);
         }
         n_ptcl = lengths[0];
         n_proj = lengths[1];
         n_refs = lengths[2];
-        
+
         allocate(1,n_proj,n_refs);
-		
-		counter = 0;
-	}
+
+        counter = 0;
+    }
 	
-	~ParticlesInStream() {
-		fclose(fp);
-		free(p_raw);
-	}
+    ~ParticlesInStream() {
+        fclose(fp);
+        free(p_raw);
+    }
 	
-	bool get(Particle&ptcl,uint32 ix=0) {
-		if( ix < 1 ) {
-			ptcl.set(p_raw,n_proj,n_refs);
-			return true;
-		}
-		return false;
-	}
+    bool get(Particle&ptcl,uint32 ix=0) {
+        if( ix < 1 ) {
+            ptcl.set(p_raw,n_proj,n_refs);
+            return true;
+        }
+        return false;
+    }
 	
-	bool read_buffer() {
-		if( counter < n_ptcl ) {
-			if( IO::check_fread(p_raw,n_bytes,1,fp) ) {
-				counter++;
-			}
-			else{
-				fprintf(stderr,"Reading particles: truncated file while reading particles information.\n");
-				return false;
-			}
-		}
-		return true;
+    bool read_buffer() {
+        if( counter < n_ptcl ) {
+            if( IO::check_fread(p_raw,n_bytes,1,fp) ) {
+                counter++;
+            }
+            else{
+                fprintf(stderr,"Reading particles: truncated file while reading particles information.\n");
+                return false;
+            }
+        }
+        return true;
     }
 		
 };
@@ -347,16 +344,16 @@ public:
 class ParticlesOutStream : public Particles {
 	
 protected:
-	FILE   *fp; 
-	uint32 counter;
+    FILE   *fp;
+    uint32 counter;
 	
 public:
-	ParticlesOutStream(const char*filename,uint32 proj,uint32 refs) {
-		n_ptcl = 1;
-		n_proj = proj;
-		n_refs = refs;
-		
-		fp = fopen(filename,"wb");
+    ParticlesOutStream(const char*filename,uint32 proj,uint32 refs) {
+        n_ptcl = 1;
+        n_proj = proj;
+        n_refs = refs;
+
+        fp = fopen(filename,"wb");
         char signature[] = "SsaPtcl1";
         uint32_t lengths[3];
         lengths[0] = 0;
@@ -364,23 +361,23 @@ public:
         lengths[2] = n_refs;
         fwrite(signature, sizeof(char), 8, fp);
         fwrite(lengths, sizeof(uint32), 3, fp);
-        
+
         allocate(1,n_proj,n_refs);
-		
-		counter = 0;
-	}
+
+        counter = 0;
+    }
 	
-	~ParticlesOutStream() {
-		fseek(fp,8,SEEK_SET);
-		fwrite(&counter,sizeof(uint32),1,fp);
-		fclose(fp);
-		free(p_raw);
-	}
+    ~ParticlesOutStream() {
+        fseek(fp,8,SEEK_SET);
+        fwrite(&counter,sizeof(uint32),1,fp);
+        fclose(fp);
+        free(p_raw);
+    }
 	
-	void write_buffer() {
-		fwrite(p_raw,n_bytes,1,fp);
-		counter++;
-	}
+    void write_buffer() {
+        fwrite(p_raw,n_bytes,1,fp);
+        counter++;
+    }
 	
 };
 
@@ -394,30 +391,30 @@ public:
     }
 
     ~ParticlesMem() {
-            free(p_raw);
+        free(p_raw);
     }
 };
 
 class ParticlesSubset : public Particles {
 public:
-	void set(Particles&ptcls_in,uint32 offset,uint32 length) {
-		n_proj  = ptcls_in.n_proj;
-		n_refs  = ptcls_in.n_refs;
-		n_bytes = ptcls_in.n_bytes;
-		p_raw   = ptcls_in.p_raw + offset*n_bytes;
-		
-		if( offset < ptcls_in.n_ptcl ) {
-			uint32 w_length = offset + length;
-			if( w_length > ptcls_in.n_ptcl )
-				w_length = ptcls_in.n_ptcl;
-			w_length = w_length - offset;
-			n_ptcl   = w_length;
-		}
-		else {
-			p_raw  = ptcls_in.p_raw;
-			length = 0;
-		}
+    void set(Particles&ptcls_in,uint32 offset,uint32 length) {
+        n_proj  = ptcls_in.n_proj;
+        n_refs  = ptcls_in.n_refs;
+        n_bytes = ptcls_in.n_bytes;
+        p_raw   = ptcls_in.p_raw + offset*n_bytes;
+
+        if( offset < ptcls_in.n_ptcl ) {
+            uint32 w_length = offset + length;
+            if( w_length > ptcls_in.n_ptcl )
+                w_length = ptcls_in.n_ptcl;
+            w_length = w_length - offset;
+            n_ptcl   = w_length;
         }
+        else {
+            p_raw  = ptcls_in.p_raw;
+            length = 0;
+        }
+    }
 };
 
 #endif /// PARTICLES_H

@@ -392,7 +392,7 @@ methods(Static)
         
         num_pts = numel(X);
         num_tom = length(tomos_list.tomo_id);
-        num_prj = max(tomos_list.num_proj);
+        num_prj = size(tomos_list.proj_weight,1);
         
         rslt = SUSAN.Data.ParticlesInfo(num_pts*num_tom,num_prj,1);
         
@@ -430,7 +430,7 @@ methods(Static)
         
         num_pts = numel(X);
         num_tom = length(tomos_list.tomo_id);
-        num_prj = max(tomos_list.num_proj);
+        num_prj = size(tomos_list.proj_weight,1);
         
         rslt = SUSAN.Data.ParticlesInfo(num_pts*num_tom,num_prj,1);
         
