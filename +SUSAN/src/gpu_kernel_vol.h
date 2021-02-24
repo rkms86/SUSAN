@@ -195,23 +195,23 @@ __global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pT
 
 __global__ void invert_wgt(double*p_data,const int3 ss_siz) {
 	
-	int3 ss_idx = get_th_idx();
+        int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
-		
-		long idx = get_3d_idx(ss_idx,ss_siz);
-		
-		double data = p_data[idx];
-		
-		if( abs(data) < 0.0001 ) {
-			if( data<0 )
-				data = -1.0;
-			else
-				data =  1.0;
-		}
-		
-		p_data[idx] = 1/data;
-	}
+
+                long idx = get_3d_idx(ss_idx,ss_siz);
+
+                double data = p_data[idx];
+
+                if( abs(data) < 0.0001 ) {
+                        if( data<0 )
+                                data = -1.0;
+                        else
+                                data =  1.0;
+                }
+
+                p_data[idx] = 1/data;
+        }
 }
 
 __global__ void inv_wgt_ite_sphere(double*p_vol_wgt,const int3 ss_siz) {
@@ -229,12 +229,25 @@ __global__ void inv_wgt_ite_sphere(double*p_vol_wgt,const int3 ss_siz) {
     }
 }
 
+__global__ void inv_wgt_ite_hard_shrink(double*p_vol_wgt,double min_wgt,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+        long idx = get_3d_idx(ss_idx,ss_siz);
+        double w = p_vol_wgt[idx];
+        if( w < min_wgt && w > 0)
+            w = min_wgt;
+        p_vol_wgt[ idx ] = w;
+    }
+}
+
 __global__ void inv_wgt_ite_multiply(double*p_tmp,const double*p_vol_wgt,const double*p_wgt,const int3 ss_siz) {
     
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
-		long idx = get_3d_idx(ss_idx,ss_siz);
+        long idx = get_3d_idx(ss_idx,ss_siz);
         double out = p_vol_wgt[idx]*p_wgt[idx];
         p_tmp[ idx ] = out;
     }
@@ -268,10 +281,11 @@ __global__ void inv_wgt_ite_divide(double*p_vol_wgt, const double*p_conv,const i
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
-		long idx = get_3d_idx(ss_idx,ss_siz);
+                long idx = get_3d_idx(ss_idx,ss_siz);
         double den = p_conv[idx];
-        den = fmax(den,1e-3);
-        p_vol_wgt[ idx ] = fmin(p_vol_wgt[ idx ] / den, 1e10);
+        den = fmax(den,1e-4);
+        //p_vol_wgt[ idx ] = fmin(p_vol_wgt[ idx ] / den, 1e10);
+        p_vol_wgt[ idx ] = p_vol_wgt[ idx ] / den;
     }
 }
 

@@ -465,6 +465,7 @@ methods(Access=private)
             tic;
             obj.aligner.type = 3;
             cmd = obj.aligner.show_cmd(ptcls_out,refs,obj.tomogram_file,ptcls_in,obj.box_size);
+            system(['echo ' cmd ' > ' log_txt ]);
             if( system(['set -o pipefail; ' cmd ' | tee -a ' log_txt]) ~=0 )
                 error('Aligner crashed.');
             end
@@ -477,6 +478,7 @@ methods(Access=private)
             tic;
             obj.aligner.type = 2;
             cmd = obj.aligner.show_cmd(ptcls_out,refs,obj.tomogram_file,ptcls_in,obj.box_size);
+            system(['echo ' cmd ' > ' log_txt ]);
             if( system(['set -o pipefail; ' cmd ' | tee -a ' log_txt]) ~=0 )
                 error('Aligner crashed.');
             end
@@ -546,6 +548,7 @@ methods(Access=private)
         fprintf('  [Reconstruct Maps] Start:\n');
         tic;
         cmd = obj.averager.show_cmd([cur_dir '/map'],obj.tomogram_file,tmp_part,obj.box_size);
+        system(['echo ' cmd ' > ' log_txt ]);
         if( system(['set -o pipefail; ' cmd ' | tee -a ' log_txt]) ~=0 )
             error('Reconstruction crashed.');
         end

@@ -652,7 +652,14 @@ protected:
 		for(int r=0;r<R;r++) {
 			sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
 			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
-			reconstruct_upload(workers[0].c_acc[r],workers[0].c_wgt[r],p_acc,p_wgt);
+                        FILE*fp;
+                        fp = fopen("wgt.raw","wb");
+                        fwrite(workers[0].c_wgt[r],sizeof(double),MP*NP*NP,fp);
+                        fclose(fp);
+                        fp = fopen("val.raw","wb");
+                        fwrite(workers[0].c_acc[r],sizeof(double),2*MP*NP*NP,fp);
+                        fclose(fp);
+                        reconstruct_upload(workers[0].c_acc[r],workers[0].c_wgt[r],p_acc,p_wgt);
                         reconstruct_sym(p_acc,p_wgt);
                         reconstruct_invert(p_wgt);
                         reconstruct_core(p_vol,p_acc,p_wgt);
