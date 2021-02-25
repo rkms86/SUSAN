@@ -523,6 +523,16 @@ void randn(float*ptr,const uint32 length,const float u=0, const float s=1) {
     }
 }
 
+void rand(float*ptr,const uint32 length,const float scale=1, const float offset=0) {
+    std::random_device rd{};
+    std::mt19937 gen{rd()};
+    std::uniform_real_distribution<float> d(0.0,1.0);
+
+    for(uint32 i=0;i<length;i++) {
+        ptr[i] = scale*d(gen)+offset;
+    }
+}
+
 class Timing {
 protected:
 	struct timeval starting_time;

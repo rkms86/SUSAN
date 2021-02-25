@@ -135,7 +135,7 @@ class FFT3D : public XFFT_base {
 public:
     void alloc(const int N) {
 		
-		if ( cufftPlan3d(&handler, N, N, N, CUFFT_R2C ) != CUFFT_SUCCESS ) {
+        if ( cufftPlan3d(&handler, N, N, N, CUFFT_R2C ) != CUFFT_SUCCESS ) {
             fprintf(stderr,"Error allocating forward FFT3D.\n");
             exit(1);
         }

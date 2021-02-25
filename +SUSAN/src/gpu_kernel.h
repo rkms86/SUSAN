@@ -320,20 +320,20 @@ __global__ void load_abs(float*p_out,const float2*p_in,const int3 ss_siz) {
 
 __global__ void radial_ps_avg(float*p_avg,float*p_wgt,const float*p_in,const int3 ss_siz) {
 	
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float val = p_in[ get_3d_idx(ss_idx,ss_siz) ];
-		float x = ss_idx.x;
-		float y = ss_idx.y-ss_siz.y/2;
-		float R = l2_distance(x,y);
-		int   r = (int)roundf(R);
-		int idx = r + ss_siz.x*ss_idx.z;
-		if( r < ss_siz.x ) {
-			atomicAdd(p_avg + idx,val);
-			atomicAdd(p_wgt + idx,1.0);
-		}
+        float val = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+        float x = ss_idx.x;
+        float y = ss_idx.y-ss_siz.y/2;
+        float R = l2_distance(x,y);
+        int   r = (int)roundf(R);
+        int idx = r + ss_siz.x*ss_idx.z;
+        if( r < ss_siz.x ) {
+                atomicAdd(p_avg + idx,val);
+                atomicAdd(p_wgt + idx,1.0);
+        }
     }
 }
 

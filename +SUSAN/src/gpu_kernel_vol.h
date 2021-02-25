@@ -259,17 +259,17 @@ __global__ void inv_wgt_ite_convolve(double*p_conv,const double*p_tmp,const floa
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 		
-		double out = 0;
-		
-		for(int i=0; i<n_krnl; i++ ) {
+        double out = 0;
+
+        for(int i=0; i<n_krnl; i++ ) {
             int x = ss_idx.x + (int)(p_krnl[i].x);
             int y = ss_idx.y + (int)(p_krnl[i].y);
             int z = ss_idx.z + (int)(p_krnl[i].z);
             double w = p_krnl[i].w;
             
-			if( get_mirror_index(x,y,z,ss_siz.x,ss_siz.y) ) {
-				out += w*p_tmp[ get_3d_idx(x,y,z,ss_siz) ];
-			}
+            if( get_mirror_index(x,y,z,ss_siz.x,ss_siz.y) ) {
+                out += w*p_tmp[ get_3d_idx(x,y,z,ss_siz) ];
+            }
         }
 		
         p_conv[ get_3d_idx(ss_idx,ss_siz) ] = out;
@@ -281,34 +281,33 @@ __global__ void inv_wgt_ite_divide(double*p_vol_wgt, const double*p_conv,const i
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
-                long idx = get_3d_idx(ss_idx,ss_siz);
+        long idx = get_3d_idx(ss_idx,ss_siz);
         double den = p_conv[idx];
         den = fmax(den,1e-4);
-        //p_vol_wgt[ idx ] = fmin(p_vol_wgt[ idx ] / den, 1e10);
         p_vol_wgt[ idx ] = p_vol_wgt[ idx ] / den;
     }
 }
 
 __global__ void grid_correct(float*p_data,const int N) {
 
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < N && ss_idx.y < N && ss_idx.z < N ) {
 
-		long ix = ss_idx.x + ss_idx.y*N + ss_idx.z*N*N;
+        long ix = ss_idx.x + ss_idx.y*N + ss_idx.z*N*N;
 
-		int center = N/2;
+        int center = N/2;
 
-		float R = l2_distance(ss_idx.x-center,ss_idx.y-center,ss_idx.z-center);
-		
-		float arg = fminf(R/N,0.5);
+        float R = l2_distance(ss_idx.x-center,ss_idx.y-center,ss_idx.z-center);
+
+        float arg = fminf(R/N,0.5);
         arg = arg*M_PI;
         float sinc_coef = ( arg > 0.00001 ) ? sinf(arg)/arg : 1.0;
         sinc_coef *= sinc_coef;
 
         float val = p_data[ix];
         p_data[ix] = val/sinc_coef;
-	}
+    }
 }
 
 __global__ void add_symmetry(double2*p_val,double*p_wgt,
@@ -559,9 +558,77 @@ __global__ void extract_pts(float*p_cc,const float*p_data,const Vec3*p_pts,const
 
 }
 
+__global__ void radial_cc(float*p_acc,const float2*p_vol_a,const float2*p_vol_b,const int M,const int N,const float scale=1) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < N ) {
+
+        int center = N/2;
+        float R = l2_distance(ss_idx.x,ss_idx.y-center,ss_idx.z-center);
+        int r = round(R);
+
+        if( r<M ) {
+            long ix = ss_idx.x + ss_idx.y*M + ss_idx.z*M*N;
+            float2 v_a = p_vol_a[ix];
+            float2 v_b = p_vol_b[ix];
+            v_b.y = -v_b.y;
+            float2 val = cuCmulf(v_a,v_b);
+            val.x = val.x*scale;
+            atomicAdd(p_acc+r,val.x);
+        }
+    }
+}
+
+__global__ void calc_fsc(float*p_fsc,const float*p_den_a,const float*p_den_b,const int M) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < 1 && ss_idx.z < 1 ) {
+
+        float num = p_fsc[ss_idx.x];
+        float den = p_den_a[ss_idx.x]*p_den_b[ss_idx.x];
+        if(den<0)
+            den =1;
+        den = sqrt(den);
+        if(den<1e-9 && abs(num)<1e-9) {
+            num = 1;
+            den = 1;
+        }
+
+        p_fsc[ss_idx.x] = num/den;
+    }
+}
+
+__global__ void randomize_phase(float2*p_vol,const float*p_ang,const float fpix,const int M,const int N) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < N ) {
+
+        long ix = ss_idx.x + ss_idx.y*M + ss_idx.z*M*N;
+        float2 vol = p_vol[ix];
+
+        int center = N/2;
+        float R = l2_distance(ss_idx.x,ss_idx.y-center,ss_idx.z-center);
+        int r = round(R);
+
+        if( r>=fpix ) {
+            float ang = p_ang[ix];
+            float2 v_a = vol;
+            float2 v_b;
+            v_b.x = cos(ang);
+            v_b.y = sin(ang);
+            vol = cuCmulf(v_b,v_a);
+        }
+        p_vol[ix]=vol;
+    }
+}
+
 
 }
 
 #endif /// GPU_KERNEL_VOL_H
+
 
 
