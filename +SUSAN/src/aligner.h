@@ -121,7 +121,7 @@ protected:
 
         int num_vols = R;
         if( ali_halves ) num_vols = 2*R;
-        AliRef vols[num_vols];
+        AliRef*vols = new AliRef[num_vols];
         allocate_references(vols);
 
         ang_prov.cone_range = cone.x;
@@ -148,6 +148,7 @@ protected:
         }
 
         GPU::sync();
+        delete [] vols;
     }
 
     void allocate_references(AliRef*vols) {
@@ -213,16 +214,16 @@ protected:
     void align3D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,GPU::Stream&stream) {
         p_buffer->RO_sync();
         while( p_buffer->RO_get_status() > DONE ) {
-                if( p_buffer->RO_get_status() == READY ) {
-                        AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
-                        create_ctf(ctf_wgt,ptr,stream);
-                        add_data(ss_data,ctf_wgt,ptr,stream);
-                        add_rec_weight(ss_data,ptr,stream);
-                        angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,stream);
-                        stream.sync();
-                        set_classification(ptr);
-                }
-                p_buffer->RO_sync();
+            if( p_buffer->RO_get_status() == READY ) {
+                AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
+                create_ctf(ctf_wgt,ptr,stream);
+                add_data(ss_data,ctf_wgt,ptr,stream);
+                add_rec_weight(ss_data,ptr,stream);
+                angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,stream);
+                stream.sync();
+                set_classification(ptr);
+            }
+            p_buffer->RO_sync();
         }
     }
 
@@ -704,12 +705,12 @@ protected:
     void crop_loop(DoubleBufferHandler&stack_buffer,GPU::Stream&stream) {
         stack_buffer.WO_sync(EMPTY);
         for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
-            AliBuffer*ptr = (AliBuffer*)stack_buffer.WO_get_buffer();
-            p_ptcls->get(ptr->ptcl,i);
-            read_defocus(ptr);
             work_progress++;
             work_accumul++;
             for(int r=0;r<R;r++) {
+                AliBuffer*ptr = (AliBuffer*)stack_buffer.WO_get_buffer();
+                p_ptcls->get(ptr->ptcl,i);
+                read_defocus(ptr);
                 crop_substack(ptr,r);
                 if( check_substack(ptr) ) {
                     upload(ptr,stream.strm);
