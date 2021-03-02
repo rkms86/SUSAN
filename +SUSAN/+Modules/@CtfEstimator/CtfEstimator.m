@@ -82,7 +82,7 @@ methods
         if( stat == 0 )
             tomos = SUSAN.Data.TomosInfo(tomos_file);
             for i = 1:length(tomos.tomo_id)
-                new_defocus_file = sprintf([output_dir '/Tomo%03d/defocus.txt'],i);
+                new_defocus_file = sprintf([output_dir '/Tomo%03d/defocus.txt'],tomos.tomo_id(i));
                 if( SUSAN.Utils.exist_file(new_defocus_file) ) 
                     fprintf('Updating tomogram with ID %d.\n',tomos.tomo_id(i));
                     tomos.set_defocus(i,new_defocus_file)
