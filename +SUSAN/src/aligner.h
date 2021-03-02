@@ -218,7 +218,7 @@ protected:
                 AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
                 create_ctf(ctf_wgt,ptr,stream);
                 add_data(ss_data,ctf_wgt,ptr,stream);
-                add_rec_weight(ss_data,ptr,stream);
+                //add_rec_weight(ss_data,ptr,stream);
                 angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,stream);
                 stream.sync();
                 set_classification(ptr);
@@ -230,14 +230,14 @@ protected:
     void align2D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,GPU::Stream&stream) {
         p_buffer->RO_sync();
         while( p_buffer->RO_get_status() > DONE ) {
-                if( p_buffer->RO_get_status() == READY ) {
-                        AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
-                        create_ctf(ctf_wgt,ptr,stream);
-                        add_data(ss_data,ctf_wgt,ptr,stream);
-                        angular_search_2D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,stream);
-                        stream.sync();
-                }
-                p_buffer->RO_sync();
+            if( p_buffer->RO_get_status() == READY ) {
+                AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
+                create_ctf(ctf_wgt,ptr,stream);
+                add_data(ss_data,ctf_wgt,ptr,stream);
+                angular_search_2D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,stream);
+                stream.sync();
+            }
+            p_buffer->RO_sync();
         }
     }
 
@@ -247,9 +247,11 @@ protected:
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,ptr->K);
         GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_wgt.ptr,ptr->ctf_vals,ptr->g_def.ptr,ss);
 
-        /*static bool flag = true;
-        if( flag ) {
-            flag = false;
+        //static bool flag = true;
+        //if( flag ) {
+        //    flag = false;
+        //if( ptr->ptcl.ptcl_id() == 2122 ) {
+        /*if( ptr->ptcl.ptcl_id() == 3 ) {
             stream.sync();
             float*tmp = new float[MP*NP*ptr->K];
             GPU::download_async(tmp,ctf_wgt.ptr,MP*NP*ptr->K,stream.strm);
@@ -267,9 +269,11 @@ protected:
 
         ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
 
-        /*static bool flag = true;
-        if( flag ) {
-            flag = false;
+        //static bool flag = true;
+        //if( flag ) {
+        //    flag = false;
+        //if( ptr->ptcl.ptcl_id() == 2122 ) {
+        /*if( ptr->ptcl.ptcl_id() == 3 ) {
             stream.sync();
             float*tmp = new float[NP*NP*ptr->K];
             GPU::download_async(tmp,ss_data.ss_padded.ptr,NP*NP*ptr->K,stream.strm);
@@ -284,7 +288,6 @@ protected:
             ss_data.correct_wiener_ssnr(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ssnr,ptr->K,stream);
         if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING ) {
             ss_data.correct_wiener(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
-            //ss_data.whitening_filter(ptr->K,stream);
         }
     }
 	
@@ -313,6 +316,19 @@ protected:
                         R_tmp = R_ite*R_lvl;
                         Math::set(Rot,R_tmp);
                         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
+
+                        //if( ptr->ptcl.ptcl_id() == 2122 ) {
+                        /*if( ptr->ptcl.ptcl_id() == 3 ) {
+                            ali_data.project(vol.ref,bandpass,ptr->K,stream);
+                            ali_data.multiply(ctf_wgt,ptr->K,stream);
+                            ali_data.invert_fourier(ptr->K,stream);
+                            float *tmp = new float[NP*NP*ptr->K];
+                            GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
+                            stream.sync();
+                            Mrc::write(tmp,NP,NP,ptr->K,"proj.mrc");
+                            delete [] tmp;
+                        }*/
+
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
                         if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE )
@@ -320,8 +336,8 @@ protected:
 
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
-                            ss_data.whitening_filter(ali_data.prj_c,ptr->K,stream);
+                        //if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
+                        //    ss_data.whitening_filter(ali_data.prj_c,ptr->K,stream);
 
                         if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_PHASE ) {
                             ss_data.norm_complex(ali_data.prj_c,ptr->K,stream);
@@ -330,8 +346,10 @@ protected:
                         ali_data.invert_fourier(ptr->K,stream);
 
                         //static bool flag = true;
-                        /*if( ptr->ptcl.ptcl_id() == 2122 ) {
+                        //if( flag ) {
                             //flag = false;
+                        //if( ptr->ptcl.ptcl_id() == 2122 ) {
+                        /*if( ptr->ptcl.ptcl_id() == 3 ) {
                             float *tmp = new float[NP*NP*ptr->K];
                             GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
                             stream.sync();
@@ -349,11 +367,12 @@ protected:
                         }
 
                         //static bool flag = true;
-                        /*if( ptr->ptcl.ptcl_id() == 2122 ) {
+                        //if( ptr->ptcl.ptcl_id() == 2122 ) {
+                        //flag = false;
+                        /*if( ptr->ptcl.ptcl_id() == 3 ) {
                             printf("cc: %f\n",max_cc);
                             printf("t = [%f %f %f];\n",ali_data.c_pts[max_idx].x,ali_data.c_pts[max_idx].y,ali_data.c_pts[max_idx].z);
                             printf("                                                                                      \n");
-                            //flag = false;
                             FILE*fp=fopen("create_cc_rec.m","w");
                             fprintf(fp,"cc_rec=zeros(%d,%d,%d);\n",N,N,N);
                             for(int n=0;n<ali_data.n_pts;n++) {
@@ -391,7 +410,11 @@ protected:
             fclose(fp);
         }*/
 
-        update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
+        float w_total=0;
+        for(int k=0;k<ptr->K;k++) {
+            w_total += ptr->c_ali.ptr[k].w;
+        }
+        update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc/w_total,ptr->class_ix,ptr->ctf_vals.apix);
     }
 
     void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,GPU::Stream&stream) {

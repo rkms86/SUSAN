@@ -723,7 +723,9 @@ __global__ void correct_stk_wiener( float2*g_data,const float*g_ctf,const Defocu
             val.y = w*ctf*val.y;
             ctf *= ctf;
             if( ctf < 0.0001 ) {
-                ctf = 1;
+                ctf   = 1;
+                val.x = 0;
+                val.y = 0;
             }
             val.x = val.x/ctf;
             val.y = val.y/ctf;
@@ -765,7 +767,9 @@ __global__ void correct_stk_wiener_ssnr( float2*g_data,const float*g_ctf,const D
             ctf *= ctf;
             ctf += calc_ssnr(R,ssnr_F,ssnr_S);
             if( ctf < 0.0001 ) {
-                ctf = 1;
+                ctf   = 1;
+                val.x = 0;
+                val.y = 0;
             }
             val.x = val.x/ctf;
             val.y = val.y/ctf;

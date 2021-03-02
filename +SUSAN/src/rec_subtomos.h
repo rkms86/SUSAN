@@ -232,8 +232,9 @@ protected:
 				eu_ZYZ(1) = ptr.ptcl.prj_eu[k].y;
 				eu_ZYZ(2) = ptr.ptcl.prj_eu[k].z;
 				Math::eZYZ_Rmat(R_tmp,eu_ZYZ);
-				pt_crop = R_tmp*pt_stack;
-				pt_crop(0) += ptr.ptcl.prj_t[k].x;
+                                //pt_crop = R_tmp*pt_stack;
+                                pt_crop = pt_stack;
+                                pt_crop(0) += ptr.ptcl.prj_t[k].x;
 				pt_crop(1) += ptr.ptcl.prj_t[k].y;
 				
 				/// R_stack = R^k_prj*R^k_tomo

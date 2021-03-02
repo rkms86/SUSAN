@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.3)
 project(SUSAN LANGUAGES CXX CUDA)
 find_package(MPI 3)
 
-#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Debug)
 
 include_directories("${CMAKE_SOURCE_DIR}/../dependencies/eigen")
 

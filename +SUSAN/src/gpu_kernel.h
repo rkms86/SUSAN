@@ -377,7 +377,7 @@ __global__ void radial_ps_norm(float2*p_data,const float*p_avg,const float*p_wgt
 
             wgt = max(wgt,1.0);
             avg = avg/wgt;
-            if( avg < 0.00001 )
+            if( avg < 0.0001 )
                 avg = 1.0;
 
             val.x = val.x/avg;

@@ -20,133 +20,133 @@
 #include "reconstruct_args.h"
 
 typedef enum {
-	REC_EXEC=1
+    REC_EXEC=1
 } RecCmd;
 
 class RecBuffer {
 	
 public:
-	GPU::GHostSingle  c_stk;
-	GPU::GHostFloat2  c_pad;
-	GPU::GHostProj2D  c_ali;
-	GPU::GHostDefocus c_def;
-	GPU::GArrSingle   g_stk;
-	GPU::GArrSingle2  g_pad;
-	GPU::GArrProj2D   g_ali;
-	GPU::GArrDefocus  g_def;
-	Particle ptcl;
-	CtfConst ctf_vals;
-	int      K;
-	int      r_ix;
-	
-	RecBuffer(int N,int max_k) {
-		c_stk.alloc(N*N*max_k);
-		g_stk.alloc(N*N*max_k);
-		c_pad.alloc(max_k);
-		g_pad.alloc(max_k);
-		c_ali.alloc(max_k);
-		g_ali.alloc(max_k);
-		c_def.alloc(max_k);
-		g_def.alloc(max_k);
-		K = 0;
-	}
-	
-	~RecBuffer() {
-	}
+    GPU::GHostSingle  c_stk;
+    GPU::GHostFloat2  c_pad;
+    GPU::GHostProj2D  c_ali;
+    GPU::GHostDefocus c_def;
+    GPU::GArrSingle   g_stk;
+    GPU::GArrSingle2  g_pad;
+    GPU::GArrProj2D   g_ali;
+    GPU::GArrDefocus  g_def;
+    Particle ptcl;
+    CtfConst ctf_vals;
+    int      K;
+    int      r_ix;
+
+    RecBuffer(int N,int max_k) {
+        c_stk.alloc(N*N*max_k);
+        g_stk.alloc(N*N*max_k);
+        c_pad.alloc(max_k);
+        g_pad.alloc(max_k);
+        c_ali.alloc(max_k);
+        g_ali.alloc(max_k);
+        c_def.alloc(max_k);
+        g_def.alloc(max_k);
+        K = 0;
+    }
+
+    ~RecBuffer() {
+    }
 	
 };
 
 class RecGpuWorker : public Worker {
 	
 public:
-	int gpu_ix;
-	int N;
-	int M;
-	int P;
-	int R;
-	int pad_type;
-	int ctf_type;
-	int max_K;
-	float3  bandpass;
-	float2  ssnr; /// x=F; y=S;
-	double2 **c_acc;
-	double  **c_wgt;
-	DoubleBufferHandler *p_buffer;
-	
-	RecGpuWorker() {
-	}
-	
-	~RecGpuWorker() {
-	}	
+    int gpu_ix;
+    int N;
+    int M;
+    int P;
+    int R;
+    int pad_type;
+    int ctf_type;
+    int max_K;
+    float3  bandpass;
+    float2  ssnr; /// x=F; y=S;
+    double2 **c_acc;
+    double  **c_wgt;
+    DoubleBufferHandler *p_buffer;
+
+    RecGpuWorker() {
+    }
+
+    ~RecGpuWorker() {
+    }
 	
 protected:
-	int NP;
-	int MP;
+    int NP;
+    int MP;
 
-	void main() {
-		
-		NP = N+P;
-		MP = (NP/2)+1;
-		
-		GPU::set_device(gpu_ix);
-		int current_cmd;
-		GPU::Stream stream;
-		stream.configure();
-		RecSubstack ss_data(M,N,max_K,P,stream);
-		RecAcc vols[R];
-		for(int r=0;r<R;r++)
-			vols[r].alloc(MP,NP,max_K);
-		
-		while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
-			switch(current_cmd) {
-				case REC_EXEC:
-					insert_loop(vols,ss_data,stream);
-					break;
-				default:
-					break;
-			}
-		}
-		
-		for(int r=0;r<R;r++)
-			download_vol(c_acc[r],c_wgt[r],vols[r]);
+    void main() {
 
-		GPU::sync();
-	}
+        NP = N+P;
+        MP = (NP/2)+1;
+
+        GPU::set_device(gpu_ix);
+        int current_cmd;
+        GPU::Stream stream;
+        stream.configure();
+        RecSubstack ss_data(M,N,max_K,P,stream);
+        RecAcc vols[R];
+        for(int r=0;r<R;r++)
+            vols[r].alloc(MP,NP,max_K);
+
+        while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
+            switch(current_cmd) {
+                case REC_EXEC:
+                    insert_loop(vols,ss_data,stream);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        for(int r=0;r<R;r++)
+            download_vol(c_acc[r],c_wgt[r],vols[r]);
+
+        GPU::sync();
+    }
 	
-	void insert_loop(RecAcc*vols,RecSubstack&ss_data,GPU::Stream&stream) {
-		p_buffer->RO_sync();
-		while( p_buffer->RO_get_status() > DONE ) {
-			if( p_buffer->RO_get_status() == READY ) {
-				RecBuffer*ptr = (RecBuffer*)p_buffer->RO_get_buffer();
-				add_data(ss_data,ptr,stream);
-				correct_ctf(ss_data,ptr,stream);
-				insert_vol(vols[ptr->r_ix],ss_data,ptr,stream);
-				stream.sync();
-			}
-			p_buffer->RO_sync();
-		}
-	}
+    void insert_loop(RecAcc*vols,RecSubstack&ss_data,GPU::Stream&stream) {
+        p_buffer->RO_sync();
+        while( p_buffer->RO_get_status() > DONE ) {
+            if( p_buffer->RO_get_status() == READY ) {
+                RecBuffer*ptr = (RecBuffer*)p_buffer->RO_get_buffer();
+                add_data(ss_data,ptr,stream);
+                correct_ctf(ss_data,ptr,stream);
+                insert_vol(vols[ptr->r_ix],ss_data,ptr,stream);
+                stream.sync();
+            }
+            p_buffer->RO_sync();
+        }
+    }
 	
-	void add_data(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
-		if( pad_type == ArgsRec::PaddingType_t::PAD_ZERO )
-			ss_data.pad_zero(stream);
-		if( pad_type == ArgsRec::PaddingType_t::PAD_GAUSSIAN )
-			ss_data.pad_normal(ptr->g_pad,ptr->K,stream);
-		
-		ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
-	}
-	
-	void correct_ctf(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
-		if( ctf_type == ArgsRec::InversionType_t::NO_INV )
-			ss_data.set_no_ctf(bandpass,ptr->K,stream);
-		if( ctf_type == ArgsRec::InversionType_t::PHASE_FLIP )
-			ss_data.set_phase_flip(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
-		if( ctf_type == ArgsRec::InversionType_t::WIENER_INV )
-			ss_data.set_wiener(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
-		if( ctf_type == ArgsRec::InversionType_t::WIENER_INV_SSNR )
-			ss_data.set_wiener_ssnr(ptr->ctf_vals,ptr->g_def,bandpass,ssnr,ptr->K,stream);
-			
-	}
+    void add_data(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
+        if( pad_type == ArgsRec::PaddingType_t::PAD_ZERO )
+            ss_data.pad_zero(stream);
+        if( pad_type == ArgsRec::PaddingType_t::PAD_GAUSSIAN )
+            ss_data.pad_normal(ptr->g_pad,ptr->K,stream);
+
+        ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
+    }
+
+    void correct_ctf(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
+        if( ctf_type == ArgsRec::InversionType_t::NO_INV )
+            ss_data.set_no_ctf(bandpass,ptr->K,stream);
+        if( ctf_type == ArgsRec::InversionType_t::PHASE_FLIP )
+            ss_data.set_phase_flip(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
+        if( ctf_type == ArgsRec::InversionType_t::WIENER_INV )
+            ss_data.set_wiener(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
+        if( ctf_type == ArgsRec::InversionType_t::WIENER_INV_SSNR )
+            ss_data.set_wiener_ssnr(ptr->ctf_vals,ptr->g_def,bandpass,ssnr,ptr->K,stream);
+
+    }
 	
 	void insert_vol(RecAcc&vol,RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
 		vol.insert(ss_data.ss_tex,ss_data.ss_ctf,ptr->g_ali,bandpass,ptr->K,stream);
@@ -401,7 +401,7 @@ protected:
 				ptr->c_ali.ptr[k].t.y = -pt_subpix(1);
 				ptr->c_ali.ptr[k].t.z = 0;
 				ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
-				R_gpu = (R_ali)*(R_stack.transpose());
+                                R_gpu = (R_ali)*(R_stack.transpose());
 				Math::set( ptr->c_ali.ptr[k].R, R_gpu );
 				
 				/// Crop
