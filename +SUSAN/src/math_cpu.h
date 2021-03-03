@@ -362,32 +362,32 @@ bool normalize_non_zero(float*ptr,const uint32 length) {
     uint32 i;
     
     for(i=0;i<length;i++) {
-		if( ptr[i] != 0 ) {
-			avg+=ptr[i];
-			num++;
-		}
-	}
-	
-	avg = avg/num;
-	
-	for(i=0;i<length;i++) {
-		if( ptr[i] != 0 ) {
-			ptr[i] = ptr[i] - avg;
-			std = (ptr[i]*ptr[i]);
-		}
-	}
-	
-	std = sqrt( std/(num) );
-	
-	if(std < SUSAN_FLOAT_TOL )
-        return false;
-	
-	
-	for(i=0;i<length;i++) {
-		if( ptr[i] != 0 ) {
-			ptr[i] = ptr[i]/std;
-		}
-	}
+        if( ptr[i] != 0 ) {
+            avg+=ptr[i];
+            num++;
+        }
+    }
+
+    avg = avg/num;
+
+    for(i=0;i<length;i++) {
+        if( ptr[i] != 0 ) {
+            ptr[i] = ptr[i] - avg;
+            std = (ptr[i]*ptr[i]);
+        }
+    }
+
+    std = sqrt( std/(num) );
+
+    if(std < SUSAN_FLOAT_TOL )
+    return false;
+
+
+    for(i=0;i<length;i++) {
+        if( ptr[i] != 0 ) {
+            ptr[i] = ptr[i]/std;
+        }
+    }
     
     return true;
 }

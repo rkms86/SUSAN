@@ -285,7 +285,7 @@ public:
     }
 
     void get_max_cc(float&max_cc,int&max_idx,const float*p_data) {
-        max_cc = 0;
+        max_cc = -9999999999999;
         max_idx = 0;
         for(int i=0;i<n_pts;i++) {
             if( max_cc < p_data[i] ) {

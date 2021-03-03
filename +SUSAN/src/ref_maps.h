@@ -50,9 +50,8 @@ public:
 
         if( box_size > 0 ) {
 
-            numel       = box_size*box_size*box_size;
-
-            map = load_mrc(ref_info.map);
+            numel = box_size*box_size*box_size;
+            map   = load_mrc(ref_info.map);
 
             if( get_box_size(ref_info.h1) == box_size )
                 half_A = load_mrc(ref_info.h1);
@@ -67,29 +66,33 @@ public:
                 if(half_B!=NULL) Math::mul(half_B,mask,numel);
             }
 
+            float avg,std;
             if( mask != NULL ) {
                 if( map != NULL ) {
-                    if( !Math::normalize_non_zero(map,numel) ) {
+                    Math::get_avg_std(avg,std,map,numel);
+                    if( !Math::normalize(map,numel,avg,std) ) {
                         fprintf(stderr,"Error normalizing map %s\n",ref_info.map);
                         exit(1);
                     }
-                    Math::mul(map,mask,numel);
+                    //Math::mul(map,mask,numel);
                 }
 
                 if( half_A != NULL ) {
-                    if( !Math::normalize_non_zero(half_A,numel) ) {
+                    Math::get_avg_std(avg,std,half_A,numel);
+                    if( !Math::normalize(half_A,numel,avg,std) ) {
                         fprintf(stderr,"Error normalizing map %s\n",ref_info.h1);
                         exit(1);
                     }
-                    Math::mul(half_A,mask,numel);
+                    //Math::mul(half_A,mask,numel);
                 }
 
                 if( half_B != NULL ) {
-                    if( !Math::normalize_non_zero(half_B,numel) ) {
+                    Math::get_avg_std(avg,std,half_B,numel);
+                    if( !Math::normalize(half_B,numel,avg,std) ) {
                         fprintf(stderr,"Error normalizing map %s\n",ref_info.h2);
                         exit(1);
                     }
-                    Math::mul(half_A,mask,numel);
+                    //Math::mul(half_A,mask,numel);
                 }
             }
 

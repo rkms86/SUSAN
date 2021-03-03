@@ -22,10 +22,11 @@ function ptcls_out = select_refs(ptcls_in,ref_idxs)
 
 	cix = unique(ptcls_out.class_cix);
 
+    ptcls_out.ali_w = ptcls_out.ali_w(:,:,cix+1);
 	ptcls_out.ali_t = ptcls_out.ali_t(:,:,cix+1);
 	ptcls_out.ali_cc = ptcls_out.ali_cc(:,:,cix+1);
 	ptcls_out.ali_eZYZ = ptcls_out.ali_eZYZ(:,:,cix+1);
-
+    
 	LUT = zeros(1,max(cix)+1);
 	for i = 1:length(ref_idxs)
 		LUT( ref_idxs(i) ) = i-1;

@@ -251,14 +251,14 @@ protected:
         //if( flag ) {
         //    flag = false;
         //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        /*if( ptr->ptcl.ptcl_id() == 3 ) {
+        if( ptr->ptcl.ptcl_id() == 1 ) {
             stream.sync();
             float*tmp = new float[MP*NP*ptr->K];
             GPU::download_async(tmp,ctf_wgt.ptr,MP*NP*ptr->K,stream.strm);
             stream.sync();
             Mrc::write(tmp,MP,NP,ptr->K,"ctf.mrc");
             delete [] tmp;
-        }*/
+        }
     }
 	
     void add_data(AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,GPU::Stream&stream) {
@@ -273,7 +273,7 @@ protected:
         //if( flag ) {
         //    flag = false;
         //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        /*if( ptr->ptcl.ptcl_id() == 3 ) {
+        /*if( ptr->ptcl.ptcl_id() == 1 ) {
             stream.sync();
             float*tmp = new float[NP*NP*ptr->K];
             GPU::download_async(tmp,ss_data.ss_padded.ptr,NP*NP*ptr->K,stream.strm);
@@ -318,14 +318,16 @@ protected:
                         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
 
                         //if( ptr->ptcl.ptcl_id() == 2122 ) {
-                        /*if( ptr->ptcl.ptcl_id() == 3 ) {
+                        /*if( ptr->ptcl.ptcl_id() == 1 ) {
                             ali_data.project(vol.ref,bandpass,ptr->K,stream);
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
                             ali_data.invert_fourier(ptr->K,stream);
                             float *tmp = new float[NP*NP*ptr->K];
                             GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
                             stream.sync();
-                            Mrc::write(tmp,NP,NP,ptr->K,"proj.mrc");
+                            char fn[SUSAN_FILENAME_LENGTH];
+                            sprintf(fn,"proj_%d.mrc",ptr->class_ix);
+                            Mrc::write(tmp,NP,NP,ptr->K,fn);
                             delete [] tmp;
                         }*/
 
@@ -336,8 +338,8 @@ protected:
 
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
-                        //if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
-                        //    ss_data.whitening_filter(ali_data.prj_c,ptr->K,stream);
+                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
+                            ss_data.whitening_filter(ali_data.prj_c,ptr->K,stream);
 
                         if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_PHASE ) {
                             ss_data.norm_complex(ali_data.prj_c,ptr->K,stream);
@@ -349,11 +351,13 @@ protected:
                         //if( flag ) {
                             //flag = false;
                         //if( ptr->ptcl.ptcl_id() == 2122 ) {
-                        /*if( ptr->ptcl.ptcl_id() == 3 ) {
+                        /*if( ptr->ptcl.ptcl_id() == 1 ) {
                             float *tmp = new float[NP*NP*ptr->K];
                             GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
                             stream.sync();
-                            Mrc::write(tmp,NP,NP,ptr->K,"cc.mrc");
+                            char fn[SUSAN_FILENAME_LENGTH];
+                            sprintf(fn,"cc_%d.mrc",ptr->class_ix);
+                            Mrc::write(tmp,NP,NP,ptr->K,fn);
                             delete [] tmp;
                         }*/
 
@@ -390,11 +394,11 @@ protected:
             R_lvl = max_R;
         } // REFINE
 
-        /*if( ptr->ptcl.ptcl_id() == 2122 ) {
+        /*if( ptr->ptcl.ptcl_id() == 1 ) {
             V3f eu;
             Math::Rmat_eZYZ(eu,max_R);
             eu = eu*RAD2DEG;
-            printf("cc: %f\n",max_cc);
+            printf("cc: %f [%d]\n",max_cc,ptr->class_ix);
             printf("t = [%f %f %f];\n",ali_data.c_pts[max_idx].x,ali_data.c_pts[max_idx].y,ali_data.c_pts[max_idx].z);
             printf("R = [%f %f %f];\n",eu(0),eu(1),eu(2));
             printf("                                                                                      \n");
