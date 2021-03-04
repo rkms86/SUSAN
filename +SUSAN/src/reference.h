@@ -76,54 +76,54 @@ public:
         }
     }
 
-	bool check_size(const uint32 N,const bool consider_halves) {
-		bool rslt = true;
-		uint32 X,Y,Z;
-		for(int n=0;n<num_refs;n++) {
-                        if( !IO::exists(refs[n].map) ) {
-                                fprintf(stderr,"File %s do not exist.\n",refs[n].map);
-                                exit(1);
-                        }
-			Mrc::read_size(X,Y,Z,refs[n].map);
-                        if( X!=N || Y!=N || Z!=N  ) {
-				fprintf(stderr,"Error on map %s with size %dx%dx%d, it should be %d\n",refs[n].map,X,Y,Z,N);
-				rslt = false;
-			}
-			
-                        if( !IO::exists(refs[n].mask) ) {
-                                fprintf(stderr,"File %s do not exist.\n",refs[n].mask);
-                                exit(1);
-                        }
-                        Mrc::read_size(X,Y,Z,refs[n].mask);
-                        if( X!=N || Y!=N || Z!=N  ) {
-				fprintf(stderr,"Error on map %s with size %dx%dx%d, it should be %d\n",refs[n].mask,X,Y,Z,N);
-				rslt = false;
-			}
-			
-			if( consider_halves ) {
-                                if( !IO::exists(refs[n].h1) ) {
-                                        fprintf(stderr,"File %s do not exist.\n",refs[n].h1);
-                                        exit(1);
-                                }
-                                Mrc::read_size(X,Y,Z,refs[n].h1);
-                                if( X!=N || Y!=N || Z!=N  ) {
-					fprintf(stderr,"Error on map %s with size %dx%dx%d, it should be %d\n",refs[n].h1,X,Y,Z,N);
-					rslt = false;
-				}
-				
-                                if( !IO::exists(refs[n].h2) ) {
-                                        fprintf(stderr,"File %s do not exist.\n",refs[n].h2);
-                                        exit(1);
-                                }
-                                Mrc::read_size(X,Y,Z,refs[n].h2);
-                                if( X!=N || Y!=N || Z!=N  ) {
-					fprintf(stderr,"Error on map %s with size %dx%dx%d, it should be %d\n",refs[n].h2,X,Y,Z,N);
-					rslt = false;
-				}
-			}
+    bool check_size(const uint32 N,const bool consider_halves) {
+            bool rslt = true;
+            uint32 X,Y,Z;
+            for(int n=0;n<num_refs;n++) {
+                if( !IO::exists(refs[n].map) ) {
+                    fprintf(stderr,"File %s do not exist.\n",refs[n].map);
+                    exit(1);
+                }
+                Mrc::read_size(X,Y,Z,refs[n].map);
+                if( X!=N || Y!=N || Z!=N  ) {
+                    fprintf(stderr,"Error on map %s with size %dx%dx%d, it should be %d\n",refs[n].map,X,Y,Z,N);
+                    rslt = false;
+                }
+
+                if( !IO::exists(refs[n].mask) ) {
+                    fprintf(stderr,"File %s do not exist.\n",refs[n].mask);
+                    exit(1);
+                }
+                Mrc::read_size(X,Y,Z,refs[n].mask);
+                if( X!=N || Y!=N || Z!=N  ) {
+                    fprintf(stderr,"Error on map %s with size %dx%dx%d, it should be %d\n",refs[n].mask,X,Y,Z,N);
+                    rslt = false;
+                }
+
+                if( consider_halves ) {
+                    if( !IO::exists(refs[n].h1) ) {
+                        fprintf(stderr,"File %s do not exist.\n",refs[n].h1);
+                        exit(1);
+                    }
+                    Mrc::read_size(X,Y,Z,refs[n].h1);
+                    if( X!=N || Y!=N || Z!=N  ) {
+                        fprintf(stderr,"Error on map %s with size %dx%dx%d, it should be %d\n",refs[n].h1,X,Y,Z,N);
+                        rslt = false;
+                    }
+
+                    if( !IO::exists(refs[n].h2) ) {
+                        fprintf(stderr,"File %s do not exist.\n",refs[n].h2);
+                        exit(1);
+                    }
+                    Mrc::read_size(X,Y,Z,refs[n].h2);
+                    if( X!=N || Y!=N || Z!=N  ) {
+                        fprintf(stderr,"Error on map %s with size %dx%dx%d, it should be %d\n",refs[n].h2,X,Y,Z,N);
+                        rslt = false;
+                    }
+                }
         }
         return rslt;
-	}
+    }
 };
 
 #endif /// REFERENCE_H

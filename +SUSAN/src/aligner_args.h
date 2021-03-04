@@ -227,7 +227,9 @@ bool validate(const Info&info) {
     }
     else {
         References refs(info.refs_file);
-        refs.check_size(info.box_size,info.ali_halves);
+        if( !refs.check_size(info.box_size,info.ali_halves) ) {
+            exit(1);
+        }
     }
     if( !IO::exists(info.tomo_file) ) {
         fprintf(stderr,"Tomos file %s does not exist.\n",info.tomo_file);

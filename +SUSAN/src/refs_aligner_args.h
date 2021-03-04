@@ -79,7 +79,9 @@ bool validate(const Info&info) {
     }
     else {
         References refs(info.refs_file);
-        refs.check_size(info.box_size,true);
+        if( !refs.check_size(info.box_size,true) ) {
+            exit(1);
+        }
     }
     if( strlen(info.ptcls_in) == 0 ) {
         fprintf(stderr,"Particles output is missing.\n");
