@@ -15,12 +15,16 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CUDA_ARCHS 52)
 #set(CUDA_ARCHS 52 60 70)
 
+
 string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored")
+if( CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 10.0 )
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=20011")
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=20014")
-#string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=2976")
-#string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=2979")
+elseif( CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 8.0 )
+string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=2976")
+string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=2979")
+endif()
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --display_error_number")
 #string(APPEND CMAKE_CUDA_FLAGS " -lineinfo")
 
