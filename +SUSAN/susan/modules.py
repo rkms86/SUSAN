@@ -186,7 +186,7 @@ class ref_fsc:
     def __init__(self):
         self.gpu_id    = 0
         self.rand_fpix = 15
-        self.pix_size  = 1
+        self.pix_size  = -1
         self.threshold = 0.143
         self.save_svg  = False
         

@@ -16,6 +16,7 @@ properties
     threads_per_gpu   uint32  = 1
     aligner           SUSAN.Modules.Aligner
     averager          SUSAN.Modules.Averager
+    refs_aligner      SUSAN.Modules.ReferenceAligner
     alignment_type    uint32  = 3;
     tomogram_file     char    = []
     initial_reference char    = []
@@ -24,6 +25,7 @@ properties
     fsc_threshold     single  = 0.143;
     fsc_plot_step     single  = 5;
     padding           uint32  = 0;
+    align_references  logical = true;
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -65,6 +67,12 @@ methods
         obj.averager.bandpass.highpass = 0;
         obj.averager.bandpass.lowpass  = obj.box_size/2-1;
         obj.averager.bandpass.rolloff  = 3;
+        
+        obj.refs_aligner = SUSAN.Modules.ReferenceAligner;
+        obj.refs_aligner.bandpass.highpass = 0;
+        obj.refs_aligner.bandpass.lowpass  = obj.box_size/2-1;
+        obj.refs_aligner.set_angular_search(1.2,0.2,1.2,0.2);
+        obj.refs_aligner.set_offset_ellipsoid(4,1);
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -139,6 +147,12 @@ methods
         %%% RECONSTRUCTIONS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         obj.exec_averaging(cur_refs,cur_dir,tmp_part,prv_refs,ptcls_count,fp_log);
         
+        %%% IF SELECTED, ALIGN THE HALFMAPS AND RE-RECONSTRUCT %%%%%%%%%%%%
+        if( obj.align_references && obj.aligner.halfsets )
+            obj.exec_align_references(cur_part,cur_refs,fp_log);
+            ptcls_count = obj.exec_selection(cur_part,tmp_part);
+            obj.exec_averaging(cur_refs,cur_dir,tmp_part,prv_refs,ptcls_count,fp_log);
+        end
         
         %%% FSC CALCULATION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         fpix_out = obj.exec_fsc_calc(iter_number,ptcls_count,fp_log);
@@ -574,6 +588,24 @@ methods(Access=private)
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function exec_align_references(obj,ptcls,refs,fp_log)
+        
+        log_txt = [obj.ite_dir '/stdout.ref_alignment'];
+        
+        fprintf('  [References Alignment] Start:\n');
+        obj.log_refs_align_starts(fp_log,refs,ptcls);
+        tic;
+        cmd = obj.refs_aligner.show_cmd(ptcls,refs,ptcls,obj.box_size);
+        system(['echo ' cmd ' > ' log_txt ]);
+        if( system(['set -o pipefail; ' cmd ' | tee -a ' log_txt]) ~=0 )
+            error('Reference aligner crashed.');
+        end
+        t = toc;
+        fprintf('  [References Alignment] Finished using %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
+        obj.log_refs_align_ends(fp_log,t);
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function fpix_out = exec_fsc_calc(obj,iter_number,ptcls_count,fp_log)
         
         fpix_out = zeros(size(ptcls_count,1),1);
@@ -667,6 +699,30 @@ methods(Access=private)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function log_reconstruct_time(~,fp_log,exec_time)
         fprintf(fp_log,'        Execution time: %.1f seconds (%s).\n',exec_time,datestr(datenum(0,0,0,0,0,exec_time),'HH:MM:SS.FFF'));
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function log_refs_align_starts(obj,fp_log,refs_file,part_file)
+        fprintf(fp_log,'- Reference Alignment Step:\n');
+        fprintf(fp_log,'    - Cone Range:        %.2f\n',obj.refs_aligner.cone.range);
+        fprintf(fp_log,'    - Cone Step:         %.2f\n',obj.refs_aligner.cone.step);
+        fprintf(fp_log,'    - Inplane Range:     %.2f\n',obj.refs_aligner.inplane.range);
+        fprintf(fp_log,'    - Inplane Step:      %.2f\n',obj.refs_aligner.inplane.step);
+        fprintf(fp_log,'    - Refinement Level:  %d\n',obj.refs_aligner.refine.level);
+        fprintf(fp_log,'    - Refinement Factor: %d\n',obj.refs_aligner.refine.factor);
+        fprintf(fp_log,'    - Offset Type:       %s\n',obj.refs_aligner.offset.type);
+        fprintf(fp_log,'    - Offset Range:      [%.2f %.2f %.2f]\n',obj.refs_aligner.offset.range(1),obj.refs_aligner.offset.range(2),obj.refs_aligner.offset.range(3));
+        fprintf(fp_log,'    - Offset Step:       %.2f\n',obj.refs_aligner.offset.step);
+        fprintf(fp_log,'    - Bandpass range:    [%.1f %1f]\n',obj.refs_aligner.bandpass.highpass,obj.refs_aligner.bandpass.lowpass);
+        obj.log_refs_file(fp_log,refs_file);
+        obj.log_part_file(fp_log,part_file);
+        fprintf(fp_log,'    Starting at %s\n',datestr(now(),'yyyy.mm.dd HH:MM:SS.FFF'));
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function log_refs_align_ends(~,fp_log,exec_time)
+        fprintf(fp_log,'    Finished at %s.\n',datestr(now(),'yyyy.mm.dd HH:MM:SS.FFF'));
+        fprintf(fp_log,'    Execution time: %.1f seconds (%s).\n',exec_time,datestr(datenum(0,0,0,0,0,exec_time),'HH:MM:SS.FFF'));
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -213,10 +213,16 @@ class particles:
             self.def_mres[index,j], self.def_scor[index,j] = struct.unpack('ffffffff',buffer[i:i+32])
             i=i+32
 
+def decode_if_needed(line):
+    try:
+        return line.decode('utf-8')
+    except:
+        return line
+
 def read_value(fp,tag):
-    line = fp.readline().strip().decode('utf-8')
+    line = decode_if_needed( fp.readline().strip() )
     while len(line) > 0 and line[0] == "#" :
-        line = fp.readline().strip().decode('utf-8')
+        line = decode_if_needed( fp.readline().strip() )
     if not line.startswith(tag):
         raise NameError("Requested field "+tag+", but the line is "+line)
     return line[(len(tag)+1):]
@@ -251,7 +257,7 @@ def load_references(filename):
 
 def save_references(refs,filename):
     fp=open(filename,'w')
-    write_value(fp,'num_refs',str(len(refs)))
+    write_value(fp,'num_ref',str(len(refs)))
     for i in range(len(refs)):
         fp.write('## Reference '+str(i+1)+'\n')
         write_value(fp,'map',refs[i].ref)
