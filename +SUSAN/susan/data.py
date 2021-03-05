@@ -43,7 +43,7 @@ class particles:
         for index in range(self.n_ptcl):
             fp.write( struct.pack('III',self.ptcl_id[index],self.tomo_id[index],self.tomo_cix[index]) )
             fp.write( struct.pack('fff',self.position[index,0],self.position[index,1],self.position[index,2]) )
-            fp.write( struct.pack('II' ,self.ref_cix[index],self.half_id[index] ) )
+            fp.write( struct.pack('II' ,int(self.ref_cix[index]),int(self.half_id[index]) ) )
             fp.write( struct.pack('ff' ,self.extra_1[index],self.extra_2[index] ) )
             
             # 3D alignment

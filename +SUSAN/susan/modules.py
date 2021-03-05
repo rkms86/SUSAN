@@ -57,8 +57,8 @@ class aligner:
         if not self.padding_type in ['zero','noise']:
             raise NameError('Invalid padding type. Only "zero" or "noise" are valid')
         
-        if not self.normalize_type in ['none','zero_mean','zero_mean_one_weight','zero_mean_proj_weight']:
-            raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_weight" or "zero_mean_proj_weight" are valid')
+        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
+            raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
         
         if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','wiener_white']:
             raise NameError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr" or "wiener_white" are valid')
@@ -135,8 +135,8 @@ class averager:
         if not self.padding_type in ['zero','noise']:
             raise NameError('Invalid padding type. Only "zero" or "noise" are valid')
         
-        if not self.normalize_type in ['none','zero_mean','zero_mean_one_weight','zero_mean_proj_weight']:
-            raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_weight" or "zero_mean_proj_weight" are valid')
+        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
+            raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
         
         if not self.ctf_correction in ['none','phase_flip','wiener','wiener_ssnr']:
             raise NameError('Invalid ctf correction type. Only "none", "phase_flip", "wiener" ot "wiener_ssnr" are valid')

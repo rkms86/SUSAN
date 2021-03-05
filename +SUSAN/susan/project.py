@@ -127,8 +127,8 @@ class manager:
         
         # Select particles for reconstruction
         for i in range(ptcls_in.n_refs):
-            idx = ptcls_in.ref_cix == i
-            hid = ptcls_in.half_id[idx]
+            idx = (ptcls_in.ref_cix == i).flatten()
+            hid = ptcls_in.half_id[idx].flatten()
             ccc = ptcls_in.ali_cc [idx,:,i].flatten()
             
             th1 = numpy.quantile(ccc[ hid==1 ], 1-self.cc_threshold)
@@ -137,11 +137,13 @@ class manager:
             hid[ numpy.logical_and(hid==1,ccc<th1) ] = 0
             hid[ numpy.logical_and(hid==2,ccc<th2) ] = 0
             
-            print('    Class ' + str(i+1) + ': ' + str( len(idx) ) + ' particles.' )
+            ptcls_in.half_id[idx] = hid
+            
+            print('    Class ' + str(i+1) + ': ' + str( sum(hid>0) ) + ' particles.' )
             print('      Half 1: ' + str( sum( hid==1 ) ) + ' particles.' )
             print('      Half 2: ' + str( sum( hid==2 ) ) + ' particles.' )
             
-        ptcls_out = ptcls_in[ hid>0 ]
+        ptcls_out = ptcls_in[ (ptcls_in.half_id>0).flatten() ]
         ptcls_out.save(cur.ptcl_temp)
         print('  [Aligned partices] Done.')
         
@@ -156,7 +158,7 @@ class manager:
         else:
             self.averager.reconstruct(cur.ite_dir+'/map',self.tomogram_file,cur.ptcl_temp,self.box_size)
         end_time = datetime.datetime.now()
-        elapsed = end_time-start_time
+        elapsed = end_time-start_time	
         print( '  [Reconstruct Maps] Finished using ' + ('%.1f' % elapsed.total_seconds()) + ' seconds (' + str(elapsed) +  ').'  )
         os.remove(cur.ptcl_temp)
         
