@@ -140,7 +140,7 @@ methods
         elseif( strcmpi(type,'zm') )
             obj.norm_type = 'zero_mean';
         elseif( strcmpi(type,'zm1s') )
-            obj.norm_type = 'zero_mean_one_weight';
+            obj.norm_type = 'zero_mean_one_std';
         elseif( strcmp(type,'zmws') )
             obj.norm_type = 'zero_mean_proj_weight';
         else
