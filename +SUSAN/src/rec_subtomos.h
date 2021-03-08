@@ -58,24 +58,24 @@ public:
 class RecSubtomoWorker : public Worker {
 	
 public:
-	ArgsRecSubtomo::Info *p_info;
-	float                *p_stack;
-	ParticlesSubset      *p_ptcls;
-	Tomogram             *p_tomo;
-	int gpu_ix;
-	int max_K;
-	int N;
-	int M;
-	int P;
-	int pad_type;
-	int ctf_type;
-	float3  bandpass;
-	float2  ssnr; /// x=F; y=S;
-	
-	int NP;
-	int MP;
-	
-	int    w_inv_ite;
+    ArgsRecSubtomo::Info *p_info;
+    float                *p_stack;
+    ParticlesSubset      *p_ptcls;
+    Tomogram             *p_tomo;
+    int gpu_ix;
+    int max_K;
+    int N;
+    int M;
+    int P;
+    int pad_type;
+    int ctf_type;
+    float3  bandpass;
+    float2  ssnr; /// x=F; y=S;
+
+    int NP;
+    int MP;
+
+    int    w_inv_ite;
     float  w_inv_std;
     
 	float bp_pad;
@@ -177,6 +177,7 @@ protected:
 				add_data(ss_data,buffer,stream);
 				correct_ctf(ss_data,buffer,stream);
 				insert_vol(vol,ss_data,buffer,stream);
+                                stream.sync();
 				reconstruct_core(p_vol,inv_wgt,inv_vol,vol.vol_acc,vol.vol_wgt);
 				cudaMemcpy((void*)map,(const void*)p_vol.ptr,sizeof(float)*N*N*N,cudaMemcpyDeviceToHost);
                                 float avg,std;
@@ -316,7 +317,8 @@ protected:
                 if( pad_type == ArgsRecSubtomo::PaddingType_t::PAD_GAUSSIAN )
 			ss_data.pad_normal(ptr.g_pad,ptr.K,stream);
 		
-		ss_data.add_data(ptr.g_stk,ptr.g_ali,ptr.K,stream);
+                ss_data.add_data(ptr.g_stk,ptr.g_ali,ptr.K,stream);
+
 	}
 	
 	void correct_ctf(RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
