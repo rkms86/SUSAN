@@ -21,7 +21,7 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
     }
 
     ///
-    if( nIn  != 4 ) {
+    if( nIn  != 5 ) {
         mexErrMsgTxt("[" FUNC_NAME "] Four inputs required");
     }
 
@@ -64,6 +64,8 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
             mexErrMsgTxt(tmp);
         }
         
+        float sign = get_scalar_single(pIn[4]);
+        
         /// Allocate output:
         allocate_and_get(p_def_out,pOut[0],num_projs,8,num_ptcl);
 
@@ -98,8 +100,8 @@ void mexFunction(int nOut, mxArray *pOut[], int nIn, const mxArray *pIn[]) {
                 euZYZ   *= DEG2RAD;
                 Math::eZYZ_Rmat(R,euZYZ);
                 pos_proj = R*pos_tomo;
-                cur_ptcl_def[proj            ] = cur_tomo_def[proj            ] + pos_proj(2); // U
-                cur_ptcl_def[proj+  num_projs] = cur_tomo_def[proj+  num_projs] + pos_proj(2); // V
+                cur_ptcl_def[proj            ] = cur_tomo_def[proj            ] + sign*pos_proj(2); // U
+                cur_ptcl_def[proj+  num_projs] = cur_tomo_def[proj+  num_projs] + sign*pos_proj(2); // V
                 cur_ptcl_def[proj+2*num_projs] = cur_tomo_def[proj+2*num_projs]; // angle
                 cur_ptcl_def[proj+3*num_projs] = cur_tomo_def[proj+3*num_projs]; // phase shift
                 cur_ptcl_def[proj+4*num_projs] = cur_tomo_def[proj+4*num_projs]; // BFactor

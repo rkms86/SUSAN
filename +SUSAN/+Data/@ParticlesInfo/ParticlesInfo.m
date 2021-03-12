@@ -290,7 +290,7 @@ methods
         tomo_ix     = obj.tomo_cix + 1;
         obj.prj_w   = tomos_list.proj_weight(:,:,tomo_ix);
         cur_pos     = obj.position+obj.ali_t(:,:,1);
-        obj.defocus = ParticlesInfo_defocus_per_ptcl(obj.tomo_cix,cur_pos,tomos_list.proj_eZYZ,tomos_list.defocus);
+        obj.defocus = ParticlesInfo_defocus_per_ptcl(obj.tomo_cix,cur_pos,tomos_list.proj_eZYZ,tomos_list.defocus,single(-1));
         
     end
     
@@ -312,14 +312,18 @@ methods
             error('Second argument must be a SUSAN.Data.TomosInfo object.');
         end
         
-        tbl = dynamo_table_blank( obj.num_particles );
+        tbl = dynamo_table_blank( obj.n_ptcls );
+        
+        pos = bsxfun(@times, obj.position, 1./tomos_list.pix_size(obj.tomo_cix+1));
+        shf = bsxfun(@times, obj.ali_t(:,:,ref_idx), 1./tomos_list.pix_size(obj.tomo_cix+1));
         
         tbl(:,20) = obj.tomo_id;
         tbl(:,23) = obj.half_id;
-        tbl(:,[24 25 26]) = obj.position + single( tomos_list.tomo_size(obj.tomo_id,:) )/2;
-        tbl(:,[4 5 6]) = obj.ali_t(:,:,ref_idx);
+        tbl(:,[24 25 26]) = pos + single( tomos_list.tomo_size(obj.tomo_id,:) )/2;
+        tbl(:,[4 5 6]) = shf;
+        
         tbl(:,10) = obj.ali_cc(:,:,ref_idx);
-        tbl(:,[9 8 7]) = ParticlesInfo_euZYZ_2_euZXZ(obj.ali_eZYZ(:,:,ref_idx));       
+        tbl(:,[7 8 9]) = ParticlesInfo_euZYZ_2_euDYN(obj.ali_eZYZ(:,:,ref_idx));       
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -510,7 +514,7 @@ methods(Access=private)
         
         obj.prj_w    = tomos_list.proj_weight(:,:,tomo_ix);
         
-        obj.defocus = ParticlesInfo_defocus_per_ptcl(obj.tomo_cix,obj.position,tomos_list.proj_eZYZ,tomos_list.defocus);
+        obj.defocus = ParticlesInfo_defocus_per_ptcl(obj.tomo_cix,obj.position,tomos_list.proj_eZYZ,tomos_list.defocus,single(-1));
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
