@@ -130,7 +130,7 @@ methods
             tlt = SUSAN.IO.read_tlt(tltname);
             obj.proj_eZYZ  (1:length(tlt),2,tomo_ix) = tlt;
             obj.proj_weight(1:length(tlt),:,tomo_ix) = 1;
-        elseif( nargin > 4 )
+        elseif( nargin > 3 )
             apix_work = obj.pix_size(tomo_ix);
             if( nargin == 5 )
                 apix_work = xfapix;

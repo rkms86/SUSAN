@@ -16,13 +16,13 @@ function ptcls_out = expand_ptcls(ptcls_in,arr_euZYZ,arr_shifts)
 	
 	full_ix = repmat( (1:ptcls_in.n_ptcls), [exp_n+1 1] );
 	ptcls_out = ptcls_in.select( full_ix(:) );
-	ptcls_out.ptcl_id(:) = 1:ptcls_out.num_particles;
+	ptcls_out.ptcl_id(:) = 1:ptcls_out.n_ptcls;
 	
 	for j = 1:exp_n
 		
 		R = eul2rotm(arr_euZYZ(j,:)*pi/180, 'ZYZ');
 		
-		[tmp_e,tmp_t] = ParticlesInfo_shift_rot(single(R),single(arr_shifts(j,:)),ptcls_in.ali_eZYZ,ptcls_in.ali_t);
+		[tmp_e,tmp_t] = ParticlesGeom_rot_shift(single(R),single(arr_shifts(j,:)),ptcls_in.ali_eZYZ,ptcls_in.ali_t);
 	
 		ptcls_out.ali_eZYZ((1+j):exp_n+1:end,:) = tmp_e;
 		ptcls_out.ali_t   ((1+j):exp_n+1:end,:) = tmp_t;
