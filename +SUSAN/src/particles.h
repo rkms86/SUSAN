@@ -215,8 +215,15 @@ protected:
                 + proj*(sizeof(Vec3)+sizeof(Vec2)+sizeof(float)+sizeof(float)) /// 2D ALIGNMENT PER PROJECTION
                 + proj*(sizeof(Defocus));                                      /// DEFOCUS PER PROJECTION
 
-        p_raw = (uint8*)malloc(n_bytes*ptcl);
-        memset(p_raw,0,n_bytes*ptcl);
+	size_t total_bytes = n_bytes;
+        total_bytes *= ptcl;
+
+        p_raw = (uint8*)malloc(total_bytes);
+        if( p_raw == NULL ) {
+            fprintf(stderr,"Error allocating mamory for the particles descriptors (%ld)\n",n_bytes*ptcl);
+            exit(1);
+        }
+        memset(p_raw,0,total_bytes);
     }
 	
 };

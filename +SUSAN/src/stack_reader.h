@@ -95,6 +95,7 @@ protected:
 		
 		if( ptcls->n_ptcl > ptcls_ix ) {
 			ptcls->get(cur_ptcl,i);
+			//printf("%d\n",cur_ptcl.ptcl_id());
 			ptcls_tomoid[ptcls_ix] = cur_ptcl.tomo_cix();
 			ptcls_count[ptcls_ix]++;
 			i++;
@@ -113,6 +114,9 @@ protected:
 				i++;
 			}
 		}
+
+                //for(i=0;i<tomos->num_tomo;i++) printf("%10d %10d %10d\n",ptcls_count[i],ptcls_tomoid[i],ptcls_offset[i]);
+
 	}
 
 };

@@ -10,6 +10,8 @@
 #include <ftw.h>
 #include <unistd.h>
 
+#include <errno.h>
+
 #include "datatypes.h"
 
 namespace IO {
@@ -54,7 +56,9 @@ bool check_file_extension(const char*filename,const char*extension) {
 ////
 
 bool check_fread(void *ptr, size_t size, size_t nmemb, FILE *fp) {
-    if( fread(ptr,size,nmemb,fp) != nmemb ) {
+    size_t read_nmemb = fread(ptr,size,nmemb,fp);
+    if( read_nmemb != nmemb ) {
+        fprintf(stderr,"Error reading file: %ld/%ld (%ld) [%d/%d]\n",read_nmemb,nmemb,size,ferror(fp),errno);
         return false;
     }
     return true;
