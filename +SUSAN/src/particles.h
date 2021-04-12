@@ -179,8 +179,10 @@ public:
     }
 
     bool get(Particle&ptcl,uint32 ix=0) {
+        uint64 offset = n_bytes;
+        offset *= ix;
         if( ix < n_ptcl ) {
-            ptcl.set(p_raw+ix*n_bytes,n_proj,n_refs);
+            ptcl.set(p_raw+offset,n_proj,n_refs);
             return true;
         }
         return false;
@@ -220,7 +222,7 @@ protected:
 
         p_raw = (uint8*)malloc(total_bytes);
         if( p_raw == NULL ) {
-            fprintf(stderr,"Error allocating mamory for the particles descriptors (%ld)\n",n_bytes*ptcl);
+            fprintf(stderr,"Error allocating memory for the particles descriptors (%ld)\n",n_bytes*ptcl);
             exit(1);
         }
         memset(p_raw,0,total_bytes);
@@ -405,10 +407,12 @@ public:
 class ParticlesSubset : public Particles {
 public:
     void set(Particles&ptcls_in,uint32 offset,uint32 length) {
+        uint64 w_offset = n_bytes;
+        w_offset *= offset;
         n_proj  = ptcls_in.n_proj;
         n_refs  = ptcls_in.n_refs;
         n_bytes = ptcls_in.n_bytes;
-        p_raw   = ptcls_in.p_raw + offset*n_bytes;
+        p_raw   = ptcls_in.p_raw + w_offset;
 
         if( offset < ptcls_in.n_ptcl ) {
             uint32 w_length = offset + length;
