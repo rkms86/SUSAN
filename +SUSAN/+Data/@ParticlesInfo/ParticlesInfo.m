@@ -319,7 +319,7 @@ methods
         
         tbl(:,20) = obj.tomo_id;
         tbl(:,23) = obj.half_id;
-        tbl(:,[24 25 26]) = pos + single( tomos_list.tomo_size(obj.tomo_id,:) )/2;
+        tbl(:,[24 25 26]) = pos + single( tomos_list.tomo_size(obj.tomo_cix+1,:) )/2;
         tbl(:,[4 5 6]) = shf;
         
         tbl(:,10) = obj.ali_cc(:,:,ref_idx);

@@ -407,12 +407,13 @@ public:
 class ParticlesSubset : public Particles {
 public:
     void set(Particles&ptcls_in,uint32 offset,uint32 length) {
-        uint64 w_offset = n_bytes;
-        w_offset *= offset;
         n_proj  = ptcls_in.n_proj;
         n_refs  = ptcls_in.n_refs;
         n_bytes = ptcls_in.n_bytes;
-        p_raw   = ptcls_in.p_raw + w_offset;
+
+	uint64 w_offset = n_bytes;
+        w_offset *= offset;
+	p_raw   = ptcls_in.p_raw + w_offset;
 
         if( offset < ptcls_in.n_ptcl ) {
             uint32 w_length = offset + length;
@@ -423,7 +424,7 @@ public:
         }
         else {
             p_raw  = ptcls_in.p_raw;
-            length = 0;
+            n_ptcl = 0;
         }
     }
 };

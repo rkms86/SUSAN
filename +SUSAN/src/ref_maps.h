@@ -38,10 +38,10 @@ public:
     }
 
     ~RefMap() {
-		free_array(map   );
-		free_array(half_A);
-		free_array(half_B);
-		free_array(mask  );
+        free_array(map   );
+        free_array(half_A);
+        free_array(half_B);
+        free_array(mask  );
     }
 
     void load(const Reference&ref_info) {

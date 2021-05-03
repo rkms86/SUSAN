@@ -251,7 +251,7 @@ protected:
         //if( flag ) {
         //    flag = false;
         //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        /*if( ptr->ptcl.ptcl_id() == 1 ) {
+        /*if( ptr->ptcl.ptcl_id() == 1257 ) {
             stream.sync();
             float*tmp = new float[MP*NP*ptr->K];
             GPU::download_async(tmp,ctf_wgt.ptr,MP*NP*ptr->K,stream.strm);
@@ -275,7 +275,7 @@ protected:
         //if( flag ) {
         //    flag = false;
         //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        /*if( ptr->ptcl.ptcl_id() == 1 ) {
+        /*if( ptr->ptcl.ptcl_id() == 1257 ) {
             stream.sync();
             float*tmp = new float[NP*NP*ptr->K];
             GPU::download_async(tmp,ss_data.ss_padded.ptr,NP*NP*ptr->K,stream.strm);
@@ -322,7 +322,7 @@ protected:
                         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
 
                         //if( ptr->ptcl.ptcl_id() == 2122 ) {
-                        /*if( ptr->ptcl.ptcl_id() == 1 ) {
+                        /*if( ptr->ptcl.ptcl_id() == 1257 ) {
                             ali_data.project(vol.ref,bandpass,ptr->K,stream);
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
                             ali_data.invert_fourier(ptr->K,stream);
@@ -475,19 +475,17 @@ protected:
                             }
                         }
 
-                        /*static bool flag = true;
-                        if( flag ) {
-                            flag = false;
+                        /*if( ptr->ptcl.ptcl_id() == 2122 ) {
                             float *tmp = new float[NP*NP*ptr->K];
                             GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
                             stream.sync();
                             Mrc::write(tmp,NP,NP,ptr->K,"cc.mrc");
                             delete [] tmp;
-                            FILE*fp=fclose("pts.txt","w");
-                            for(int i=0;i<ptr->K;i++) {
-                                fprintf(fp,"%3d: %10.4f : %6.1f,%6.1f,%6.1f\n",i+1,max_cc[i],ali_data.c_pts[max_idx[i]].x,ali_data.c_pts[max_idx[i]].y,ali_data.c_pts[max_idx[i]].z);
-                            }
-                            fclose(fp);
+                            //FILE*fp=fclose("pts.txt","w");
+                            //for(int i=0;i<ptr->K;i++) {
+                            //    fprintf(fp,"%3d: %10.4f : %6.1f,%6.1f,%6.1f\n",i+1,max_cc[i],ali_data.c_pts[max_idx[i]].x,ali_data.c_pts[max_idx[i]].y,ali_data.c_pts[max_idx[i]].z);
+                            //}
+                            //fclose(fp);
                         }*/
 
                         /*static bool flag = true;
@@ -509,9 +507,15 @@ protected:
             } // SYMMETRY
         } // REFINE
 
+        single cc_acc=0,wgt_acc=0;
         for(int i=0;i<ptr->K;i++) {
             update_particle_2D(ptr->ptcl,max_R[i],ali_data.c_pts[max_idx[i]],max_cc[i],i,ptr->ctf_vals.apix);
+            if( max_cc[i] > 0 && ptr->ptcl.prj_w[i] > 0 ) {
+                cc_acc += max_cc[i];
+                wgt_acc += ptr->ptcl.prj_w[i];
+            }
         }
+        ptr->ptcl.ali_cc[ptr->class_ix] = cc_acc/max(wgt_acc,1.0);
     }
 
     void update_particle_3D(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int ref_ix,const float apix) {

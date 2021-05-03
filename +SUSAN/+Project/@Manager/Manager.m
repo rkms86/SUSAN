@@ -391,6 +391,40 @@ methods
         end
     end
     
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function [ptcl_file] = get_name_ptcls(obj,iter_number)
+        
+        if( iter_number < 1 )
+            
+            ptcl_file = obj.initial_particles;
+            
+        elseif( obj.check_iteration_exists(iter_number) )
+            
+            iter_dir = obj.get_iterations_dir(iter_number);
+            
+            ptcl_file = sprintf('%s/particles.ptclsraw',iter_dir);
+        else
+            error('Iteration does not exist.');
+        end
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function [refs_file] = get_name_refs(obj,iter_number)
+        
+        if( iter_number < 1 )
+            
+            refs_file = obj.initial_reference;
+            
+        elseif( obj.check_iteration_exists(iter_number) )
+            
+            iter_dir = obj.get_iterations_dir(iter_number);
+            
+            refs_file = sprintf('%s/reference.refstxt',iter_dir);
+        else
+            error('Iteration does not exist.');
+        end
+    end
+    
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

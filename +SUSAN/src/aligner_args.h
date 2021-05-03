@@ -227,6 +227,9 @@ bool validate(const Info&info) {
     }
     else {
         References refs(info.refs_file);
+        if( !refs.check_fields(info.ali_halves) ) {
+            exit(1);
+        }
         if( !refs.check_size(info.box_size,info.ali_halves) ) {
             exit(1);
         }
