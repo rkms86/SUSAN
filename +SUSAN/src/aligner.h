@@ -475,17 +475,17 @@ protected:
                             }
                         }
 
-                        /*if( ptr->ptcl.ptcl_id() == 2122 ) {
+                        /*if( ptr->ptcl.ptcl_id() == 12 ) {
                             float *tmp = new float[NP*NP*ptr->K];
                             GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
                             stream.sync();
                             Mrc::write(tmp,NP,NP,ptr->K,"cc.mrc");
                             delete [] tmp;
-                            //FILE*fp=fclose("pts.txt","w");
-                            //for(int i=0;i<ptr->K;i++) {
-                            //    fprintf(fp,"%3d: %10.4f : %6.1f,%6.1f,%6.1f\n",i+1,max_cc[i],ali_data.c_pts[max_idx[i]].x,ali_data.c_pts[max_idx[i]].y,ali_data.c_pts[max_idx[i]].z);
-                            //}
-                            //fclose(fp);
+                            FILE*fp=fclose("pts.txt","w");
+                            for(int i=0;i<ptr->K;i++) {
+                                fprintf(fp,"%3d: %10.4f : %6.1f,%6.1f,%6.1f\n",i+1,max_cc[i],ali_data.c_pts[max_idx[i]].x,ali_data.c_pts[max_idx[i]].y,ali_data.c_pts[max_idx[i]].z);
+                            }
+                            fclose(fp);
                         }*/
 
                         /*static bool flag = true;
