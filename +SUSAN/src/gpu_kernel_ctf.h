@@ -520,7 +520,7 @@ __global__ void vis_add_ctf(float*p_out,const float4*p_def_inf,const float apix,
 			val = ctf*ctf;
 		}
 		
-		p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
+                p_out[ get_3d_idx(ss_idx,ss_siz) ] = min(max(val,-0.1),1.1);
     }
 }
 

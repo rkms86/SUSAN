@@ -267,27 +267,41 @@ protected:
 	}
 	
 	void get_avg_defocus(float3&defocus,const single*p_data) {
-		float threshold = 0.6*Math::get_max(p_data,M*N);
-		int count = 0;
-		for(int k=0;k<M*N;k++) {
-			if( p_data[k]>threshold )
-				count++;
-		}
-		Eigen::MatrixXf points = Eigen::MatrixXf::Zero(2,count);
-		
-		int i=0;
-		for(int n=0;n<N;n++) {
-			int idx_base = n*M;
-			for(int m=0;m<M;m++) {
-				if( p_data[ m + idx_base ] > threshold ) {
-					points(0,i)=m;
-                    points(1,i)=n-N/2;
-                    i++;
-				}
-			}
-		}
-		
-		Math::fit_ellipsoid(defocus.x,defocus.y,defocus.z,points);
+
+            int N_points = 90;
+            Eigen::MatrixXf points = Eigen::MatrixXf::Zero(2,N_points);
+
+            float x_c = 0;
+            float y_c = N/2;
+
+            for(int n_p=0;n_p<N_points;n_p++) {
+
+                float ang = n_p;
+                ang *= (M_PI/N_points);
+                ang = ang - (M_PI/2);
+
+                float x_v = cos(ang);
+                float y_v = sin(ang);
+
+                float max_val=0,max_x=0,max_y=0;
+
+                for(float r=0;r<M-3;r+=1.0) {
+                    float x = x_c + r*x_v;
+                    float y = y_c + r*y_v;
+                    int xx = (int)round(x);
+                    int yy = (int)round(y);
+                    float val = p_data[ (int)xx + yy*(int)M ];
+                    if( val > max_val ) {
+                        max_val = val;
+                        max_x = x;
+                        max_y = y-y_c;
+                    }
+                }
+                points(0,n_p)=max_x;
+                points(1,n_p)=max_y;
+            }
+
+            Math::fit_ellipsoid(defocus.x,defocus.y,defocus.z,points);
 		
 	}
 	
@@ -502,17 +516,17 @@ protected:
 		def.ph_shft = 0;
 		def.ExpFilt = 0;
 
-        for(int i=0;i<k;i++) {
-			int idx = i*(int)M;
-			estimate_params(def.Bfactor,def.max_res,p_rad_avg+idx,p_ctf_res+idx);
-			def.U     = c_def_inf[i].x;
-			def.V     = c_def_inf[i].y;
-			def.angle = c_def_inf[i].z*180.0/M_PI;
-			def.score = c_def_inf[i].w;
-			IO::DefocusIO::write(fp,def);
-        }
+                for(int i=0;i<k;i++) {
+                    int idx = i*(int)M;
+                    estimate_params(def.Bfactor,def.max_res,p_rad_avg+idx,p_ctf_res+idx);
+                    def.U     = c_def_inf[i].x;
+                    def.V     = c_def_inf[i].y;
+                    def.angle = c_def_inf[i].z*180.0/M_PI;
+                    def.score = c_def_inf[i].w;
+                    IO::DefocusIO::write(fp,def);
+                }
 
-        fclose(fp);
+                fclose(fp);
 
 	}
 
@@ -571,7 +585,7 @@ protected:
 		Bfactor = 0;
 		int min_j = (int)ceil(fpix_range.x);
 		int count=0;
-		int max_j;
+                int max_j=0;
 		float s2;
 		for(int j=min_j;j<M;j++) {
 			if( peaks[j] > 0 ) {
@@ -581,12 +595,16 @@ protected:
 					break;
 				}
 			}
-		}
-		max_res = N*apix/((float)max_j);
+                }
+
+                if(max_j>0)
+                    max_res = N*apix/((float)max_j);
+                else
+                    max_res = 0;
 		
 		float2 *extracted_data = new float2[count];
 		
-		if( count > 2 ) {
+                if( count > 2 && max_j > 0 ) {
 			count=0;
 			for(int j=min_j;j<max_j;j++) {
 				if( peaks[j] > 0 ) {
@@ -621,10 +639,10 @@ protected:
 				}
 			}
 			
-			Bfactor = -bfac_val.x;
-			
-			delete [] extracted_data;
+                        Bfactor = bfac_val.x;
 		}
+
+                delete [] extracted_data;
 		
 	}
 
