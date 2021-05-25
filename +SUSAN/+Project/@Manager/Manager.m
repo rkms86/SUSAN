@@ -244,7 +244,7 @@ methods
         
         axis([0 single(obj.box_size)/2 -0.05 1.05]);
 
-        legend;
+        legend('Location','best');
         
     end
     

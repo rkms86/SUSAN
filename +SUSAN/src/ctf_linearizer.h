@@ -217,10 +217,11 @@ public:
 		GpuKernelsCtf::rmv_bg<<<grd_c,blk>>>(ss_data_c.ptr,ss_input.ptr,ss_filter.ptr,n_filter,ss_c);
 		GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_data_c.ptr,tmp_range,ss_c);
 		GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_data_c.ptr,ss_c);
-		GpuKernelsCtf::ctf_radial_normalize<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,g_def_inf.ptr,M_PI*lambda,apix,ss_c);
+                GpuKernelsCtf::ctf_radial_normalize<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,g_def_inf.ptr,ix2def,M_PI*lambda,apix,ss_c);
+                save_gpu_mrc(input,ss_data_c.ptr,ss_c.x,ss_c.y,ss_c.z,out_dir,"ctf_rad_norm.mrc",2);
 		GpuKernels::radial_ps_avg<<<grd_c,blk>>>(rad_avg.ptr,rad_wgt.ptr,ss_data_c.ptr,ss_c);
 		GpuKernels::divide<<<grd_2,blk>>>(rad_avg.ptr,rad_wgt.ptr,ss_2);
-		GpuKernelsCtf::rmv_bg<<<grd_2,blk>>>(rad_wgt.ptr,rad_avg.ptr,lambda_def,ss_2);
+                GpuKernelsCtf::rmv_bg<<<grd_2,blk>>>(rad_wgt.ptr,rad_avg.ptr,lambda_def,ss_2);
 		cudaMemcpy((void*)p_rad_avg, (const void*)rad_wgt.ptr, sizeof(float)*ss_2.x*ss_2.y*ss_2.z, cudaMemcpyDeviceToHost);
 		calculate_hilbert(rad_hilbert.ptr,rad_wgt.ptr,ss_2.y);
 		GpuKernels::load_abs<<<grd_2,blk>>>(rad_wgt.ptr,rad_hilbert.ptr,ss_2);
@@ -382,6 +383,16 @@ protected:
 		float*p_avg;
 		float*p_wgt;
 		
+                if( verbose >= 2 ) {
+                        sprintf(filename,"%s/ctf_radial_avg_raw.mrc",out_dir);
+                        Mrc::write(p_rad_avg,M,k,1,filename);
+                }
+
+                if( verbose >= 2 ) {
+                        sprintf(filename,"%s/ctf_radial_env_raw.mrc",out_dir);
+                        Mrc::write(p_rad_wgt,M,k,1,filename);
+                }
+
 		for(int n=0;n<k;n++) {
 			p_nrm = p_rad_nrm + n*((int)M);
 			p_avg = p_rad_avg + n*((int)M);
@@ -410,10 +421,13 @@ protected:
 	
 	void adjust_radial_avg(float*p_nrm,float*p_avg,float*p_wgt) {
 		float wgt_max = 0;
+                //int min_m = (int)ceil(fpix_range.x);
+                int max_m = (int)ceil(fpix_range.y);
 		for(int m=0;m<M;m++) {
 			p_wgt[m] = p_wgt[m]/M;
 			p_avg[m] += p_wgt[m];
-			wgt_max = max(wgt_max,p_wgt[m]);
+                        if( m < max_m )
+                            wgt_max = max(wgt_max,p_wgt[m]);
 			float den = 2*p_wgt[m];
 			if( abs(den) < SUSAN_FLOAT_TOL ) {
 				if( den < 0 ) den = -1;
@@ -421,10 +435,35 @@ protected:
 			}
 			p_nrm[m] = p_avg[m]/den;
 		}
-		for(int m=0;m<M;m++) {
+                for(int m=1;m<(M-1);m++) {
+                    if( abs(p_nrm[m]) > 0 ) {
+                        p_nrm[m] = (p_nrm[m-1]+p_nrm[m+1])/2;
+                    }
+                }
+
+                for(int m=0;m<M;m++) {
+                    p_wgt[m] = p_wgt[m]/wgt_max;
+                    p_avg[m] = p_avg[m]/(2*wgt_max);
+                }
+
+                /*for(int m=0;m<max_m;m++) {
+                        p_wgt[m] = p_wgt[m]/wgt_max;
+                        p_avg[m] = p_avg[m]/(2*wgt_max);
+                }*/
+
+                /*for(int m=0;m<min_m;m++) {;
+                    p_avg[m] = p_avg[m]/(2*p_wgt[m]);
+                }
+
+                for(int m=min_m;m<max_m;m++) {
 			p_wgt[m] = p_wgt[m]/wgt_max;
 			p_avg[m] = p_avg[m]/(2*wgt_max);
-		}
+                }*/
+
+                /*for(int m=max_m;m<M;m++) {
+                        p_wgt[m] = p_wgt[max_m]/wgt_max;
+                        p_avg[m] = p_avg[m]/(2*wgt_max);
+                }*/
 		
 		for(int m=0;m<M;m++) {
 			p_avg[m] = p_avg[m]*(sqrt(p_wgt[m]))/p_wgt[m];

@@ -134,7 +134,7 @@ __global__ void ctf_normalize( float*p_out, cudaTextureObject_t texture,
     }
 }
 
-__global__ void ctf_radial_normalize( float*p_out, cudaTextureObject_t texture, const float4*p_defocus,
+__global__ void ctf_radial_normalize( float*p_out, cudaTextureObject_t texture, const float4*p_defocus, const float ix2def,
                                       const float pi_lambda, const float apix, const int3 ss_siz)
 {
     
@@ -142,25 +142,30 @@ __global__ void ctf_radial_normalize( float*p_out, cudaTextureObject_t texture, 
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float3 vec_r;
-		vec_r.x = ss_idx.x;
-		vec_r.y = ss_idx.y-ss_siz.y/2;
-		vec_r.z = l2_distance(vec_r.x,vec_r.y);
-		if( vec_r.z > 0 ) {
-			vec_r.x = vec_r.x/vec_r.z;
-			vec_r.y = vec_r.y/vec_r.z;
-		}
-		
-		float s2 = calc_s(vec_r.z,ss_siz.x,apix);
-		s2 = s2*s2;
-		float avg = (p_defocus[ss_idx.z].x+p_defocus[ss_idx.z].y)/2;
-		float def = calc_def(vec_r.x,vec_r.y,p_defocus[ss_idx.z].x-avg,p_defocus[ss_idx.z].y-avg,p_defocus[ss_idx.z].z);
-		float factor = pi_lambda*def*s2;
-		float x = ss_idx.x-factor*vec_r.x;
-		float y = ss_idx.y-factor*vec_r.y;
-		
-		float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
-		p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;		
+        float3 vec_r;
+        vec_r.x = ss_idx.x;
+        vec_r.y = ss_idx.y-ss_siz.y/2;
+        vec_r.z = l2_distance(vec_r.x,vec_r.y);
+        if( vec_r.z > 0 ) {
+            vec_r.x = vec_r.x/vec_r.z;
+            vec_r.y = vec_r.y/vec_r.z;
+        }
+
+        float s2 = calc_s(vec_r.z,ss_siz.x,apix);
+        s2 = s2*s2;
+        float def_avg = (p_defocus[ss_idx.z].x+p_defocus[ss_idx.z].y)/2;
+        float def = calc_def(vec_r.x,vec_r.y,p_defocus[ss_idx.z].x,p_defocus[ss_idx.z].y,p_defocus[ss_idx.z].z);
+        float def_dif = ix2def*(def-def_avg);
+        float factor = pi_lambda*def_dif*s2;
+        float x = ss_idx.x-factor*vec_r.x;
+        float y = ss_idx.y-factor*vec_r.y;
+        if( vec_r.z-factor >= ss_siz.y/2 ) {
+            x = ss_idx.x;
+            y = ss_idx.y;
+        }
+
+        float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
+        p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
     }
 }
 
