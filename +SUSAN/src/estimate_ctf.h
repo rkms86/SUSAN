@@ -198,16 +198,27 @@ protected:
 		stack_buffer.WO_sync(DONE);
 	}
 	
-	void crop_substack(single*p_substack,float2*p_dZ,const float pi_lambda,Vec3&pt_tomo,int K) {
-		V3f pt_work,pt_proj;
-		pt_work(0) = pt_tomo.x;
-		pt_work(1) = pt_tomo.y;
-		pt_work(2) = pt_tomo.z;
+	void crop_substack(single*p_substack,float2*p_dZ,const float pi_lambda,Vec3&pt_ptcl,int K) {
+		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
+		
+		pt_tomo(0) = pt_ptcl.x;
+		pt_tomo(1) = pt_ptcl.y;
+		pt_tomo(2) = pt_ptcl.z;
+		
 		for(int k=0;k<K;k++) {
-			if( ss_cropper.project_point(pt_proj,pt_work,k) ) {
-				p_dZ[k].x = pi_lambda*pt_proj(2);
-				p_dZ[k].y = 1;
-				ss_cropper.crop(p_substack,p_stack,pt_proj,k);
+			/// P_crop = R^k_tomo*P_tomo + t^k_tomo
+			pt_stack = p_tomo->R[k]*pt_tomo + p_tomo->t[k];
+
+			/// Angstroms -> pixels
+			pt_crop = pt_stack/p_tomo->pix_size + p_tomo->stk_center;
+
+			/// Setup data for upload to GPU
+			p_dZ[k].x = pi_lambda*pt_stack(2);
+			p_dZ[k].y = 1;
+			
+			/// Crop
+			if( ss_cropper.check_point(pt_crop) ) {
+				ss_cropper.crop(p_substack,p_stack,pt_crop,k);
 				ss_cropper.normalize_zero_mean_one_std(p_substack,k);
 			}
 			else {

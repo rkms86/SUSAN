@@ -116,9 +116,9 @@ __global__ void ctf_normalize( float*p_out, cudaTextureObject_t texture,
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
 		float3 vec_r = p_vec_r[get_2d_idx(ss_idx,ss_siz)];
-		//float s2 = calc_s(vec_r.z,ss_siz.y,apix);
-		float s2 = calc_s(vec_r.z,ss_siz.x,apix);
+		float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
 		s2 = s2*s2;
+		/// factor = pi*lambda*dZ_angstroms*s^2
 		float factor = p_pi_lambda_dZ[ss_idx.z].x*s2;
 		float x = ss_idx.x-factor*vec_r.x;
 		float y = ss_idx.y-factor*vec_r.y;
@@ -151,7 +151,7 @@ __global__ void ctf_radial_normalize( float*p_out, cudaTextureObject_t texture, 
             vec_r.y = vec_r.y/vec_r.z;
         }
 
-        float s2 = calc_s(vec_r.z,ss_siz.x,apix);
+        float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
         s2 = s2*s2;
         float def_avg = (p_defocus[ss_idx.z].x+p_defocus[ss_idx.z].y)/2;
         float def = calc_def(vec_r.x,vec_r.y,p_defocus[ss_idx.z].x,p_defocus[ss_idx.z].y,p_defocus[ss_idx.z].z);
@@ -446,6 +446,33 @@ __global__ void prepare_hilbert(float2*p_data,const int limit,const int3 ss_siz)
     }
 }
 
+
+__global__ void shift_amplitude(float*p_data,float*radial_ia,const int3 ss_siz) {
+	
+	int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+		float Nh = ss_siz.y/2;
+
+        float x = ss_idx.x;
+		float y = ss_idx.y-Nh;
+		float R = l2_distance(x,y);
+		
+		int r = (int)roundf(R);
+		float val = 0;
+		int idx = get_3d_idx(ss_idx,ss_siz);
+		
+		if( r > 0 && r < ss_siz.x ) {
+			val = p_data[ idx ];
+			float wgt = radial_ia[ r + ss_idx.z*ss_siz.x ];
+			val = val + (wgt/ss_siz.x);
+		}
+		
+		p_data[ idx ] = val;
+    }
+}
+
 __global__ void normalize_amplitude(float*p_data,float*radial_ia,const int3 ss_siz) {
 	
 	int3 ss_idx = get_th_idx();
@@ -462,12 +489,11 @@ __global__ void normalize_amplitude(float*p_data,float*radial_ia,const int3 ss_s
 		float val = 0.5;
 		int idx = get_3d_idx(ss_idx,ss_siz);
 		
-		if( r > 5 && r < ss_siz.x ) {
+		if( r > 0 && r < ss_siz.x ) {
 			val = p_data[ idx ];
 			float wgt = radial_ia[ r + ss_idx.z*ss_siz.x ];
-			val = val + wgt;
-			if( wgt < SUSAN_FLOAT_TOL ) wgt = 0.5;
-			val = val/(2*wgt);
+			val = val/(2*wgt)+0.5;
+			if( wgt < SUSAN_FLOAT_TOL ) val = 0.5;
 		}
 		
 		p_data[ idx ] = val;
@@ -525,7 +551,7 @@ __global__ void vis_add_ctf(float*p_out,const float4*p_def_inf,const float apix,
 			val = ctf*ctf;
 		}
 		
-                p_out[ get_3d_idx(ss_idx,ss_siz) ] = min(max(val,-0.1),1.1);
+		p_out[ get_3d_idx(ss_idx,ss_siz) ] = min(max(val,-0.1),1.1);
     }
 }
 
