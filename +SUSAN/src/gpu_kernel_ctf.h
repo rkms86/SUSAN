@@ -119,7 +119,7 @@ __global__ void ctf_normalize( float*p_out, cudaTextureObject_t texture,
 		float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
 		s2 = s2*s2;
 		/// factor = pi*lambda*dZ_angstroms*s^2
-		float factor = p_pi_lambda_dZ[ss_idx.z].x*s2;
+                float factor = p_pi_lambda_dZ[ss_idx.z].x*s2/apix;
 		float x = ss_idx.x-factor*vec_r.x;
 		float y = ss_idx.y-factor*vec_r.y;
 		
@@ -429,23 +429,59 @@ __global__ void rmv_bg(float*p_out,const float*p_in,const float lambda_def,const
     }
 }
 
-__global__ void prepare_hilbert(float2*p_data,const int limit,const int3 ss_siz) {
-	
-	int3 ss_idx = get_th_idx();
+__global__ void load_signal(float*p_out,const float*p_in,const int N,const int M,const int K) {
 
-    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+    int3 ss_idx = get_th_idx();
 
-		int idx = get_3d_idx(ss_idx,ss_siz);
-		float2 val = p_data[ idx ];
-		
-		if( ss_idx.x > 0 && ss_idx.x < limit ) {
-			val.x *= 2;
-			val.y *= 2;
-		}
-		p_data[ idx ] = val;
+    if( ss_idx.x < N && ss_idx.y < K && ss_idx.z < 1 ) {
+
+        int idx_o = ss_idx.x + ss_idx.y*N;
+        int x = ss_idx.x;
+        if( x > M ) x = 2*(M-1)-x;
+        int idx_i = x + ss_idx.y*M;
+
+        float val = p_in[ idx_i ];
+        p_out[ idx_o ] = val;
     }
 }
 
+__global__ void prepare_hilbert(float2*p_data,const int limit,const int3 ss_siz) {
+	
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        int idx = get_3d_idx(ss_idx,ss_siz);
+        float2 val = p_data[ idx ];
+
+        if( ss_idx.x > 0 && ss_idx.x < limit ) {
+            val.x *= 2;
+            val.y *= 2;
+        }
+        if( ss_idx.x > limit ) {
+            val.x = 0;
+            val.y = 0;
+        }
+
+
+        p_data[ idx ] = val;
+    }
+}
+
+__global__ void load_hilbert_rslt(float*p_out,const float2*p_in,const int N,const int M,const int K) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < K && ss_idx.z < 1 ) {
+
+        int idx_o = ss_idx.x + ss_idx.y*N;
+        int idx_i = ss_idx.x + ss_idx.y*M;
+
+        float2 val = p_in[ idx_i ];
+        float v = cuCabsf(val);
+        p_out[ idx_o ] = v;
+    }
+}
 
 __global__ void shift_amplitude(float*p_data,float*radial_ia,const int3 ss_siz) {
 	
@@ -491,9 +527,10 @@ __global__ void normalize_amplitude(float*p_data,float*radial_ia,const int3 ss_s
 		
 		if( r > 0 && r < ss_siz.x ) {
 			val = p_data[ idx ];
-			float wgt = radial_ia[ r + ss_idx.z*ss_siz.x ];
-			val = val/(2*wgt)+0.5;
-			if( wgt < SUSAN_FLOAT_TOL ) val = 0.5;
+                        float wgt = radial_ia[ r + ss_idx.z*ss_siz.x ];
+                        val = val/wgt;
+                        val = val/2 + 0.5;
+                        if( wgt < SUSAN_FLOAT_TOL ) val = 0.5;
 		}
 		
 		p_data[ idx ] = val;
@@ -551,7 +588,7 @@ __global__ void vis_add_ctf(float*p_out,const float4*p_def_inf,const float apix,
 			val = ctf*ctf;
 		}
 		
-		p_out[ get_3d_idx(ss_idx,ss_siz) ] = min(max(val,-0.1),1.1);
+                p_out[ get_3d_idx(ss_idx,ss_siz) ] = min(max(val,-0.1),1.1);
     }
 }
 

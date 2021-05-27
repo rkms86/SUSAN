@@ -17,6 +17,12 @@ namespace GpuKernels {
 
 /// DEVICE FUNCTIONS:
 
+__device__ void SN2(float&a,float&b,float&tmp) {
+    tmp = a;
+    a = max(b,a);
+    b = min(b,tmp);
+}
+
 __device__ int3 get_th_idx() {
 	return make_int3(threadIdx.x + blockIdx.x*blockDim.x,threadIdx.y + blockIdx.y*blockDim.y,threadIdx.z + blockIdx.z*blockDim.z);
 }
@@ -212,35 +218,118 @@ __global__ void load_surf_abs(cudaSurfaceObject_t out_surf,const float2*p_in,con
 }
 
 __global__ void conv_gaussian(float*p_out,const float*p_in,const int3 ss_siz) {
-	
-	int3 ss_idx = get_th_idx();
+
+        int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float num = -0.5774;
-		float scl = 5.3885;
+                float num = -0.5774;
+                float scl = 5.3885;
 
-		float val = 0;
-		
-		for(int y=-2;y<3;y++) {
-			for(int x=-2;x<3;x++) {
-				float r = l2_distance(x,y);
-				float wgt = exp(num*r*r)/scl;
-				int X = ss_idx.x + x;
-				int Y = ss_idx.y + y;
-				if( X < 0 )
-					X = -X;
-				if( Y < 0 )
-					Y = -Y;
-				if( X >= ss_siz.x )
-					X = 2*(ss_siz.x-1)-X;
-				if( Y >= ss_siz.y )
-					Y = 2*(ss_siz.y-1)-Y;
-				val += wgt*p_in[ get_3d_idx(X,Y,ss_idx.z,ss_siz) ];
-			}
-		}
-		
+                float val = 0;
+
+                for(int y=-2;y<3;y++) {
+                        for(int x=-2;x<3;x++) {
+                                float r = l2_distance(x,y);
+                                float wgt = exp(num*r*r)/scl;
+                                int X = ss_idx.x + x;
+                                int Y = ss_idx.y + y;
+                                if( X < 0 )
+                                        X = -X;
+                                if( Y < 0 )
+                                        Y = -Y;
+                                if( X >= ss_siz.x )
+                                        X = 2*(ss_siz.x-1)-X;
+                                if( Y >= ss_siz.y )
+                                        Y = 2*(ss_siz.y-1)-Y;
+                                val += wgt*p_in[ get_3d_idx(X,Y,ss_idx.z,ss_siz) ];
+                        }
+                }
+
         p_out[get_3d_idx(ss_idx,ss_siz)] = val;
+    }
+}
+
+__global__ void stk_medfilt(float*p_out,const float*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float v0,v1,v2,v3,v4,v5,v6,v7,v8,tmp;
+        int y, x;
+
+        /// unrolled to avoid using local arrays
+
+        /// Y = -1
+        y = ss_idx.y - 1;
+        if( y < 0 ) y = -y;
+
+        x = ss_idx.x - 1;
+        if( x < 0 ) x = -x;
+        v0 = p_in[ get_3d_idx(x,y,ss_idx.z,ss_siz) ];
+
+        x = ss_idx.x;
+        v1 = p_in[ get_3d_idx(x,y,ss_idx.z,ss_siz) ];
+
+        x = ss_idx.x + 1;
+        if( x >= ss_siz.x ) x = 2*(ss_siz.x-1)-x;
+        v2 = p_in[ get_3d_idx(x,y,ss_idx.z,ss_siz) ];
+
+        /// Y = 0
+        y = ss_idx.y;
+
+        x = ss_idx.x - 1;
+        if( x < 0 ) x = -x;
+        v3 = p_in[ get_3d_idx(x,y,ss_idx.z,ss_siz) ];
+
+        x = ss_idx.x;
+        v4 = p_in[ get_3d_idx(x,y,ss_idx.z,ss_siz) ];
+
+        x = ss_idx.x + 1;
+        if( x >= ss_siz.x ) x = 2*(ss_siz.x-1)-x;
+        v5 = p_in[ get_3d_idx(x,y,ss_idx.z,ss_siz) ];
+
+        /// Y = +1
+        y = ss_idx.y + 1;
+        if( y >= ss_siz.y ) y = 2*(ss_siz.y-1)-y;
+
+        x = ss_idx.x - 1;
+        if( x < 0 ) x = -x;
+        v6 = p_in[ get_3d_idx(x,y,ss_idx.z,ss_siz) ];
+
+        x = ss_idx.x;
+        v7 = p_in[ get_3d_idx(x,y,ss_idx.z,ss_siz) ];
+
+        x = ss_idx.x + 1;
+        if( x >= ss_siz.x ) x = 2*(ss_siz.x-1)-x;
+        v8 = p_in[ get_3d_idx(x,y,ss_idx.z,ss_siz) ];
+
+        /// SORT!
+        SN2(v0,v1,tmp);
+        SN2(v2,v3,tmp);
+        SN2(v4,v5,tmp);
+        SN2(v6,v7,tmp);
+        SN2(v0,v2,tmp);
+        SN2(v4,v6,tmp);
+        SN2(v1,v3,tmp);
+        SN2(v5,v7,tmp);
+        SN2(v1,v2,tmp);
+        SN2(v6,v7,tmp);
+        SN2(v0,v4,tmp);
+        SN2(v1,v5,tmp);
+        SN2(v2,v6,tmp);
+        SN2(v3,v7,tmp);
+        SN2(v2,v4,tmp);
+        SN2(v3,v5,tmp);
+        SN2(v1,v2,tmp);
+        SN2(v3,v4,tmp);
+        SN2(v5,v6,tmp);
+        SN2(v0,v7,tmp);
+        SN2(v4,v8,tmp);
+        SN2(v2,v4,tmp);
+
+        p_out[get_3d_idx(ss_idx,ss_siz)] = v4;
     }
 }
 
@@ -311,8 +400,8 @@ __global__ void load_abs(float*p_out,const float2*p_in,const int3 ss_siz) {
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		long idx = get_3d_idx(ss_idx,ss_siz);
-		float2 val = p_in[idx];
+        long idx = get_3d_idx(ss_idx,ss_siz);
+        float2 val = p_in[idx];
         float v = cuCabsf(val);
         p_out[idx] = v;
     }

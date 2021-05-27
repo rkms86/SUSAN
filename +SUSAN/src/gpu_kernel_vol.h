@@ -129,17 +129,17 @@ __global__ void insert_stk(double2*p_acc,double*p_wgt,
                         if(should_conj) {
                             read_stk.y = -read_stk.y;
                         }
-                        val.x += (1-z)*read_stk.x;
-                        val.y += (1-z)*read_stk.y;
+                        val.x += pTlt[k].w*(1-z)*read_stk.x;
+                        val.y += pTlt[k].w*(1-z)*read_stk.y;
                         float  read_wgt = tex2DLayered<float >(ss_wgt, x+0.5, y+N/2+0.5, k);
-                        wgt   += (1-z)*read_wgt;
+                        wgt   += pTlt[k].w*(1-z)*read_wgt;
 
                     }
                 }
             }
 
             if( should_add ) {
-				long idx = ss_idx.x + ss_idx.y*M + ss_idx.z*M*N;
+                long idx = ss_idx.x + ss_idx.y*M + ss_idx.z*M*N;
                 double2 tmp = p_acc[ idx ];
                 tmp.x += val.x;
                 tmp.y += val.y;

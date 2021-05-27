@@ -21,11 +21,11 @@ class CtfLinearizer{
 public:
 	int3  ss_c;
 	int3  ss_r;
-	int3  ss_2;
+        int3  ss_2;
 	dim3  blk;
 	dim3  grd_c;
 	dim3  grd_r;
-	dim3  grd_2;
+        dim3  grd_2;
 	GPU::GArrSingle   ss_input;
 	GPU::GArrSingle   ss_sum_z;
 	GPU::GArrSingle   ss_data_c;
@@ -35,7 +35,7 @@ public:
 	GPU::GArrSingle3  ss_filter;
 	GPU::GArrSingle4  g_def_inf;
 	GPU::GArrSingle   rad_avg;
-	GPU::GArrSingle   rad_wgt;
+        GPU::GArrSingle   rad_wgt;
 	GPU::GArrSingle2  rad_fourier;
 	GPU::GArrSingle2  rad_hilbert;
 	GpuFFT::FFT2D     fft2;
@@ -95,9 +95,9 @@ public:
 		g_def_inf.alloc(K);
 		
 		rad_avg.alloc(M*K);
-		rad_wgt.alloc(M*K);
-		rad_fourier.alloc(M*K);
-		rad_hilbert.alloc(M*K);
+                rad_wgt.alloc(M*K);
+                rad_fourier.alloc(M*K);
+                rad_hilbert.alloc(M*K);
 		
 		ss_lin.alloc(M,N,K);
 		fft2.alloc(M,N,K);
@@ -127,12 +127,12 @@ public:
 		
 		ss_c  = make_int3(M,N,p_tomo->num_proj);
 		ss_r  = make_int3(N,N,p_tomo->num_proj);
-		ss_2  = make_int3(M,p_tomo->num_proj,1);
+                ss_2  = make_int3(M,p_tomo->num_proj,1);
 		
 		blk   = GPU::get_block_size_2D();
 		grd_c = GPU::calc_grid_size(blk,ss_c.x,ss_c.y,ss_c.z);
 		grd_r = GPU::calc_grid_size(blk,ss_r.x,ss_r.y,ss_r.z);
-		grd_2 = GPU::calc_grid_size(blk,ss_2.x,ss_2.y,ss_2.z);
+                grd_2 = GPU::calc_grid_size(blk,ss_2.x,ss_2.y,ss_2.z);
 		
 		verbose   = info->verbose;
 		res_thres = info->res_thres;
@@ -223,9 +223,9 @@ public:
 		GpuKernels::divide<<<grd_2,blk>>>(rad_avg.ptr,rad_wgt.ptr,ss_2);
 		GpuKernelsCtf::rmv_bg<<<grd_2,blk>>>(rad_wgt.ptr,rad_avg.ptr,lambda_def,ss_2);
 		cudaMemcpy((void*)p_rad_avg, (const void*)rad_wgt.ptr, sizeof(float)*ss_2.x*ss_2.y*ss_2.z, cudaMemcpyDeviceToHost);
-		calculate_hilbert(rad_hilbert.ptr,rad_wgt.ptr,ss_2.y);
-		GpuKernels::load_abs<<<grd_2,blk>>>(rad_wgt.ptr,rad_hilbert.ptr,ss_2);
-		cudaMemcpy((void*)p_rad_wgt, (const void*)rad_wgt.ptr, sizeof(float)*ss_2.x*ss_2.y*ss_2.z, cudaMemcpyDeviceToHost);
+                calculate_hilbert(rad_hilbert.ptr,rad_wgt.ptr,ss_2.y);
+                GpuKernels::load_abs<<<grd_2,blk>>>(rad_wgt.ptr,rad_hilbert.ptr,ss_2);
+                cudaMemcpy((void*)p_rad_wgt, (const void*)rad_wgt.ptr, sizeof(float)*ss_2.x*ss_2.y*ss_2.z, cudaMemcpyDeviceToHost);
 		adjust_radial_averages(ss_2.y,out_dir);
 		generate_ctf(ss_2.y);
 		generate_phase_dif(ss_2.y);
@@ -234,29 +234,30 @@ public:
 		save_svg_report(ss_2.y,out_dir,2);
 		
 		cudaMemcpy((void*)p_rad_wgt, (const void*)rad_wgt.ptr, sizeof(float)*ss_2.x*ss_2.y*ss_2.z, cudaMemcpyDeviceToHost);
-		GpuKernelsCtf::rmv_bg<<<grd_c,blk>>>(ss_data_c.ptr,ss_input.ptr,ss_filter.ptr,n_filter,ss_c);
-		GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_data_c.ptr,tmp_range,ss_c);
+                //GpuKernelsCtf::rmv_bg<<<grd_c,blk>>>(ss_data_c.ptr,ss_input.ptr,ss_filter.ptr,n_filter,ss_c);
+                GpuKernelsCtf::tangential_blur<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,ss_c);
+                GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_data_c.ptr,tmp_range,ss_c);
 		save_fitted_defocus(ss_2.y,out_dir);
 	}
 	
 protected:
 	void create_filter() {
-		Vec3*c_filt = PointsProvider::circle(n_filter,10,10);
-        ss_filter.alloc(n_filter);
-        for(uint32 i=0;i<n_filter;i++) {
-            float R2 = (c_filt[i].x*c_filt[i].x) + (c_filt[i].y*c_filt[i].y);
-            float R4 = R2*R2;
-            // h = firls(20,[0 1/16 1/16 1],[1 1 0 0]);
-            // [X,Y] = meshgrid(-10:10,-10:10);
-            // R = sqrt( X.*X + Y.*Y )+11;
-            // hh = interp1(h,R,'linear',0);
-            // hh = hh/sum(hh(:));
-            // % From quadratic fit: hh = 4.7764e-08*R.^4 -2.8131e-05*R.^2 0.0044146
-            c_filt[i].z = 0.0044146 + 4.7764e-08*R4 - 2.8131e-05*R2;
-        }
+            Vec3*c_filt = PointsProvider::circle(n_filter,10,10);
+            ss_filter.alloc(n_filter);
+            for(uint32 i=0;i<n_filter;i++) {
+                float R2 = (c_filt[i].x*c_filt[i].x) + (c_filt[i].y*c_filt[i].y);
+                float R4 = R2*R2;
+                // h = firls(20,[0 1/16 1/16 1],[1 1 0 0]);
+                // [X,Y] = meshgrid(-10:10,-10:10);
+                // R = sqrt( X.*X + Y.*Y )+11;
+                // hh = interp1(h,R,'linear',0);
+                // hh = hh/sum(hh(:));
+                // % From quadratic fit: hh = 4.7764e-08*R.^4 -2.8131e-05*R.^2 0.0044146
+                c_filt[i].z = 0.0044146 + 4.7764e-08*R4 - 2.8131e-05*R2;
+            }
         
-        cudaMemcpy( (void*)ss_filter.ptr, (const void*)(c_filt), sizeof(Vec3)*n_filter, cudaMemcpyHostToDevice);
-        delete [] c_filt;
+            cudaMemcpy( (void*)ss_filter.ptr, (const void*)(c_filt), sizeof(Vec3)*n_filter, cudaMemcpyHostToDevice);
+            delete [] c_filt;
 	}
 	
 	void save_gpu_mrc(single*p_cpu,const single*p_gpu,const int m,const int n,const int k,const char*out_dir,const char*name,const int req_verb) {
@@ -368,14 +369,14 @@ protected:
 		}
 	}
 	
-	void calculate_hilbert(float2*p_out,single*p_in,const int k) {
+        void calculate_hilbert(float2*p_out,single*p_in,const int k) {
 		GpuFFT::FFT1D_full  fft1fwd;
 		GpuFFT::IFFT1D_full fft1inv;
-		fft1fwd.alloc(M,k);
-		fft1inv.alloc(M,k);
-		fft1fwd.exec(rad_fourier.ptr,p_in);
-		GpuKernelsCtf::prepare_hilbert<<<grd_2,blk>>>(rad_fourier.ptr,(int)roundf(N/4),ss_2);
-		fft1inv.exec(p_out,rad_fourier.ptr);
+                fft1fwd.alloc(M,k);
+                fft1inv.alloc(M,k);
+                fft1fwd.exec(rad_fourier.ptr,p_in);
+                GpuKernelsCtf::prepare_hilbert<<<grd_2,blk>>>(rad_fourier.ptr,(int)roundf(N/4),ss_2);
+                fft1inv.exec(p_out,rad_fourier.ptr);
 	}
 	
 	void adjust_radial_averages(const int k,const char*out_dir) {
@@ -452,10 +453,10 @@ protected:
 			p_avg[m] = max(min(p_avg[m]/(2*wgt_max),1.0),0.0);
 		}
 		
-		/*for(int m=0;m<M;m++) {
+                for(int m=0;m<M;m++) {
 			p_avg[m] = p_avg[m]*(sqrt(p_wgt[m]))/p_wgt[m];
 			p_wgt[m] = (sqrt(p_wgt[m]));
-		}*/
+                }
 	}
 	
 	float get_def_shift(single&fit_coef,const single*p_in,const float dz_base) {
@@ -635,7 +636,7 @@ protected:
 		
 		float*output = new float[(int)round(N*N*K)];
 		
-		GpuKernelsCtf::normalize_amplitude<<<grd_c,blk>>>(ss_data_c.ptr,rad_wgt.ptr,ss_c);
+                GpuKernelsCtf::normalize_amplitude<<<grd_c,blk>>>(ss_data_c.ptr,rad_wgt.ptr,ss_c);
 		GpuKernelsCtf::vis_copy_data<<<grd_r,blk>>>(ss_vis.ptr,ss_data_c.ptr,ss_r);
 		GpuKernelsCtf::vis_add_ctf<<<grd_r,blk>>>(ss_vis.ptr,g_def_inf.ptr,apix,lambda_pi,lambda3_Cs_pi_2,AC,ss_r);
 		save_gpu_mrc(output,ss_vis.ptr,ss_r.x,ss_r.y,ss_r.z,out_dir,"ctf_fitting_result.mrc",0);
