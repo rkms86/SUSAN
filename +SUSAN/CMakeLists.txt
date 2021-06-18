@@ -15,7 +15,6 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CUDA_ARCHS 52)
 #set(CUDA_ARCHS 52 60 70)
 
-
 string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored")
 message(STATUS ${CMAKE_CXX_COMPILER_VERSION})
@@ -49,6 +48,10 @@ set_property(TARGET susan_refs_aligner PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS}
 add_executable(susan_refs_fsc src/refs_fsc.cu)
 target_link_libraries(susan_refs_fsc cufft)
 set_property(TARGET susan_refs_fsc PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
+
+add_executable(susan_refine_ctf src/refine_ctf.cu)
+target_link_libraries(susan_refine_ctf cufft)
+set_property(TARGET susan_refine_ctf PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
 
 if( MPI_FOUND )
 add_executable(susan_reconstruct_mpi src/reconstruct_mpi.cu)

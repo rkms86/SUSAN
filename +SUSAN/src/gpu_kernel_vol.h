@@ -186,6 +186,10 @@ __global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pT
 
                 if( should_conjugate )
                     val.y = -val.y;
+
+		val.x *= bp;
+		val.y *= bp;
+
             }
         }
 

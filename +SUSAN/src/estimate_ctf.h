@@ -28,24 +28,24 @@ typedef enum {
 class CtfBuffer {
 	
 public:
-	GPU::GHostSingle c_substack;
-	GPU::GHostFloat2 c_pi_lambda_dZ;
-	GPU::GArrSingle  g_substack;
-	GPU::GArrSingle2 g_pi_lambda_dZ;
-	Particle ptcl;
-	float    apix;
-	int      K;
-	
-	CtfBuffer(int N,int max_k) {
-		c_substack.alloc(N*N*max_k);
-		g_substack.alloc(N*N*max_k);
-		c_pi_lambda_dZ.alloc(max_k);
-		g_pi_lambda_dZ.alloc(max_k);
-		K = 0;
-	}
-	
-	~CtfBuffer() {
-	}
+    GPU::GHostSingle c_substack;
+    GPU::GHostFloat2 c_pi_lambda_dZ;
+    GPU::GArrSingle  g_substack;
+    GPU::GArrSingle2 g_pi_lambda_dZ;
+    Particle ptcl;
+    float    apix;
+    int      K;
+
+    CtfBuffer(int N,int max_k) {
+        c_substack.alloc(N*N*max_k);
+        g_substack.alloc(N*N*max_k);
+        c_pi_lambda_dZ.alloc(max_k);
+        g_pi_lambda_dZ.alloc(max_k);
+        K = 0;
+    }
+
+    ~CtfBuffer() {
+    }
 	
 };
 

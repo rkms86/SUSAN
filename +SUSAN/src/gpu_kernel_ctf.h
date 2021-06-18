@@ -107,8 +107,8 @@ __global__ void dwgt_center_ps(float2*p_out,const int3 ss_siz) {
 }
 
 __global__ void ctf_normalize( float*p_out, cudaTextureObject_t texture, 
-							   const float2*p_pi_lambda_dZ, const float3*p_vec_r,
-							   const float apix, const float bin_factor, const int3 ss_siz)
+                               const float2*p_pi_lambda_dZ, const float3*p_vec_r,
+                               const float apix, const float bin_factor, const int3 ss_siz)
 {
     
     int3 ss_idx = get_th_idx();
@@ -126,8 +126,10 @@ __global__ void ctf_normalize( float*p_out, cudaTextureObject_t texture,
 		if( bin_factor>1 ) {
 			x = x/bin_factor;
 			float Yh = ss_siz.y/2;
-			y = (y-Yh)/2 + Yh;
+                        y = (y-Yh)/bin_factor + Yh;
 		}
+                y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
+                x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
 		
 		float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
 		p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;		
@@ -163,6 +165,44 @@ __global__ void ctf_radial_normalize( float*p_out, cudaTextureObject_t texture, 
             x = ss_idx.x;
             y = ss_idx.y;
         }
+        y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
+        x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
+
+        float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
+        p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
+    }
+}
+
+__global__ void ctf_radial_normalize( float*p_out, cudaTextureObject_t texture,
+                                      const float delta_pi_L_Z,const float delta_angle,
+                                      const float apix, const int3 ss_siz)
+{
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float3 vec_r;
+        vec_r.x = ss_idx.x;
+        vec_r.y = ss_idx.y-ss_siz.y/2;
+        vec_r.z = l2_distance(vec_r.x,vec_r.y);
+        if( vec_r.z > 0 ) {
+            vec_r.x = vec_r.x/vec_r.z;
+            vec_r.y = vec_r.y/vec_r.z;
+        }
+
+        float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
+        s2 = s2*s2;
+        float def = calc_def(vec_r.x,vec_r.y,delta_pi_L_Z,-delta_pi_L_Z,delta_angle);
+        float factor = def*s2;
+        float x = ss_idx.x-factor*vec_r.x;
+        float y = ss_idx.y-factor*vec_r.y;
+        if( vec_r.z-factor >= ss_siz.y/2 ) {
+            x = ss_idx.x;
+            y = ss_idx.y;
+        }
+        y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
+        x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
 
         float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
         p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;

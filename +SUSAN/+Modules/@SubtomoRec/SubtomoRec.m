@@ -188,7 +188,11 @@ methods
             out_dir = out_dir(1:end-1);
         end
 
-        cmd = [SUSAN.bin_path '/susan_subtomos_rec'];   
+        if( isdeployed )
+            cmd = 'susan_subtomos_rec';
+        else
+            cmd = [SUSAN.bin_path '/susan_subtomos_rec'];
+        end
         cmd = [cmd ' -tomos_file ' tomo_list_file];
         cmd = [cmd ' -out_dir '    out_dir];
         cmd = [cmd ' -ptcls_file ' particle_list_file];

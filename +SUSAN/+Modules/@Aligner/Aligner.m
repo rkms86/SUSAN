@@ -411,7 +411,11 @@ methods
         end
         R_range = single( sort( [obj.bandpass.highpass obj.bandpass.lowpass] ) );
         
-        cmd = [SUSAN.bin_path '/susan_aligner'];   
+        if( isdeployed )
+            cmd = 'susan_aligner';
+        else
+            cmd = [SUSAN.bin_path '/susan_aligner'];
+        end
         cmd = [cmd ' -tomos_file ' tomo_list];
         cmd = [cmd ' -ptcls_in '   ptcls_in];
         cmd = [cmd ' -ptcls_out '  ptcls_out];

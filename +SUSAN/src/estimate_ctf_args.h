@@ -9,8 +9,8 @@
 namespace ArgsCTF {
 
 typedef struct {
-	uint32 n_threads;
-	uint32 box_size;
+    uint32 n_threads;
+    uint32 box_size;
     uint32 binning;
     single res_min;
     single res_max;
@@ -137,69 +137,69 @@ bool parse_args(Info&info,int ac,char** av) {
     float  tmp;
     while( (c=getopt_long_only(ac, av, "", long_options, 0)) >= 0 ) {
         switch(c) {
-			case TOMOS_IN:
-				strcpy(info.tomos_in,optarg);
-				break;
-			case DATA_OUT:
-				strcpy(info.out_dir,optarg);
-				break;
-			case PTCLS_FILE:
-				strcpy(info.ptcls_in,optarg);
-				break;
-			case BOX_SIZE:
-				info.box_size = atoi(optarg);
-				tmp = (float)(info.box_size);
-				info.box_size = (int)(4.0*roundf(tmp/4)); // Force box to be multiple of 4.
-				break;
-			case N_THREADS:
-				info.n_threads = atoi(optarg);
-				break;
-			case TLT_RANGE:
-				info.tlt_range = atof(optarg);
-				break;
-			case BINNING:
-				info.binning = atoi(optarg);
-				break;
-			case GPU_LIST:
-				info.n_gpu = IO::parse_uint32_strlist(tmp_uint32, optarg);
-				if( info.n_gpu > SUSAN_MAX_N_GPU ) {
-					fprintf(stderr,"Requesting %d GPUs. Maximum is %d\n",info.n_gpu,SUSAN_MAX_N_GPU);
-					exit(1);
-				}
-				memcpy(info.p_gpu,tmp_uint32,info.n_gpu*sizeof(uint32));
-				delete [] tmp_uint32;
-				break;
-			case RES_RANGE:
-				IO::parse_single_strlist(tmp_single, optarg);
-				info.res_min = tmp_single[0];
-				info.res_max = tmp_single[1];
-				delete [] tmp_single;
-				break;
-			case RES_THRES:
-				info.res_thres = atof(optarg);
-				break;
-			case DEF_RANGE:
-				IO::parse_single_strlist(tmp_single, optarg);
-				info.def_min = tmp_single[0];
-				info.def_max = tmp_single[1];
-				delete [] tmp_single;
-				break;
-			case REFINE:
-				IO::parse_single_strlist(tmp_single, optarg);
-				info.ref_range = tmp_single[0];
-				info.ref_step  = tmp_single[1];
-				delete [] tmp_single;
-				break;
-			case BFAC_MAX:
-				info.bfac_max = atof(optarg);
-				break;
-			case VERBOSE:
-				info.verbose = atoi(optarg);
-				break;
-			default:
-				printf("Unknown parameter %d\n",c);
-				exit(1);
-				break;
+            case TOMOS_IN:
+                strcpy(info.tomos_in,optarg);
+                break;
+            case DATA_OUT:
+                strcpy(info.out_dir,optarg);
+                break;
+            case PTCLS_FILE:
+                strcpy(info.ptcls_in,optarg);
+                break;
+            case BOX_SIZE:
+                info.box_size = atoi(optarg);
+                tmp = (float)(info.box_size);
+                info.box_size = (int)(4.0*roundf(tmp/4)); // Force box to be multiple of 4.
+                break;
+            case N_THREADS:
+                info.n_threads = atoi(optarg);
+                break;
+            case TLT_RANGE:
+                info.tlt_range = atof(optarg);
+                break;
+            case BINNING:
+                info.binning = atoi(optarg);
+                break;
+            case GPU_LIST:
+                info.n_gpu = IO::parse_uint32_strlist(tmp_uint32, optarg);
+                if( info.n_gpu > SUSAN_MAX_N_GPU ) {
+                    fprintf(stderr,"Requesting %d GPUs. Maximum is %d\n",info.n_gpu,SUSAN_MAX_N_GPU);
+                    exit(1);
+                }
+                memcpy(info.p_gpu,tmp_uint32,info.n_gpu*sizeof(uint32));
+                delete [] tmp_uint32;
+                break;
+            case RES_RANGE:
+                IO::parse_single_strlist(tmp_single, optarg);
+                info.res_min = tmp_single[0];
+                info.res_max = tmp_single[1];
+                delete [] tmp_single;
+                break;
+            case RES_THRES:
+                info.res_thres = atof(optarg);
+                break;
+            case DEF_RANGE:
+                IO::parse_single_strlist(tmp_single, optarg);
+                info.def_min = tmp_single[0];
+                info.def_max = tmp_single[1];
+                delete [] tmp_single;
+                break;
+            case REFINE:
+                IO::parse_single_strlist(tmp_single, optarg);
+                info.ref_range = tmp_single[0];
+                info.ref_step  = tmp_single[1];
+                delete [] tmp_single;
+                break;
+            case BFAC_MAX:
+                info.bfac_max = atof(optarg);
+                break;
+            case VERBOSE:
+                info.verbose = atoi(optarg);
+                break;
+            default:
+                printf("Unknown parameter %d\n",c);
+                exit(1);
+                break;
         } /// switch
     } /// while(c)
     
@@ -207,20 +207,20 @@ bool parse_args(Info&info,int ac,char** av) {
 }
 
 void print(const Info&info,FILE*fp=stdout) {
-	fprintf(stdout,"\tCtf Estimation:\n");
+    fprintf(stdout,"\tCtf Estimation:\n");
 
-	fprintf(stdout,"\t\tParticles file: %s.\n",info.ptcls_in);
-	fprintf(stdout,"\t\tTomograms file: %s.\n",info.tomos_in);
-	fprintf(stdout,"\t\tOutput folder: %s.\n",info.out_dir);
+    fprintf(stdout,"\t\tParticles file: %s.\n",info.ptcls_in);
+    fprintf(stdout,"\t\tTomograms file: %s.\n",info.tomos_in);
+    fprintf(stdout,"\t\tOutput folder: %s.\n",info.out_dir);
 
     fprintf(stdout,"\t\tPatch size: %dx%d, ",info.box_size,info.box_size);
     if( info.binning > 0 ) {
-        fprintf(stdout,"bin level %d.\n",info.binning);
-    }
+    fprintf(stdout,"bin level %d.\n",info.binning);
+        }
     else {
         fprintf(stdout,"no binning.\n");
     }
-    
+
     if( info.n_gpu > 1 ) {
         fprintf(stdout,"\t\tUsing %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
         for(int i=1;i<info.n_gpu;i++)
@@ -230,19 +230,19 @@ void print(const Info&info,FILE*fp=stdout) {
     else {
         fprintf(stdout,"\t\tUsing 1 GPU (GPU id: %d), ",info.p_gpu[0]);
     }
-    
+
     if( info.n_threads > 1 ) {
-		fprintf(stdout,"and %d threads.\n",info.n_threads);
-	}
-	else{
-		fprintf(stdout,"and 1 thread.\n");
-	}
-	
-	fprintf(stdout,"\t\tDefocus range: %.1f - %.1f angstroms.\n",info.res_min,info.res_max);
-	fprintf(stdout,"\t\tResolution range: %.2f - %.2f angstroms.\n",info.def_min,info.def_max);
-	fprintf(stdout,"\t\tTilt search range: %.1f angstroms.\n",info.tlt_range);
-	fprintf(stdout,"\t\tDefocus refinement range: %.2f angstroms\n",info.ref_range);
-	fprintf(stdout,"\t\tDefocus refinement step: %.2f angstroms\n",info.ref_step);
+        fprintf(stdout,"and %d threads.\n",info.n_threads);
+    }
+    else{
+        fprintf(stdout,"and 1 thread.\n");
+    }
+
+    fprintf(stdout,"\t\tDefocus range: %.1f - %.1f angstroms.\n",info.res_min,info.res_max);
+    fprintf(stdout,"\t\tResolution range: %.2f - %.2f angstroms.\n",info.def_min,info.def_max);
+    fprintf(stdout,"\t\tTilt search range: %.1f angstroms.\n",info.tlt_range);
+    fprintf(stdout,"\t\tDefocus refinement range: %.2f angstroms\n",info.ref_range);
+    fprintf(stdout,"\t\tDefocus refinement step: %.2f angstroms\n",info.ref_step);
     
 }
 

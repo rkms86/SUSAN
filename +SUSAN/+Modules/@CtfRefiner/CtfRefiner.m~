@@ -1,19 +1,18 @@
-classdef CtfEstimator < handle
-% SUSAN.Modules.CtfEstimator estimates the defocus values.
-%    Estimates the defocus values .
+classdef CtfRefiner < handle
+% SUSAN.Modules.CtfRefiner refines the defocus values.
+%    Refines the defocus value per particle per projection.
 %
-% SUSAN.Modules.CtfEstimator Properties:
-%    gpu_list   - (vector) list of GPU IDs to use for alignment.
-%    binning    - (scalar) frequency range to use.
-%    resolution - (struct) resolution's search range (angstroms min/max).
-%    defocus    - (struct) defocus' search range (angstroms min/max).
-%    tlt_range  - (scalar) defocus' search range between tilts (angstroms).
-%    refine_def - (struct) defocus' refinement (angstroms range/step).
+% SUSAN.Modules.CtfRefiner Properties:
+%    gpu_list     - (vector) list of GPU IDs to use for alignment.
+%    resolution   - (struct) resolution's search range (angstroms min/max).
+%    defocus      - (struct) defocus' search range (angstroms min/max).
+%    astgm_search - (struct) defocus' astigmatism values (angle/angstroms).
+%    verbose_id   - (scalar) create debug files for the particle ID
 %
-% SUSAN.Modules.CtfEstimator Methods:
-%    CtfEstimator - (Constructor) creates a CtfEstimator with a given box size.
-%    estimate     - perfoms the CTF estimation.
-%    show_cmd     - returns the command to execute the CTF estimation.
+% SUSAN.Modules.CtfRefiner Methods:
+%    CtfRefiner - (Constructor) creates a CtfRefiner with a given box size.
+%    estimate     - perfoms the CTF refinement.
+%    show_cmd     - returns the command to execute the CTF refinement.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
@@ -25,14 +24,11 @@ end
     
 properties
     gpu_list    uint32 = 0;
-    binning     uint32 = 0;
     resolution         = struct('min',40,'max',7);
     defocus            = struct('min',10000,'max',90000);
-    tlt_range   single = 3000;
-    refine_def         = struct('range',2000,'step',100);
-    bfactor_max single = 600;
+    astgm_search       = struct('angle',10,'ang',100);
     res_thres   single = 0.75;
-    verbose     uint32 = 0;
+    verbose     int32  = -1;
 end
     
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

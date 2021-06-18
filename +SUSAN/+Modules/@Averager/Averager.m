@@ -226,7 +226,11 @@ methods
             out_prefix = out_prefix(1:end-1);
         end
 
-        cmd = [SUSAN.bin_path '/susan_reconstruct'];   
+        if( isdeployed )
+            cmd = 'susan_reconstruct';
+        else
+            cmd = [SUSAN.bin_path '/susan_reconstruct'];   
+        end
         cmd = [cmd ' -tomos_file ' tomo_list_file];
         cmd = [cmd ' -out_prefix ' out_prefix];
         cmd = [cmd ' -ptcls_file ' particle_list_file];

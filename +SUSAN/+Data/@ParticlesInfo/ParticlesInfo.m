@@ -44,6 +44,7 @@
 %    n_refs            - Returns the number of references.
 %    max_projs         - Returns the maximum number of projections.
 %    select            - Creates a subset of the current ParticlesInfo object.
+%    set_weights       - Sets the weight for each particle.
 %    halfsets_by_Y     - Sets the halfsets according to the particles' Y position.
 %    halfsets_even_odd - Sets the halfsets in an even/odd fashion.
 %    update_defocus    - Update defocus according to the particles' Z position. 
@@ -190,6 +191,28 @@ methods
         ptcls_obj.prj_cc(:,:,:)   = obj.prj_cc    (:,:,ix);
         ptcls_obj.prj_w(:,:,:)    = obj.prj_w     (:,:,ix);
         ptcls_obj.defocus(:,:,:)  = obj.defocus   (:,:,ix);
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function set_weights(obj,in_wgt)     
+    % SET_WEIGHTS sets the wwights for all the particles.
+    %   SELECT(IN_WGT) set each element in vector IN_WGT as the weight of
+    %   each projection for the particle associated to that element.
+    %
+    %   See also SUSAN.Data.ParticlesInfo.
+        
+        if( ~isvector(in_wgt) )
+            error('Error in the in_wgt argument: it must be a vector');
+        end
+        
+        if( length(in_wgt) ~= obj.n_ptcls )
+            error('Error in the in_wgt argument: its length must be the asme as the number of particles');
+        end
+        
+        for i = 1:obj.max_projs()
+            ix = obj.prj_w(i,:,:)>0;
+            obj.prj_w(i,:,ix) = in_wgt(ix);
+        end
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

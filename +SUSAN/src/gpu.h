@@ -363,6 +363,7 @@ protected:
 typedef GHost<single>  GHostSingle;
 typedef GHost<double>  GHostDouble;
 typedef GHost<float2>  GHostFloat2;
+typedef GHost<float4>  GHostFloat4;
 typedef GHost<Proj2D>  GHostProj2D;
 typedef GHost<double2> GHostDouble2;
 typedef GHost<Defocus> GHostDefocus;

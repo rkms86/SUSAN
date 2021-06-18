@@ -96,7 +96,7 @@ class manager:
         self.aligner.list_gpus_ids     = self.list_gpus_ids
         self.aligner.threads_per_gpu   = self.threads_per_gpu
         self.aligner.dimensionality    = self.dimensionality
-        self.aligner.halfsets_independ = self.halfsets_independ
+        #self.aligner.halfsets_independ = self.halfsets_independ
         
         if self.aligner.dimensionality == 3:
             header = '  [3D Alignment] '
