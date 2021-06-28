@@ -7,6 +7,16 @@ def get_gpu_str(list_gpus_ids):
     gpu_str = gpu_str[0:-1]
     return gpu_str
 
+def denoise_l0(map_name,lambda_val,rho_val):
+    args =        ' -map_file '   + map_name
+    args = args + ' -lambda %f' % lambda_val
+    args = args + ' -rho %f' % rho_val
+    cmd = os.path.dirname(susan.__file__)+'/../bin/susan_denoise_l0'
+    cmd = cmd + args
+    rslt = os.system(cmd)
+    if not rslt == 0:
+        raise NameError('Error executing the denoiser: ' + cmd)
+
 class aligner:
     def __init__(self):
         self.list_gpus_ids     = [0]
@@ -29,7 +39,7 @@ class aligner:
         self.offset_type       = 'ellipsoid'
         self.padding_type      = 'noise'
         self.normalize_type    = 'zero_mean'
-        self.ctf_correction    = 'on_substack'
+        self.ctf_correction    = 'on_reference'
         self.pseudo_symmetry   = 'c1'
         self.ssnr_S            = 0
         self.ssnr_F            = 0

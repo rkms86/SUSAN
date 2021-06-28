@@ -533,6 +533,18 @@ void rand(float*ptr,const uint32 length,const float scale=1, const float offset=
     }
 }
 
+void denoise_l0(float*p_out,const float*p_in,const uint32 length,const float lambda,const float rho) {
+    /*if( should_use_avx2(length) ) {
+        // TODO
+    }
+    else {*/
+        int i=0;
+        for(i=0;i<length;i++) {
+            p_out[i] = rho*min(p_in[i]-lambda,0.0f)+(1-rho)*p_in[i];
+        }
+    //}
+}
+
 class Timing {
 protected:
 	struct timeval starting_time;

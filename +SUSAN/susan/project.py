@@ -83,6 +83,17 @@ class manager:
             rslt.ite_dir   = base_dir
         return rslt
 
+    def get_names_map(self,ite,ref):
+        ite_dir = self.get_iteration_dir(ite)
+        map_name = ite_dir + '/map_class' + ('%03d'%(ref+1)) + '.mrc'
+        return map_name
+
+    def get_names_halfmaps(self,ite,ref):
+        ite_dir = self.get_iteration_dir(ite)
+        h1_name = ite_dir + '/map_class' + ('%03d'%(ref+1)) + '_half1.mrc'
+        h2_name = ite_dir + '/map_class' + ('%03d'%(ref+1)) + '_half2.mrc'
+        return (h1_name,h2_name)
+
     def setup_iteration(self,ite):
         base_dir = self.get_iteration_dir(ite)
         if not os.path.exists(base_dir):

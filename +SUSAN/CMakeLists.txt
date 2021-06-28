@@ -25,6 +25,8 @@ string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=2979")
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --display_error_number")
 #string(APPEND CMAKE_CUDA_FLAGS " -lineinfo")
 
+add_executable(susan_denoise_l0 src/denoise_l0.cpp)
+
 add_executable(susan_estimate_ctf src/estimate_ctf.cu)
 target_link_libraries(susan_estimate_ctf cufft)
 set_property(TARGET susan_estimate_ctf PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
@@ -48,10 +50,6 @@ set_property(TARGET susan_refs_aligner PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS}
 add_executable(susan_refs_fsc src/refs_fsc.cu)
 target_link_libraries(susan_refs_fsc cufft)
 set_property(TARGET susan_refs_fsc PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
-
-add_executable(susan_refine_ctf src/refine_ctf.cu)
-target_link_libraries(susan_refine_ctf cufft)
-set_property(TARGET susan_refine_ctf PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
 
 if( MPI_FOUND )
 add_executable(susan_reconstruct_mpi src/reconstruct_mpi.cu)
