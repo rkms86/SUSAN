@@ -85,13 +85,13 @@ class manager:
 
     def get_names_map(self,ite,ref):
         ite_dir = self.get_iteration_dir(ite)
-        map_name = ite_dir + '/map_class' + ('%03d'%(ref+1)) + '.mrc'
+        map_name = ite_dir + '/map_class' + ('%03d'%(ref)) + '.mrc'
         return map_name
 
     def get_names_halfmaps(self,ite,ref):
         ite_dir = self.get_iteration_dir(ite)
-        h1_name = ite_dir + '/map_class' + ('%03d'%(ref+1)) + '_half1.mrc'
-        h2_name = ite_dir + '/map_class' + ('%03d'%(ref+1)) + '_half2.mrc'
+        h1_name = ite_dir + '/map_class' + ('%03d'%(ref)) + '_half1.mrc'
+        h2_name = ite_dir + '/map_class' + ('%03d'%(ref)) + '_half2.mrc'
         return (h1_name,h2_name)
 
     def setup_iteration(self,ite):

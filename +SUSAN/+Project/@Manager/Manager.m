@@ -280,31 +280,31 @@ methods
         
     end
     
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    function show_proj_cc(obj,iter_number)
-        
-        if( obj.check_iteration_exists(iter_number) )
-            
-            [~,part_file] = obj.get_iterations_files(iter_number);
-            ptcls = SUSAN.Data.ParticlesInfo(part_file);
-            
-            if( any( ptcls.prj_cc(:) > 0 ) )
-                h = boxplot(permute(ptcls.prj_cc,[3 1 2]),'Symbol','r.','Widths',0.6,'OutlierSize',3,'Notch','on');
-                set(h,{'linew'},{1.5});
-                set(findobj(h,'LineStyle','--'),'LineStyle','-');
-                grid on;
-                set(gcf,'Position',[500 500 (180+20*size(ptcls.prj_cc,1)) 500]);
-                title('Cross-correlation per projection');
-                yticklabels('');
-                xlabel('Projection');
-                ylabel('Relative cross-correlation');
-            end
-            
-        else
-            error('Iteration does not exist.');
-        end
-        
-    end
+%     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%     function show_proj_cc(obj,iter_number)
+%         
+%         if( obj.check_iteration_exists(iter_number) )
+%             
+%             [~,part_file] = obj.get_iterations_files(iter_number);
+%             ptcls = SUSAN.Data.ParticlesInfo(part_file);
+%             
+%             if( any( ptcls.prj_cc(:) > 0 ) )
+%                 h = boxplot(permute(ptcls.prj_cc,[3 1 2]),'Symbol','r.','Widths',0.6,'OutlierSize',3,'Notch','on');
+%                 set(h,{'linew'},{1.5});
+%                 set(findobj(h,'LineStyle','--'),'LineStyle','-');
+%                 grid on;
+%                 set(gcf,'Position',[500 500 (180+20*size(ptcls.prj_cc,1)) 500]);
+%                 title('Cross-correlation per projection');
+%                 yticklabels('');
+%                 xlabel('Projection');
+%                 ylabel('Relative cross-correlation');
+%             end
+%             
+%         else
+%             error('Iteration does not exist.');
+%         end
+%         
+%     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function ptcls = get_ptcls(obj,iter_number)

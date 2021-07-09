@@ -9,6 +9,7 @@ methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function obj = fsc_filter(N)
     
+        N = single(N);
         Nh = N/2;
         obj.W = ones(Nh,1);
         
@@ -39,6 +40,15 @@ methods
         end
         w = fsc_in./( fsc_in + tau*(1-fsc_in) );
         obj.W = interp1(w,obj.R);
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function add_bfactor(obj,bfactor)
+    
+        m = bfactor<0.001;
+        w = bfactor./( bfactor.*bfactor );
+        w(m) = 0;
+        obj.W = obj.W.*interp1(w,obj.R);
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
