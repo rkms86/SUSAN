@@ -30,6 +30,8 @@ public:
 	GPU::GArrSingle   ss_sum_z;
 	GPU::GArrSingle   ss_data_c;
 	GPU::GArrSingle   ss_data_r;
+        GPU::GArrSingle   ss_normal_c;
+        GPU::GArrSingle   ss_linear_r;
 	GPU::GArrSingle   ss_vis;
 	GPU::GArrSingle2  ss_data_R;
 	GPU::GArrSingle3  ss_filter;
@@ -91,6 +93,8 @@ public:
 		ss_data_c.alloc(M*N*K);
 		ss_data_r.alloc(N*N*K);
 		ss_data_R.alloc(M*N*K);
+                ss_normal_c.alloc(M*N*K);
+                ss_linear_r.alloc(N*N*K);
 		
 		g_def_inf.alloc(K);
 		
@@ -164,7 +168,7 @@ public:
 		def_lin_range.x = max(def_lin_range.x-2,3.0);
 		def_lin_range.y = min(def_lin_range.y+2,M-4.0);
 		
-		tlt_fpix = ceilf(info->tlt_range/ix2def);
+                tlt_fpix = ceilf(2+info->tlt_range/ix2def);
 	}
 	
 	void process(const char*out_dir,float*input,Tomogram*p_tomo) {
@@ -172,24 +176,37 @@ public:
 		rad_avg.clear();
 		rad_wgt.clear();
 		
-		cudaMemcpy( (void*)ss_input.ptr, (const void*)(input), sizeof(float)*ss_c.x*ss_c.y*ss_c.z, cudaMemcpyHostToDevice);
-		GpuKernelsCtf::rmv_bg<<<grd_c,blk>>>(ss_data_c.ptr,ss_input.ptr,ss_filter.ptr,n_filter,ss_c);
-		GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_data_c.ptr,fpix_range,ss_c);
+                // ss_input <- ctf_normalized;
+                // remove_background(ss_input);
+                // keep_data_in_resolution_range(ss_input);
+                cudaMemcpy( (void*)ss_input.ptr, (const void*)(input), sizeof(float)*ss_c.x*ss_c.y*ss_c.z, cudaMemcpyHostToDevice);
+                GpuKernelsCtf::rmv_bg<<<grd_c,blk>>>(ss_normal_c.ptr,ss_input.ptr,ss_filter.ptr,n_filter,ss_c);
+                GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_normal_c.ptr,fpix_range,ss_c);
 
-		save_gpu_mrc(input,ss_data_c.ptr,ss_c.x,ss_c.y,ss_c.z,out_dir,"ctf_normalized.mrc",1);
+                save_gpu_mrc(input,ss_normal_c.ptr,ss_c.x,ss_c.y,ss_c.z,out_dir,"ctf_normalized.mrc",1);
 		
-		GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_data_c.ptr,ss_c);
+                // surface <- ss_input;
+                // ss_data <- linearize(surface);
+                // surface <- ss_data;
+                // ss_data <- blur_radially(surface);
+                GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_normal_c.ptr,ss_c);
 		GpuKernelsCtf::ctf_linearize<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,linearization_scale,ss_c);
 		GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_data_c.ptr,ss_c);
-		GpuKernelsCtf::tangential_blur<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,ss_c);
+                GpuKernelsCtf::tangential_blur<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,ss_c);
 		
-		save_gpu_mrc(input,ss_data_c.ptr,ss_c.x,ss_c.y,ss_c.z,out_dir,"ctf_linearized.mrc",2);
-		
-		GpuKernels::expand_ps_hermitian<<<grd_r,blk>>>(ss_data_r.ptr,ss_data_c.ptr,ss_r);
+                save_gpu_mrc(input,ss_data_c.ptr,ss_c.x,ss_c.y,ss_c.z,out_dir,"ctf_linearized.mrc",2);
+
+                // ss_linear_r <- expand(ss_data);
+                // ss_data_r <- mask(ss_linear_r,0.5);
+                // ss_lin = max(fft2(ss_data_r),0);
+                // ss_data_c = mask( highpass( blur( ss_lin ) ) );
+                set_max_r(0.5);
+                GpuKernels::expand_ps_hermitian<<<grd_r,blk>>>(ss_linear_r.ptr,ss_data_c.ptr,ss_r);
+                GpuKernels::apply_circular_mask<<<grd_r,blk>>>(ss_data_r.ptr,ss_linear_r.ptr,g_def_inf.ptr,ss_r);
 		GpuKernels::fftshift2D<<<grd_r,blk>>>(ss_data_r.ptr,ss_r);
 		fft2.exec(ss_data_R.ptr,ss_data_r.ptr);
 		GpuKernels::fftshift2D<<<grd_c,blk>>>(ss_data_R.ptr,ss_c);
-		GpuKernels::load_surf_abs<<<grd_c,blk>>>(ss_lin.surface,ss_data_R.ptr,ss_c);
+                GpuKernels::load_surf_real_positive<<<grd_c,blk>>>(ss_lin.surface,ss_data_R.ptr,ss_c);
 		GpuKernelsCtf::tangential_blur<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,ss_c);
 		GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_data_c.ptr,ss_c);
 		GpuKernelsCtf::radial_highpass<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,ss_c);
@@ -197,23 +214,43 @@ public:
 		
 		save_gpu_mrc(input,ss_data_c.ptr,ss_c.x,ss_c.y,ss_c.z,out_dir,"ctf_ps_lin_raw.mrc",1);
 		
+                // ss_sum = sum( ss_data_c, Z );
 		GpuKernelsCtf::sum_along_z<<<grd_c,blk>>>(ss_sum_z.ptr,ss_data_c.ptr,ss_c);
 		
+                // Estimate defocus of the average ctf
 		float3 avg_def;
 		save_gpu_mrc(p_ps_lin_avg,ss_sum_z.ptr,ss_c.x,ss_c.y,1,out_dir,"ctf_ps_lin_avg.mrc",1);
 		get_avg_defocus(avg_def,p_ps_lin_avg);
-		set_def_info(avg_def,p_tomo);
-		printf("          - Average defocus (Angstroms): U=%.2f, V=%.2f, angle=%.1f (Linear fourier pixel size: %.1f)\n",avg_def.x*ix2def,avg_def.y*ix2def,avg_def.z*180.0/M_PI,ix2def);
+                printf("          - Average defocus (Angstroms): U=%.2f, V=%.2f, angle=%.1f (Linear fourier pixel size: %.1f)\n",avg_def.x*ix2def,avg_def.y*ix2def,avg_def.z*180.0/M_PI,ix2def);
 		
-		GpuKernelsCtf::mask_ellipsoid<<<grd_c,blk>>>(ss_data_c.ptr,g_def_inf.ptr,ss_c);
+                set_def_info(avg_def,p_tomo);
+                //GpuKernelsCtf::mask_ellipsoid<<<grd_c,blk>>>(ss_data_c.ptr,g_def_inf.ptr,ss_c);
 		save_gpu_mrc(input,ss_data_c.ptr,ss_c.x,ss_c.y,ss_c.z,out_dir,"ctf_ps_lin.mrc",2);
 		
-		int n_avg_f = 8;
+
+                for(int i=0;i<5;i++) {
+                    char tmp[1024];
+                    sprintf(tmp,"ctf_ps_lin_%d.mrc",i);
+                    set_max_r(float(i)/5);
+                    GpuKernels::apply_circular_mask<<<grd_r,blk>>>(ss_data_r.ptr,ss_linear_r.ptr,g_def_inf.ptr,ss_r);
+                    GpuKernels::fftshift2D<<<grd_r,blk>>>(ss_data_r.ptr,ss_r);
+                    fft2.exec(ss_data_R.ptr,ss_data_r.ptr);
+                    GpuKernels::fftshift2D<<<grd_c,blk>>>(ss_data_R.ptr,ss_c);
+                    GpuKernels::load_surf_real_positive<<<grd_c,blk>>>(ss_lin.surface,ss_data_R.ptr,ss_c);
+                    GpuKernelsCtf::tangential_blur<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,ss_c);
+                    GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_data_c.ptr,ss_c);
+                    GpuKernelsCtf::radial_highpass<<<grd_c,blk>>>(ss_data_c.ptr,ss_lin.texture,ss_c);
+                    GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_data_c.ptr,def_lin_range,ss_c);
+                    save_gpu_mrc(input,ss_data_c.ptr,ss_c.x,ss_c.y,ss_c.z,out_dir,tmp,2);
+                    get_initial_defocus(avg_def,input);
+
+                }
+
+                int n_avg_f = 8;
 		float2 tmp_range;
 		tmp_range.x = n_avg_f;
 		tmp_range.y = M-n_avg_f-1;
 		float lambda_def = ix2def*lambda*(avg_def.x+avg_def.y)/2;
-		get_initial_defocus(avg_def,input);
 		GpuKernelsCtf::rmv_bg<<<grd_c,blk>>>(ss_data_c.ptr,ss_input.ptr,ss_filter.ptr,n_filter,ss_c);
 		GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_data_c.ptr,tmp_range,ss_c);
 		GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_data_c.ptr,ss_c);
@@ -307,8 +344,15 @@ protected:
 		
 	}
 	
+        void set_max_r(const float max_r) {
+            for(int k=0;k<ss_c.z;k++) {
+                c_def_inf[k].w = max_r*float(M);
+            }
+            cudaMemcpy( (void*)g_def_inf.ptr, (const void*)(c_def_inf), sizeof(float4)*ss_c.z, cudaMemcpyHostToDevice);
+        }
+
 	void set_def_info(const float3&defocus,Tomogram*p_tomo) {
-		float L = (defocus.x+defocus.y)/2;
+                float L = abs(defocus.x-defocus.y)/2;
 		for(int k=0;k<ss_c.z;k++) {
 			V3f euZYZ;
 			Math::Rmat_eZYZ(euZYZ,p_tomo->R[k]);

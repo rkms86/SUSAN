@@ -217,34 +217,46 @@ __global__ void load_surf_abs(cudaSurfaceObject_t out_surf,const float2*p_in,con
     }
 }
 
-__global__ void conv_gaussian(float*p_out,const float*p_in,const int3 ss_siz) {
+__global__ void load_surf_real_positive(cudaSurfaceObject_t out_surf,const float2*p_in,const int3 ss_siz) {
 
-        int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-                float num = -0.5774;
-                float scl = 5.3885;
+        float2 val = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+        float v = max(val.x,0.0f);
+        surf2DLayeredwrite<float>(v,out_surf,ss_idx.x*sizeof(float), ss_idx.y, ss_idx.z);
+    }
+}
 
-                float val = 0;
+__global__ void conv_gaussian(float*p_out,const float*p_in,const int3 ss_siz) {
 
-                for(int y=-2;y<3;y++) {
-                        for(int x=-2;x<3;x++) {
-                                float r = l2_distance(x,y);
-                                float wgt = exp(num*r*r)/scl;
-                                int X = ss_idx.x + x;
-                                int Y = ss_idx.y + y;
-                                if( X < 0 )
-                                        X = -X;
-                                if( Y < 0 )
-                                        Y = -Y;
-                                if( X >= ss_siz.x )
-                                        X = 2*(ss_siz.x-1)-X;
-                                if( Y >= ss_siz.y )
-                                        Y = 2*(ss_siz.y-1)-Y;
-                                val += wgt*p_in[ get_3d_idx(X,Y,ss_idx.z,ss_siz) ];
-                        }
-                }
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float num = -0.5774;
+        float scl = 5.3885;
+
+        float val = 0;
+
+        for(int y=-2;y<3;y++) {
+            for(int x=-2;x<3;x++) {
+                float r = l2_distance(x,y);
+                float wgt = exp(num*r*r)/scl;
+                int X = ss_idx.x + x;
+                int Y = ss_idx.y + y;
+                if( X < 0 )
+                    X = -X;
+                if( Y < 0 )
+                    Y = -Y;
+                if( X >= ss_siz.x )
+                    X = 2*(ss_siz.x-1)-X;
+                if( Y >= ss_siz.y )
+                    Y = 2*(ss_siz.y-1)-Y;
+                val += wgt*p_in[ get_3d_idx(X,Y,ss_idx.z,ss_siz) ];
+            }
+        }
 
         p_out[get_3d_idx(ss_idx,ss_siz)] = val;
     }
@@ -365,32 +377,52 @@ __global__ void zero_avg_one_std(float*p_in, const float*p_std, const float*p_av
 }
 
 __global__ void expand_ps_hermitian(float*p_out,const float*p_in,const int3 ss_siz) {
-	
-	int3 ss_idx = get_th_idx();
+
+    int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		int Nh = ss_siz.y/2;
-		int x = ss_idx.x - Nh;
-		int y = ss_idx.y - Nh;
-		
-		if( x<0 ) {
-			x = -x;
-			y = -y;
-		}
-		
-		x = x+Nh;
-		y = y+Nh;
-		
-		if(x<0) x = Nh+x;
-		if(y<0) y = ss_siz.y+y;
-		
-		if(x>=Nh) x = x-Nh;
-		if(y>=ss_siz.y) y = y-ss_siz.y;
-		
-		float val = p_in[ x + y*(Nh+1) + ss_idx.z*ss_siz.y*(Nh+1) ];
-		
+            int Nh = ss_siz.y/2;
+            int x = ss_idx.x - Nh;
+            int y = ss_idx.y - Nh;
+
+            if( x<0 ) {
+                    x = -x;
+                    y = -y;
+            }
+
+            x = x+Nh;
+            y = y+Nh;
+
+            if(x<0) x = Nh+x;
+            if(y<0) y = ss_siz.y+y;
+
+            if(x>=Nh) x = x-Nh;
+            if(y>=ss_siz.y) y = y-ss_siz.y;
+
+            float val = p_in[ x + y*(Nh+1) + ss_idx.z*ss_siz.y*(Nh+1) ];
+
         p_out[get_3d_idx(ss_idx,ss_siz)] = val;
+    }
+}
+
+__global__ void apply_circular_mask(float*p_out,const float*p_in,const float4*p_bp,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        long idx = get_3d_idx(ss_idx,ss_siz);
+        float val = 0;
+
+        float R = l2_distance(ss_idx.x-ss_siz.x/2,ss_idx.y-ss_siz.y/2);
+
+        float w = get_bp_wgt(0,p_bp[ss_idx.z].w,10,R);
+
+        if( w > 0.05 ) {
+            val = w*p_in[ idx ];
+        }
+        p_out[idx] = val;
     }
 }
 

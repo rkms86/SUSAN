@@ -273,11 +273,11 @@ __global__ void keep_fpix_range(float*p_out, const float2 range, const int3 ss_s
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float val = p_out[ get_3d_idx(ss_idx,ss_siz) ];
+        float val = p_out[ get_3d_idx(ss_idx,ss_siz) ];
         
         float x = ss_idx.x;
-		float y = ss_idx.y-ss_siz.y/2;
-		float R = l2_distance(x,y);
+        float y = ss_idx.y-ss_siz.y/2;
+        float R = l2_distance(x,y);
         
         float w1 = 1./(1+exp(0.5*(range.x-R)));
         float w2 = 1./(1+exp(0.5*(R-range.y)));
@@ -426,22 +426,22 @@ __global__ void mask_ellipsoid(float*p_work, const float4*p_def_inf, const int3 
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float Nh = ss_siz.y/2;
+        float Nh = ss_siz.y/2;
 
         float x = ss_idx.x;
-		float y = ss_idx.y-Nh;
-		float R = l2_distance(x,y);
-		if(R<0.5) R = 1;
-		
-		x = x/R;
-		y = y/R;
-		
-		float r = calc_def(x,y,p_def_inf[ss_idx.z].x,p_def_inf[ss_idx.z].y,p_def_inf[ss_idx.z].z);
-		
-		float val = 0;
-		
-		if( fabsf(r-R) < p_def_inf[ss_idx.z].w )
-			val = p_work[ get_3d_idx(ss_idx,ss_siz) ];
+        float y = ss_idx.y-Nh;
+        float R = l2_distance(x,y);
+        if(R<0.5) R = 1;
+
+        x = x/R;
+        y = y/R;
+
+        float r = calc_def(x,y,p_def_inf[ss_idx.z].x,p_def_inf[ss_idx.z].y,p_def_inf[ss_idx.z].z);
+
+        float val = 0;
+
+        if( fabsf(r-R) < p_def_inf[ss_idx.z].w )
+            val = p_work[ get_3d_idx(ss_idx,ss_siz) ];
 		
         p_work[ get_3d_idx(ss_idx,ss_siz) ] = val;
 
