@@ -23,11 +23,11 @@ __device__ float calc_s(const float r, const float R, const float apix) {
 }
 
 __device__ float calc_def(const float x, const float y, const float u, const float v, const float ang) {
-	float wx = u*x;
-	float wy = v*y;
-	float rx = wx*cos(ang)-wy*sin(ang);
-	float ry = wx*sin(ang)+wy*cos(ang);
-	return l2_distance(rx,ry);
+    float rx = x*cos(ang)-y*sin(ang);
+    float ry = x*sin(ang)+y*cos(ang);
+    float wx = u*rx;
+    float wy = v*ry;
+    return l2_distance(wx,wy);
 }
 
 __device__ float calc_def(const float x, const float y, const Defocus&def) {
@@ -116,10 +116,10 @@ __global__ void ctf_normalize( float*p_out, cudaTextureObject_t texture,
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
 		float3 vec_r = p_vec_r[get_2d_idx(ss_idx,ss_siz)];
-		float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
+                float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
 		s2 = s2*s2;
 		/// factor = pi*lambda*dZ_angstroms*s^2
-                float factor = p_pi_lambda_dZ[ss_idx.z].x*s2/apix;
+                float factor = p_pi_lambda_dZ[ss_idx.z].x*s2;
 		float x = ss_idx.x-factor*vec_r.x;
 		float y = ss_idx.y-factor*vec_r.y;
 		
@@ -153,48 +153,14 @@ __global__ void ctf_radial_normalize( float*p_out, cudaTextureObject_t texture, 
             vec_r.y = vec_r.y/vec_r.z;
         }
 
-        float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
+        //float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
+        float s2 = calc_s(vec_r.z,ss_siz.y,apix);
         s2 = s2*s2;
-        float def_avg = (p_defocus[ss_idx.z].x+p_defocus[ss_idx.z].y)/2;
-        float def = calc_def(vec_r.x,vec_r.y,p_defocus[ss_idx.z].x,p_defocus[ss_idx.z].y,p_defocus[ss_idx.z].z);
-        float def_dif = ix2def*(def-def_avg);
-        float factor = pi_lambda*def_dif*s2;
-        float x = ss_idx.x-factor*vec_r.x;
-        float y = ss_idx.y-factor*vec_r.y;
-        if( vec_r.z-factor >= ss_siz.y/2 ) {
-            x = ss_idx.x;
-            y = ss_idx.y;
-        }
-        y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
-        x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
-
-        float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
-        p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
-    }
-}
-
-__global__ void ctf_radial_normalize( float*p_out, cudaTextureObject_t texture,
-                                      const float delta_pi_L_Z,const float delta_angle,
-                                      const float apix, const int3 ss_siz)
-{
-
-    int3 ss_idx = get_th_idx();
-
-    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
-
-        float3 vec_r;
-        vec_r.x = ss_idx.x;
-        vec_r.y = ss_idx.y-ss_siz.y/2;
-        vec_r.z = l2_distance(vec_r.x,vec_r.y);
-        if( vec_r.z > 0 ) {
-            vec_r.x = vec_r.x/vec_r.z;
-            vec_r.y = vec_r.y/vec_r.z;
-        }
-
-        float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
-        s2 = s2*s2;
-        float def = calc_def(vec_r.x,vec_r.y,delta_pi_L_Z,-delta_pi_L_Z,delta_angle);
-        float factor = def*s2;
+        float def_dif = (p_defocus[ss_idx.z].x-p_defocus[ss_idx.z].y);
+        float def = calc_def(vec_r.x,vec_r.y,def_dif,0,p_defocus[ss_idx.z].z);
+        def = ix2def*def;
+        if(def_dif<0) def = -def;
+        float factor = pi_lambda*def*s2;
         float x = ss_idx.x-factor*vec_r.x;
         float y = ss_idx.y-factor*vec_r.y;
         if( vec_r.z-factor >= ss_siz.y/2 ) {
@@ -406,14 +372,14 @@ __global__ void sum_along_z(float*p_out, const float*p_in, const int3 ss_siz) {
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < 1 ) {
 
-		float val = 0;
-		int idx = ss_idx.x + ss_idx.y*ss_siz.x;
-		int off = ss_siz.x*ss_siz.y;
-		
-		for(int k=0;k<ss_siz.z;k++) {
-			val += p_in[idx];
-			idx += off;
-		}
+        float val = 0;
+        int idx = ss_idx.x + ss_idx.y*ss_siz.x;
+        int off = ss_siz.x*ss_siz.y;
+
+        for(int k=0;k<ss_siz.z;k++) {
+            val += p_in[idx];
+            idx += off;
+        }
 
         p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
 
