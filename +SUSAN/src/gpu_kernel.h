@@ -406,7 +406,7 @@ __global__ void expand_ps_hermitian(float*p_out,const float*p_in,const int3 ss_s
     }
 }
 
-__global__ void apply_circular_mask(float*p_out,const float*p_in,const float4*p_bp,const int3 ss_siz) {
+__global__ void apply_circular_mask(float*p_out,const float*p_in,const float2*p_bp,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
 
@@ -417,7 +417,7 @@ __global__ void apply_circular_mask(float*p_out,const float*p_in,const float4*p_
 
         float R = l2_distance(ss_idx.x-ss_siz.x/2,ss_idx.y-ss_siz.y/2);
 
-        float w = get_bp_wgt(0,p_bp[ss_idx.z].w,10,R);
+        float w = get_bp_wgt(p_bp[ss_idx.z].x,p_bp[ss_idx.z].y,10,R);
 
         if( w > 0.05 ) {
             val = w*p_in[ idx ];
@@ -478,6 +478,33 @@ __global__ void radial_ps_avg(float*p_avg,float*p_wgt,const float2*p_in,const in
     }
 }
 
+__global__ void radial_ps_avg_double_side(float*p_avg,float*p_wgt,const float*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float val = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+        float  x = ss_idx.x;
+        float  y = ss_idx.y-ss_siz.y/2;
+        float  R = l2_distance(x,y);
+        int    r = (int)roundf(R);
+        int  idx = r + ss_siz.y*ss_idx.z;
+        if( r < ss_siz.x ) {
+            atomicAdd(p_avg + idx,val);
+            atomicAdd(p_wgt + idx,1.0);
+
+            r = ss_siz.y - r;
+            if( r < ss_siz.y ) {
+                idx = r + ss_siz.y*ss_idx.z;
+                atomicAdd(p_avg + idx,val);
+                atomicAdd(p_wgt + idx,1.0);
+            }
+        }
+
+    }
+}
+
 __global__ void radial_ps_norm(float2*p_data,const float*p_avg,const float*p_wgt,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
@@ -511,15 +538,15 @@ __global__ void radial_ps_norm(float2*p_data,const float*p_avg,const float*p_wgt
 
 __global__ void divide(float*p_avg,const float*p_wgt,const int3 ss_siz) {
 	
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		int idx = get_3d_idx(ss_idx,ss_siz);
-		float val = p_avg[ idx ];
-		float wgt = p_wgt[ idx ];
-		if( wgt < 1 ) wgt = 1;
-		p_avg[ idx ] = val/wgt;
+        int idx = get_3d_idx(ss_idx,ss_siz);
+        float val = p_avg[ idx ];
+        float wgt = p_wgt[ idx ];
+        if( wgt < 1 ) wgt = 1;
+        p_avg[ idx ] = val/wgt;
     }
 }
 

@@ -543,58 +543,65 @@ __global__ void normalize_amplitude(float*p_data,float*radial_ia,const int3 ss_s
     }
 }
 
-__global__ void vis_copy_data(float*p_out,const float*p_in,const int3 ss_siz) {
+__global__ void vis_copy_data(float*p_out,const float*p_in,const float*p_env,const float*p_env_min,const int3 ss_siz) {
 	
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
-	int N  = ss_siz.y;
-	int Nh = N/2;
-	int M  = Nh+1;
+    int N  = ss_siz.y;
+    int Nh = N/2;
+    int M  = Nh+1;
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float val = 0.5;
-		int x = ss_idx.x-Nh;
-		int y = ss_idx.y-Nh;
-		
-		if( x*y >= 0 ) {
-			if( x < 0 ) x = -x;
-			if( y < 0 ) y = -y;
-			y = y+Nh;
-			val = p_in[ x + y*M + ss_idx.z*N*M ];
-		}
-		
-		p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
+            float val = 0.5;
+            int x = ss_idx.x-Nh;
+            int y = ss_idx.y-Nh;
+
+            float r = l2_distance(x,y);
+
+            if( x*y >= 0 && r < Nh ) {
+                r = fminf(r,Nh);
+                float env = p_env[((int)r)+ss_idx.z*M];
+                float max_env = max(env,p_env_min[ss_idx.z]);
+                if( x < 0 ) x = -x;
+                if( y < 0 ) y = -y;
+                y = y+Nh;
+                val = p_in[ x + y*M + ss_idx.z*N*M ];
+                val = val/(2*max_env) + 0.5;
+                val = fminf(fmaxf(val,0),1);
+            }
+
+            p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
     }
 }
 
 __global__ void vis_add_ctf(float*p_out,const float4*p_def_inf,const float apix,const float lambda_pi,const float lambda3_Cs_pi_2,const float ac,const int3 ss_siz) {
 	
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
-	int N  = ss_siz.y;
-	int Nh = N/2;
+    int N  = ss_siz.y;
+    int Nh = N/2;
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float val = p_out[ get_3d_idx(ss_idx,ss_siz) ];
-		int x = ss_idx.x-Nh;
-		int y = ss_idx.y-Nh;
-		float R = l2_distance(x,y);
-		
-		if( x*y < 0 && R < Nh ) {
-			float s2 = calc_s(R,N,apix);
-			s2 *= s2;
-			float s4 = s2*s2;
-			if(R<0.5) R = 1;
-			
-			float def   = calc_def(x/R,y/R,p_def_inf[ss_idx.z].x,p_def_inf[ss_idx.z].y,p_def_inf[ss_idx.z].z);
-			float gamma = calc_gamma(def,lambda_pi,lambda3_Cs_pi_2,s2,s4);
-			float ctf   = calc_ctf(gamma,ac);
-			val = ctf*ctf;
-		}
-		
-                p_out[ get_3d_idx(ss_idx,ss_siz) ] = min(max(val,-0.1),1.1);
+        float val = p_out[ get_3d_idx(ss_idx,ss_siz) ];
+        int x = ss_idx.x-Nh;
+        int y = ss_idx.y-Nh;
+        float R = l2_distance(x,y);
+
+        if( x*y < 0 && R < Nh ) {
+            float s2 = calc_s(R,N,apix);
+            s2 *= s2;
+            float s4 = s2*s2;
+            if(R<0.5) R = 1;
+
+            float def   = calc_def(x/R,y/R,p_def_inf[ss_idx.z].x,p_def_inf[ss_idx.z].y,p_def_inf[ss_idx.z].z);
+            float gamma = calc_gamma(def,lambda_pi,lambda3_Cs_pi_2,s2,s4);
+            float ctf   = calc_ctf(gamma,ac);
+            val = ctf*ctf;
+        }
+
+        p_out[ get_3d_idx(ss_idx,ss_siz) ] = min(max(val,-0.1),1.1);
     }
 }
 

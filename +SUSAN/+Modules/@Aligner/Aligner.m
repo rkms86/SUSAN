@@ -165,15 +165,19 @@ methods
     %   search range between the reference and the particles. The number of
     %   elements in OFFSET_RANGE defines the shape of the ellipsoid:
     %   - 1 element:  the ellipsoid becomes an sphere.
+    %                 Ex.: SET_OFFSET_ELLIPSOID(r);
     %   - 2 elements: the ellipsoid will have the first element of the
     %                 range for the X and Y range, and the second element
     %                 defines the Z range.
+    %                 Ex.: SET_OFFSET_ELLIPSOID([r,r_z]);
     %   - 3 elements: each element defines the range in each axis.
+    %                 Ex.: SET_OFFSET_ELLIPSOID([r_x,r_y,r_z]);
     %   The OFFSET_STEP defines how the OFFSET_RANGE will be sampled. This
     %   defines the speed of the algorithm, a finer step leads to a slower
     %   execution. Note: a large step size (>1) is recommended in combination to
     %   lower frequancies for large OFFSET_RANGE. A smaller step size (<1)
     %   is used in combination if higher frequencies.
+    %     Ex.: SET_OFFSET_ELLIPSOID([r_x,r_y,r_z],subsample);
     %
     %   See also set_offset_ellipsoid.
         
@@ -202,14 +206,18 @@ methods
     %   search range between the reference and the particles. The number of
     %   elements in OFFSET_RANGE defines the shape of the cylinder:
     %   - 1 element:  the height is the same as its diameter.
+    %                 Ex.: SET_OFFSET_CYLINDER(r);
     %   - 2 elements: the first element defines the radius, the second
     %                 defines the semi-height.
+    %                 Ex.: SET_OFFSET_CYLINDER([r,h]);
     %   - 3 elements: each element defines the range in each axis.
+    %                 Ex.: SET_OFFSET_CYLINDER([r_x,r_y,h]);
     %   The OFFSET_STEP defines how the OFFSET_RANGE will be sampled. This
     %   defines the speed of the algorithm, a finer step leads to a slower
     %   execution. Note: a large step size (>1) is recommended in combination to
     %   lower frequancies for large OFFSET_RANGE. A smaller step size (<1)
     %   is used in combination if higher frequencies.
+    %     Ex.: SET_OFFSET_CYLINDER([r_x,r_y,r_z],subsample);
     %
     %   See also set_offset_cylinder.
         

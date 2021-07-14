@@ -79,7 +79,7 @@ bool parse_args(Info&info,int ac,char** av) {
 	info.n_threads = 1;
 	info.box_size  = 512;
 	info.binning   = 0;
-	info.res_thres = 0.75;
+        info.res_thres = 0.5;
 	info.res_min   = 0;
 	info.res_max   = 0;
 	info.def_min   = 0;

@@ -45,7 +45,7 @@ public:
         rad_avg.alloc(M*maxK);
         rad_wgt.alloc(M*maxK);
 
-        ss_abs_f.alloc(M,N,K);
+        ss_abs_f.alloc(M,N,maxK);
         fft2.alloc(M,N,maxK);
         fft2.set_stream(stream.strm);
     }
@@ -55,22 +55,33 @@ public:
     }
 
     void add_data(GPU::GArrSingle&g_data,int k,GPU::Stream&stream) {
-            int3 ss_raw = make_int3(N,N,k);
-            int3 ss_fou = make_int3(M,N,k);
-            dim3 blk = GPU::get_block_size_2D();
-            dim3 grd_raw = GPU::calc_grid_size(blk,N,N,k);
-            dim3 grd_fou = GPU::calc_grid_size(blk,M,N,k);
-            GpuKernels::fftshift2D<<<grd_raw,blk,0,stream.strm>>>(g_data.ptr,ss_raw);
-            fft2.exec(ss_fourier.ptr,g_data.ptr);
-            GpuKernels::fftshift2D<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,ss_fou);
-            GpuKernels::load_surf<<<grd_fou,blk,0,stream.strm>>>(ss_abs_f.surface,ss_fourier.ptr,ss_fou);
+        int3 ss_raw = make_int3(N,N,k);
+        int3 ss_fou = make_int3(M,N,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd_raw = GPU::calc_grid_size(blk,N,N,k);
+        dim3 grd_fou = GPU::calc_grid_size(blk,M,N,k);
+        GpuKernels::fftshift2D<<<grd_raw,blk,0,stream.strm>>>(g_data.ptr,ss_raw);
+        fft2.exec(ss_fourier.ptr,g_data.ptr);
+        GpuKernels::fftshift2D<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,ss_fou);
+        GpuKernels::load_surf_abs<<<grd_fou,blk,0,stream.strm>>>(ss_abs_f.surface,ss_fourier.ptr,ss_fou);
     }
 
     void compensate_astigmatism(float pi_lambda_deltaZ,float delta_ang, float apix,int k,GPU::Stream&stream) {
-            int3 ss_fou = make_int3(M,N,k);
-            dim3 blk = GPU::get_block_size_2D();
-            dim3 grd_fou = GPU::calc_grid_size(blk,M,N,k);
-            GpuKernelsCtf::ctf_radial_normalize<<<grd_fou,blk,0,stream.strm>>>(ss_norm_ast.ptr,ss_abs_f.surface,pi_lambda_deltaZ,delta_ang,apix,ss_fou);
+        int3 ss_fou = make_int3(M,N,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd_fou = GPU::calc_grid_size(blk,M,N,k);
+        GpuKernelsCtf::ctf_radial_normalize<<<grd_fou,blk,0,stream.strm>>>(ss_norm_ast.ptr,ss_abs_f.texture,pi_lambda_deltaZ,delta_ang,apix,ss_fou);
+    }
+
+    void calc_radial_average(int k,GPU::Stream&stream) {
+        rad_avg.clear(stream.strm);
+        rad_wgt.clear(stream.strm);
+        int3 ss_fou = make_int3(M,N,k);
+        int3 ss_2   = make_int3(M,k,1);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd_fou = GPU::calc_grid_size(blk,M,N,k);
+        GpuKernels::radial_ps_avg<<<grd_fou,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,ss_norm_ast.ptr,ss_fou);
+        GpuKernels::divide<<<grd_fou,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,ss_2);
     }
 
 protected:

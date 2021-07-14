@@ -22,7 +22,7 @@ typedef float    single;
 #define RAD2DEG 57.295779513082323
 #define DEG2RAD  0.017453292519943
 
-#define SUSAN_SVG_SHADOW_BG "#F7F7F7"
+#define SUSAN_SVG_SHADOW_BG "#E6E6E6"
 //#define SUSAN_SVG_FG_A "#FDB366"
 #define SUSAN_SVG_FG_A "#F67E4B"
 //#define SUSAN_SVG_FG_B "#98CAE1"

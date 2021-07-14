@@ -43,10 +43,12 @@
 %    n_ptcls           - Returns the number of particles.
 %    n_refs            - Returns the number of references.
 %    max_projs         - Returns the maximum number of projections.
+%    get_copy          - Creates a deep-copy of the current ParticlesInfo object.
 %    select            - Creates a subset of the current ParticlesInfo object.
 %    set_weights       - Sets the weight for each particle.
 %    halfsets_by_Y     - Sets the halfsets according to the particles' Y position.
 %    halfsets_even_odd - Sets the halfsets in an even/odd fashion.
+%    update_position   - Update the particles' position with the shifts (ali_t). 
 %    update_defocus    - Update defocus according to the particles' Z position. 
 %    append_ptcls      - Append an existing particles obj to the current one.
 %    export_dyntbl     - Exports to a dynamo table.
@@ -157,6 +159,39 @@ methods
         
         n = size(obj.prj_eZYZ,1);
         
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function ptcls_obj = get_copy(obj)     
+    % SELECT returns a new ParticlesInfo object, a copy of the current one.
+    %   PTCLS_OBJ = GET_COPY(IX) returns a new ParticlesInfo object, a
+    %   deep-copy of the current.
+    %
+    %   See also SUSAN.Data.ParticlesInfo.
+        
+        if( ~isvector(ix) )
+            error('Error in the IX argument: it must be a vector');
+        end
+    
+        ptcls_obj = SUSAN.Data.ParticlesInfo(obj.n_ptcls(),obj.max_projs(),obj.n_refs());
+        
+        ptcls_obj.ptcl_id   = obj.ptcl_id;
+        ptcls_obj.tomo_id   = obj.tomo_id;
+        ptcls_obj.tomo_cix  = obj.tomo_cix;
+        ptcls_obj.position  = obj.position;
+        ptcls_obj.class_cix = obj.class_cix;
+        ptcls_obj.half_id   = obj.half_id;
+        ptcls_obj.extra_1   = obj.extra_1;
+        ptcls_obj.extra_2   = obj.extra_2;
+        ptcls_obj.ali_eZYZ  = obj.ali_eZYZ;
+        ptcls_obj.ali_t     = obj.ali_t;
+        ptcls_obj.ali_cc    = obj.ali_cc;
+        ptcls_obj.ali_w     = obj.ali_w;
+        ptcls_obj.prj_eZYZ  = obj.prj_eZYZ;
+        ptcls_obj.prj_t     = obj.prj_t;
+        ptcls_obj.prj_cc    = obj.prj_cc;
+        ptcls_obj.prj_w     = obj.prj_w;
+        ptcls_obj.defocus   = obj.defocus;
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -298,6 +333,27 @@ methods
         obj.defocus   = obj.defocus(:,:,ix);
     end
 
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function update_position(obj)
+    % UPDATE_POSITION updates the particles' position with the estimated shifts.
+    %   UPDATE_POSITION() Updates the position with the current shift
+    %   values of the particles. This operation is only valid when one
+    %   reference is available. Pseudocode:
+    %       particles.position <- particles.position + particles.ali_t
+    %       particles.ali_t <- 0
+    %
+    %   See also SUSAN.Data.ParticlesInfo.
+    
+        if( obj.n_refs() > 1 )
+            
+            error(['Particles has ' num2str(obj.n_refs()) ' classes. It must have just 1.' ]);
+        end
+        
+        obj.position = obj.position + obj.ali_t;
+        obj.ali_t(:) = 0;
+        
+    end
+    
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function update_defocus(obj,tomos_list)
     % UPDATE_DEFOCUS updates the defocus information of each particle.

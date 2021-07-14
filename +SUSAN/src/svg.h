@@ -60,7 +60,7 @@ public:
         }
         fprintf(fp,"  </g>\n");
 
-		/// X ticks:
+        /// X ticks:
         fprintf(fp,"  <g>\n");
         for(int i=1;i<=10;i++) {
             float x_apix = 20*apix/i;
@@ -68,9 +68,9 @@ public:
             fprintf(fp,"    <text x=\"%.2f\" y=\"445\" dominant-baseline=\"middle\" text-anchor=\"end\" transform=\"rotate(-45 %.2f 445)\" style=\"fill:black;stroke:none;font-size:12px;\">%.2f</text>\n",x,x,x_apix);
         }
         fprintf(fp,"  </g>\n");
-	}
+    }
 	
-	void create_title(const int n_proj,const float def) {
+    void create_title(const int n_proj,const float def) {
         fprintf(fp,"  <text x=\"400\" y=\"20\" dominant-baseline=\"middle\" text-anchor=\"middle\" style=\"fill:black;stroke:none;font-weight:bold;font-size:20px\">Average Defocus for projection %d: %.2fÅ</text>\n",n_proj,def);
     }
 	
