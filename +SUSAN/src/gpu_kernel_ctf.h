@@ -115,24 +115,25 @@ __global__ void ctf_normalize( float*p_out, cudaTextureObject_t texture,
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float3 vec_r = p_vec_r[get_2d_idx(ss_idx,ss_siz)];
-                float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
-		s2 = s2*s2;
-		/// factor = pi*lambda*dZ_angstroms*s^2
-                float factor = p_pi_lambda_dZ[ss_idx.z].x*s2;
-		float x = ss_idx.x-factor*vec_r.x;
-		float y = ss_idx.y-factor*vec_r.y;
-		
-		if( bin_factor>1 ) {
-			x = x/bin_factor;
-			float Yh = ss_siz.y/2;
-                        y = (y-Yh)/bin_factor + Yh;
-		}
-                y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
-                x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
-		
-		float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
-		p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;		
+            float3 vec_r = p_vec_r[get_2d_idx(ss_idx,ss_siz)];
+            //float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
+            float s2 = calc_s(vec_r.z,ss_siz.y,apix);
+            s2 = s2*s2;
+            /// factor = pi*lambda*dZ_angstroms*s^2
+            float factor = p_pi_lambda_dZ[ss_idx.z].x*s2;
+            float x = ss_idx.x-factor*vec_r.x;
+            float y = ss_idx.y-factor*vec_r.y;
+
+            if( bin_factor>1 ) {
+                    x = x/bin_factor;
+                    float Yh = ss_siz.y/2;
+                    y = (y-Yh)/bin_factor + Yh;
+            }
+            y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
+            x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
+
+            float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
+            p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
     }
 }
 
@@ -366,6 +367,38 @@ __global__ void radial_highpass(float*p_out, cudaTextureObject_t texture, const 
     }
 }
 
+__global__ void radial_edge_detect(float*p_out, cudaTextureObject_t texture, const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float Nh = ss_siz.y/2;
+
+        float x = ss_idx.x;
+        float y = ss_idx.y-Nh;
+        float R = l2_distance(x,y);
+        float val = 0;
+
+        if( R > 1 && R < Nh) {
+            float x_n = x/R;
+            float y_n = y/R;
+            float x_t,y_t;
+
+            x_t = (float)(ss_idx.x) + 0.5;
+            y_t = (float)(ss_idx.y) + 0.5;
+            val = tex2DLayered<float>(texture, x_t, y_t, ss_idx.z);
+
+            x_t  = (float)(ss_idx.x) + x_n + 0.5;
+            y_t  = (float)(ss_idx.y) + y_n + 0.5;
+            val -= tex2DLayered<float>(texture, x_t, y_t, ss_idx.z);
+        }
+
+        p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
+
+    }
+}
+
 __global__ void sum_along_z(float*p_out, const float*p_in, const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
@@ -543,7 +576,7 @@ __global__ void normalize_amplitude(float*p_data,float*radial_ia,const int3 ss_s
     }
 }
 
-__global__ void vis_copy_data(float*p_out,const float*p_in,const float*p_env,const float*p_env_min,const int3 ss_siz) {
+__global__ void vis_copy_data(float*p_out,const float*p_in,const float*p_env,const float2*p_env_min,const int3 ss_siz) {
 	
     int3 ss_idx = get_th_idx();
 
@@ -562,13 +595,15 @@ __global__ void vis_copy_data(float*p_out,const float*p_in,const float*p_env,con
             if( x*y >= 0 && r < Nh ) {
                 r = fminf(r,Nh);
                 float env = p_env[((int)r)+ss_idx.z*M];
-                float max_env = max(env,p_env_min[ss_idx.z]);
+                if( r > p_env_min[ss_idx.z].y ) {
+                    env = p_env_min[ss_idx.z].x;
+                }
                 if( x < 0 ) x = -x;
                 if( y < 0 ) y = -y;
                 y = y+Nh;
                 val = p_in[ x + y*M + ss_idx.z*N*M ];
-                val = val/(2*max_env) + 0.5;
-                val = fminf(fmaxf(val,0),1);
+                val = val/(2*env) + 0.5;
+                //val = fminf(fmaxf(val,0),1);
             }
 
             p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
@@ -601,7 +636,7 @@ __global__ void vis_add_ctf(float*p_out,const float4*p_def_inf,const float apix,
             val = ctf*ctf;
         }
 
-        p_out[ get_3d_idx(ss_idx,ss_siz) ] = min(max(val,-0.1),1.1);
+        p_out[ get_3d_idx(ss_idx,ss_siz) ] = val; //min(max(val,-0.1),1.1);
     }
 }
 

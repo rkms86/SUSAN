@@ -45,7 +45,8 @@ protected:
             /// use ss_fg_masked as an upload buffer:
             cudaMemcpy( (void*)ss_fg_masked.ptr, (const void*)(cpu_input), sizeof(float)*numel, cudaMemcpyHostToDevice);
             GpuKernelsCtf::rmv_bg<<<grd_c,blk>>>(ss_foreground.ptr,ss_fg_masked.ptr,ss_filter.ptr,n_filter,ss_c);
-            cudaMemcpy( (void*)ss_fg_masked.ptr, (const void*)(ss_foreground.ptr), sizeof(float)*numel, cudaMemcpyDeviceToDevice);
+            GpuKernels::conv_gaussian<<<grd_c,blk>>>(ss_fg_masked.ptr,ss_foreground.ptr,ss_c);
+            cudaMemcpy( (void*)ss_foreground.ptr, (const void*)(ss_fg_masked.ptr), sizeof(float)*numel, cudaMemcpyDeviceToDevice);
             GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_fg_masked.ptr,fpix_range,ss_c);
         }
 
@@ -75,6 +76,7 @@ protected:
 
     class Linear {
     public:
+        float4*c_def;
         int3 ss_c;
         int3 ss_r;
         dim3 blk;
@@ -86,6 +88,7 @@ protected:
         GPU::GArrSingle  ss_pow_spct;
         GPU::GArrSingle  ss_ps_sum_z;
         GPU::GArrSingle2 c_linear;
+        GPU::GArrSingle4 g_def;
 
         GpuFFT::FFT2D     fft2;
         GPU::GTex2DSingle ss_lin;
@@ -103,9 +106,16 @@ protected:
             ss_pow_spct.alloc(m*n*k);
             ss_ps_sum_z.alloc(m*n);
             c_linear.alloc(m*n*k);
+            g_def.alloc(k);
 
             ss_lin.alloc(m,n,k);
             fft2.alloc(m,n,k);
+
+            c_def = new float4[k];
+        }
+
+        ~Linear() {
+            delete [] c_def;
         }
 
         void load_linearize(const float*gpu_input,float linearization_scale) {
@@ -121,14 +131,33 @@ protected:
             GpuKernels::fftshift2D<<<grd_r,blk>>>(r_lin_mskd.ptr,ss_r);
             fft2.exec(c_linear.ptr,r_lin_mskd.ptr);
             GpuKernels::fftshift2D<<<grd_c,blk>>>(c_linear.ptr,ss_c);
-            GpuKernels::load_surf_real_positive<<<grd_c,blk>>>(ss_lin.surface,c_linear.ptr,ss_c);
+            GpuKernels::load_surf_real<<<grd_c,blk>>>(ss_lin.surface,c_linear.ptr,ss_c);
             GpuKernelsCtf::tangential_blur<<<grd_c,blk>>>(ss_pow_spct.ptr,ss_lin.texture,ss_c);
+            GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_pow_spct.ptr,ss_c);
+            GpuKernelsCtf::radial_edge_detect<<<grd_c,blk>>>(ss_pow_spct.ptr,ss_lin.texture,ss_c);
             GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_pow_spct.ptr,def_lin_range,ss_c);
         }
 
         void sum_z() {
             GpuKernelsCtf::sum_along_z<<<grd_c,blk>>>(ss_ps_sum_z.ptr,ss_pow_spct.ptr,ss_c);
         }
+
+        void load_def_range(float def_u_fpix,float def_v_fpix,float def_ang,float tlt_fpix,Tomogram*p_tomo) {
+            for(int k=0;k<ss_c.z;k++) {
+                V3f euZYZ;
+                Math::Rmat_eZYZ(euZYZ,p_tomo->R[k]);
+                c_def[k].x = def_u_fpix;
+                c_def[k].y = def_v_fpix;
+                c_def[k].z = def_ang;
+                c_def[k].w = 6.0*(1-abs(cos(euZYZ(1)))) + tlt_fpix;
+            }
+            cudaMemcpy( (void*)g_def.ptr, (const void*)(c_def), sizeof(float4)*ss_c.z, cudaMemcpyHostToDevice);
+        }
+
+        void apply_def_range() {
+            GpuKernelsCtf::mask_ellipsoid<<<grd_c,blk>>>(ss_pow_spct.ptr,g_def.ptr,ss_c);
+        }
+
     };
 
     class FitEllipse {
@@ -478,7 +507,7 @@ protected:
             fclose(fp);
         }
 
-        void get_max_env_for_final_rslt(float*p_out,const float*ctf_env,float4*ctf_info) {
+        void get_max_env_for_final_rslt(float2*p_out,const float*ctf_env,float4*ctf_info) {
             for(int k=0;k<K;k++) {
                 int min_ix = get_initial_ix(ctf_info[k].y);
                 float nrm_max = 0;
@@ -489,7 +518,8 @@ protected:
                         }
                     }
                 }
-                p_out[k] = nrm_max;
+                p_out[k].x = nrm_max;
+                p_out[k].y = min_ix;
             }
         }
 
@@ -567,7 +597,7 @@ protected:
     public:
         float *c_rslt;
         float *c_env;
-        float *c_min_ix;
+        float2 *c_min_ix;
         int N;
         int M;
         int K;
@@ -578,7 +608,7 @@ protected:
         dim3 grd_r;
         GPU::GArrSingle g_rslt;
         GPU::GArrSingle g_env;
-        GPU::GArrSingle g_min_ix;
+        GPU::GArrSingle2 g_min_ix;
 
         Result(int m, int n, int k) {
             M = m;
@@ -596,7 +626,7 @@ protected:
 
             c_rslt = new float[N*N*K];
             c_env = new float[M*K];
-            c_min_ix = new float[N*K];
+            c_min_ix = new float2[K];
         }
 
         ~Result() {
@@ -615,7 +645,7 @@ protected:
         }
 
         void gen_fitting_result(const float*g_ctf_avg,const float4*g_def_inf,const float apix,const float lambda_pi,const float lambda3_Cs_pi_2,const float ac) {
-            cudaMemcpy( (void*)g_min_ix.ptr, (const void*)(c_min_ix), sizeof(float)*K, cudaMemcpyHostToDevice);
+            cudaMemcpy( (void*)g_min_ix.ptr, (const void*)(c_min_ix), sizeof(float2)*K, cudaMemcpyHostToDevice);
             GpuKernelsCtf::vis_copy_data<<<grd_r,blk>>>(g_rslt.ptr,g_ctf_avg,g_env.ptr,g_min_ix.ptr,ss_r);
             GpuKernelsCtf::vis_add_ctf<<<grd_r,blk>>>(g_rslt.ptr,g_def_inf,apix,lambda_pi,lambda3_Cs_pi_2,ac,ss_r);
         }
@@ -628,6 +658,7 @@ public:
     float2 *lin_mask;
     float2 *rad_shell_energy;
     float4 *c_def_inf;
+    float4 *c_def_rslt;
     float  *p_rad_avg;
     float  *p_rad_env;
     float  *p_ps_lin_avg;
@@ -705,6 +736,7 @@ public:
         p_rad_avg = new float[int(N*K)];
         p_rad_env = new float[int(N*K)];
         c_def_inf = new float4[int(K)];
+        c_def_rslt = new float4[int(K)];
         p_ps_lin_avg = new float[int(M*N)];
         p_final_rslt = new float[int(N*N*K)];
         rad_shell_energy = new float2[int(K)];
@@ -743,6 +775,7 @@ public:
         delete [] p_rad_avg;
         delete [] p_rad_env;
         delete [] c_def_inf;
+        delete [] c_def_rslt;
         delete [] p_ps_lin_avg;
         delete [] rad_shell_energy;
         delete [] p_final_rslt;
@@ -798,6 +831,8 @@ public:
         for(int k=0;k<K;k++) {
             rad_shell_energy[k].x =  0;
             rad_shell_energy[k].y = -1;
+
+            c_def_rslt[k].w = -1;
         }
 
         Normal ctf_normal(M,N,K);
@@ -824,13 +859,17 @@ public:
         printf("          - Average defocus (Angstroms): U=%.2f, V=%.2f, angle=%.1f.\n",
                avg_def.x*ix2def,avg_def.y*ix2def,avg_def.z*180.0/M_PI);
 
+        ctf_linear.load_def_range(avg_def.x,avg_def.y,avg_def.z,tlt_fpix,p_tomo);
+
         for(int i=0;i<5;i++) {
             char tmp[1024];
 
             // (1:5)/8 = ~(0.125:0.125:0.625)
-            float factor = float(i+1)/8;
+            // (1:5)/9 = ~(0.111:0.111:0.556)
+            float factor = float(i+1)/9;
             set_lin_range(min_lin_r_px,min_lin_r_px+factor*delta_lin_r_px);
             ctf_linear.mask_and_power_spectrum(ss_lin_mask.ptr,def_lin_range);
+            ctf_linear.apply_def_range();
 
             sprintf(tmp,"ctf_ps_lin_%d.mrc",i);
             save_gpu_mrc(input,ctf_linear.ss_pow_spct.ptr,M,N,K,out_dir,tmp,3);
@@ -852,11 +891,22 @@ public:
                 c_def_inf[k].y *= ix2def;
             }
             fit_ctf.load_ctf_avg(p_rad_avg,p_rad_env);
-            fit_ctf.update_energy_shell(rad_shell_energy,c_def_inf,factor,fpix_range);
+            fit_ctf.estimate(c_def_inf,ref_range,ref_step,fpix_range);
+
+            for(int k=0;k<K;k++) {
+                if( (c_def_rslt[k].w < 0) || (c_def_inf[k].w < c_def_rslt[k].w) ) {
+                    c_def_rslt[k].x = c_def_inf[k].x;
+                    c_def_rslt[k].y = c_def_inf[k].y;
+                    c_def_rslt[k].z = c_def_inf[k].z;
+                    c_def_rslt[k].w = c_def_inf[k].w;
+                    rad_shell_energy[k].x = factor;
+                }
+            }
         }
 
         set_lin_range(min_lin_r_px,delta_lin_r_px,rad_shell_energy);
         ctf_linear.mask_and_power_spectrum(ss_lin_mask.ptr,def_lin_range);
+        ctf_linear.apply_def_range();
         save_gpu_mrc(input,ctf_linear.ss_pow_spct.ptr,M,N,K,out_dir,"ctf_ps_lin.mrc",1);
 
         for(int k=0;k<K;k++) {
