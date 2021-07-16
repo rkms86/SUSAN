@@ -140,6 +140,22 @@ void sum(double2*ptr_out, const double2*ptr_in, const uint32 length) {
 }
 #endif
 
+void sort(float*data,const uint32 length) {
+    int i,j;
+    float key;
+    for(i=1;i<length;i++) {
+        key = data[i];
+        j = i-1;
+
+        while(j>=0 && data[j]>key) {
+            data[j+1] = data[j];
+            j--;
+        }
+
+        data[j+1] = key;
+    }
+}
+
 void mul(float*out,const float*in,const uint32 length) {
 
     uint32 i;

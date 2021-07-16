@@ -241,25 +241,28 @@ __global__ void load_surf_real_positive(cudaSurfaceObject_t out_surf,const float
     }
 }
 
-__global__ void conv_gaussian(float*p_out,const float*p_in,const int3 ss_siz) {
+__global__ void conv_gaussian(float*p_out,const float*p_in,float num,float scl,const int3 ss_siz) {
+    ///    num    scl:
+    /// 0.5000, 6.2831
+    /// 0.2500,12.5372
+    /// 0.1250,23.9907
 
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-        float num = -0.5774;
-        float scl = 5.3885;
-
         float val = 0;
 
-        for(int y=-2;y<3;y++) {
-            for(int x=-2;x<3;x++) {
+        for(int y=-4;y<5;y++) {
+            for(int x=-4;x<5;x++) {
                 float r = l2_distance(x,y);
-                float wgt = exp(num*r*r)/scl;
+                float wgt = exp(-num*r*r)/scl;
                 int X = ss_idx.x + x;
                 int Y = ss_idx.y + y;
-                if( X < 0 )
+                if( X < 0 ) {
                     X = -X;
+                    Y = ss_siz.y-Y;
+                }
                 if( Y < 0 )
                     Y = -Y;
                 if( X >= ss_siz.x )

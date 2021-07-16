@@ -380,21 +380,20 @@ __global__ void radial_edge_detect(float*p_out, cudaTextureObject_t texture, con
         float R = l2_distance(x,y);
         float val = 0;
 
-        if( R > 1 && R < Nh) {
+        if( R > 2 && R < Nh-1) {
             float x_n = x/R;
             float y_n = y/R;
-            float x_t,y_t;
 
-            x_t = (float)(ss_idx.x) + 0.5;
-            y_t = (float)(ss_idx.y) + 0.5;
-            val = tex2DLayered<float>(texture, x_t, y_t, ss_idx.z);
+            float x_t = (float)(ss_idx.x) + 0.5;
+            float y_t = (float)(ss_idx.y) + 0.5;
 
-            x_t  = (float)(ss_idx.x) + x_n + 0.5;
-            y_t  = (float)(ss_idx.y) + y_n + 0.5;
-            val -= tex2DLayered<float>(texture, x_t, y_t, ss_idx.z);
+            val  = 0.2*tex2DLayered<float>(texture, x_t-x_n, y_t-y_n, ss_idx.z);
+            val += 0.8*tex2DLayered<float>(texture, x_t    , y_t    , ss_idx.z);
+            val -= 0.8*tex2DLayered<float>(texture, x_t+x_n, y_t+y_n, ss_idx.z);
+            val -= 0.2*tex2DLayered<float>(texture, x_t+2*x_n, y_t+2*y_n, ss_idx.z);
         }
 
-        p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
+        p_out[ get_3d_idx(ss_idx,ss_siz) ] = fmaxf(val,0);
 
     }
 }
