@@ -602,7 +602,7 @@ __global__ void vis_copy_data(float*p_out,const float*p_in,const float*p_env,con
                 y = y+Nh;
                 val = p_in[ x + y*M + ss_idx.z*N*M ];
                 val = val/(2*env) + 0.5;
-                //val = fminf(fmaxf(val,0),1);
+                val = fminf(fmaxf(val,0),1);
             }
 
             p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;

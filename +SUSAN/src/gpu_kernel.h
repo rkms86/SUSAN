@@ -441,6 +441,21 @@ __global__ void apply_circular_mask(float*p_out,const float*p_in,const float2*p_
     }
 }
 
+__global__ void stk_scale(float*p_data,const float2*p_bp,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        long idx = get_3d_idx(ss_idx,ss_siz);
+        float val = p_data[idx];
+        float w = p_bp[ss_idx.z].y;
+        w = M_PI*w*w;
+        val = p_data[ idx ]/w;
+        p_data[idx] = val;
+    }
+}
+
 __global__ void load_abs(float*p_out,const float2*p_in,const int3 ss_siz) {
 	
 	int3 ss_idx = get_th_idx();
