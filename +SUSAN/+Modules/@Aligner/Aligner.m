@@ -279,6 +279,8 @@ methods
             obj.ctf_type = 'wiener_white';
         elseif( strcmpi(type,'wiener_phase') )
             obj.ctf_type = 'wiener_phase';
+        elseif( strcmpi(type,'cfsc') )
+            obj.ctf_type = 'cfsc';
         else
             error('Invalid correction type. Accepted values: none, on_reference, on_substack, and wiener_ssnr');
         end

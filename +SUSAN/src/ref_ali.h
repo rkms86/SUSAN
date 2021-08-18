@@ -19,119 +19,170 @@
 #include "aligner_args.h"
 #include <iostream>
 
+class RadialAverager {
+public:
+    int N;
+    int M;
+    int maxK;
+
+    GPU::GArrSingle  rad_avg;
+    GPU::GArrSingle  rad_wgt;
+
+    RadialAverager(int m,int n,int k)  {
+        N  = n;
+        M  = m;
+        maxK = k;
+
+        rad_avg.alloc(M*maxK);
+        rad_wgt.alloc(M*maxK);
+    }
+
+    void preset_FRC(GPU::GArrSingle2&data,int k,GPU::Stream&stream) {
+        rad_avg.clear(stream.strm);
+        rad_wgt.clear(stream.strm);
+        stream.sync();
+        int3 ss = make_int3(M,N,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,M,N,k);
+        GpuKernels::radial_frc_avg<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,data.ptr,ss);
+        GpuKernels::radial_frc_norm<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,rad_wgt.ptr,ss);
+    }
+};
+
 class AliSubstack {
 public:
-	int N;
-	int M;
-	int P;
-	int maxK;
-	int NP;
-	int MP;
+    int N;
+    int M;
+    int P;
+    int maxK;
+    int NP;
+    int MP;
 
-	GPU::GArrSingle  ss_padded;
-	GPU::GArrSingle3 ss_vec_r;
-	GPU::GArrSingle2 ss_fourier;
-	GPU::GArrSingle  rad_avg;
-	GPU::GArrSingle  rad_wgt;
+    GPU::GArrSingle  ss_padded;
+    GPU::GArrSingle3 ss_vec_r;
+    GPU::GArrSingle2 ss_fourier;
+    GPU::GArrSingle  rad_avg;
+    GPU::GArrSingle  rad_wgt;
 
-	GpuFFT::FFT2D          fft2;
-	GpuRand::BoxMullerRand rand;
-	
-	AliSubstack(int m,int n,int k,int p,GPU::Stream&stream) : rand(n+p,n+p,k) {
-		N  = n;
-		M  = m;
-		P  = p;
-		NP = n+p;
-		MP = (NP/2)+1;
-		maxK = k;
-		
-		ss_padded.alloc(NP*NP*maxK);
-		ss_fourier.alloc(MP*NP*maxK);
+    GpuFFT::FFT2D          fft2;
+    GpuRand::BoxMullerRand rand;
 
-		rad_avg.alloc(MP*maxK);
-		rad_wgt.alloc(MP*maxK);
+    AliSubstack(int m,int n,int k,int p,GPU::Stream&stream) : rand(n+p,n+p,k) {
+        N  = n;
+        M  = m;
+        P  = p;
+        NP = n+p;
+        MP = (NP/2)+1;
+        maxK = k;
 
-		ss_vec_r.alloc(MP*NP);
-		
-		int3 ss_siz = make_int3(MP,NP,1);
-		dim3 blk2D = GPU::get_block_size_2D();
-		dim3 grd2D = GPU::calc_grid_size(blk2D,ss_siz.x,ss_siz.y,ss_siz.z);
-		GpuKernelsCtf::create_vec_r<<<grd2D,blk2D,0,stream.strm>>>(ss_vec_r.ptr,ss_siz);
-		
-		fft2.alloc(MP,NP,maxK);
-		fft2.set_stream(stream.strm);
-	}
-	
-	void pad_zero(GPU::Stream&stream) {
-		ss_padded.clear(stream.strm);
-	}
-	
-	void pad_normal(GPU::GArrSingle2&g_avg_std,int k,GPU::Stream&stream) {
-		int3 ss_pad = make_int3(NP,NP,k);
-		rand.gen_normal(ss_padded.ptr,g_avg_std.ptr,ss_pad,stream.strm);
-	}
-	
-	void add_data(GPU::GArrSingle&g_data,GPU::GArrProj2D&g_ali,int k,GPU::Stream&stream) {
-		int3 pad = make_int3(P/2,P/2,0);
-		int3 ss_raw = make_int3(N,N,k);
-		int3 ss_pad = make_int3(NP,NP,k);
-		int3 ss_fou = make_int3(MP,NP,k);
-		dim3 blk = GPU::get_block_size_2D();
-		dim3 grd_raw = GPU::calc_grid_size(blk,N,N,k);
-		dim3 grd_pad = GPU::calc_grid_size(blk,NP,NP,k);
-		dim3 grd_fou = GPU::calc_grid_size(blk,MP,NP,k);
-		GpuKernels::load_pad<<<grd_raw,blk,0,stream.strm>>>(ss_padded.ptr,g_data.ptr,pad,ss_raw,ss_pad);
-		GpuKernels::fftshift2D<<<grd_pad,blk,0,stream.strm>>>(ss_padded.ptr,ss_pad);
-                fft2.exec(ss_fourier.ptr,ss_padded.ptr);
-                GpuKernels::fftshift2D<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,ss_fou);
-		GpuKernels::subpixel_shift<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,g_ali.ptr,ss_fou);
-	}
-	
-	void correct_wiener(const CtfConst ctf_const,GPU::GArrSingle&ctf_wgt,GPU::GArrDefocus&g_def,float3 bandpass,int k,GPU::Stream&stream) {
-		int3 ss = make_int3(MP,NP,k);
-		dim3 blk = GPU::get_block_size_2D();
-		dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
-                GpuKernelsCtf::correct_stk_wiener<<<grd,blk,0,stream.strm>>>(ss_fourier.ptr,ctf_wgt.ptr,g_def.ptr,bandpass,ctf_const,ss);
-	}
+        ss_padded.alloc(NP*NP*maxK);
+        ss_fourier.alloc(MP*NP*maxK);
 
-	void correct_wiener_ssnr(const CtfConst ctf_const,GPU::GArrSingle&ctf_wgt,GPU::GArrDefocus&g_def,float3 bandpass,float2 ssnr,int k,GPU::Stream&stream) {
-		// float2  ssnr; /// x=F; y=S;
-		single ssnr_f = -100*ssnr.x/(NP*ctf_const.apix);
-		single ssnr_s = pow(10,3*ssnr.y);
-		int3 ss = make_int3(MP,NP,k);
-		dim3 blk = GPU::get_block_size_2D();
-		dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
-		GpuKernelsCtf::correct_stk_wiener_ssnr<<<grd,blk,0,stream.strm>>>(ss_fourier.ptr,ctf_wgt.ptr,g_def.ptr,ssnr_f,ssnr_s,bandpass,ctf_const,ss);
-        }
+        rad_avg.alloc(MP*maxK);
+        rad_wgt.alloc(MP*maxK);
 
-        void whitening_filter(int k,GPU::Stream&stream) {
-                whitening_filter(ss_fourier,k,stream);
-        }
+        ss_vec_r.alloc(MP*NP);
 
-        void whitening_filter(GPU::GArrSingle2&ss_data,int k,GPU::Stream&stream) {
-                rad_avg.clear(stream.strm);
-                rad_wgt.clear(stream.strm);
-                int3 ss = make_int3(MP,NP,k);
-                dim3 blk = GPU::get_block_size_2D();
-                dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
-                GpuKernels::radial_ps_avg<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,ss_data.ptr,ss);
-                GpuKernels::radial_ps_norm<<<grd,blk,0,stream.strm>>>(ss_data.ptr,rad_avg.ptr,rad_wgt.ptr,ss);
-        }
+        int3 ss_siz = make_int3(MP,NP,1);
+        dim3 blk2D = GPU::get_block_size_2D();
+        dim3 grd2D = GPU::calc_grid_size(blk2D,ss_siz.x,ss_siz.y,ss_siz.z);
+        GpuKernelsCtf::create_vec_r<<<grd2D,blk2D,0,stream.strm>>>(ss_vec_r.ptr,ss_siz);
 
-        void norm_complex(GPU::GArrSingle2&ss_data,int k,GPU::Stream&stream) {
-                int3 ss = make_int3(MP,NP,k);
-                dim3 blk = GPU::get_block_size_2D();
-                dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
-                GpuKernels::norm_complex<<<grd,blk,0,stream.strm>>>(ss_data.ptr,ss);
-                GpuKernels::apply_radial_wgt<<<grd,blk,0,stream.strm>>>(ss_data.ptr,MP,ss);
-        }
+        fft2.alloc(MP,NP,maxK);
+        fft2.set_stream(stream.strm);
+    }
 
-	void apply_radial_wgt(float w_total,int k,GPU::Stream&stream) {
-		int3 ss = make_int3(MP,NP,k);
-		dim3 blk = GPU::get_block_size_2D();
-		dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
-                GpuKernels::apply_radial_wgt<<<grd,blk,0,stream.strm>>>(ss_fourier.ptr,w_total,ss);
-	}
+    void pad_zero(GPU::Stream&stream) {
+        ss_padded.clear(stream.strm);
+    }
+
+    void pad_normal(GPU::GArrSingle2&g_avg_std,int k,GPU::Stream&stream) {
+        int3 ss_pad = make_int3(NP,NP,k);
+        rand.gen_normal(ss_padded.ptr,g_avg_std.ptr,ss_pad,stream.strm);
+    }
+
+    void add_data(GPU::GArrSingle&g_data,GPU::GArrProj2D&g_ali,int k,GPU::Stream&stream) {
+        int3 pad = make_int3(P/2,P/2,0);
+        int3 ss_raw = make_int3(N,N,k);
+        int3 ss_pad = make_int3(NP,NP,k);
+        int3 ss_fou = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd_raw = GPU::calc_grid_size(blk,N,N,k);
+        dim3 grd_pad = GPU::calc_grid_size(blk,NP,NP,k);
+        dim3 grd_fou = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernels::load_pad<<<grd_raw,blk,0,stream.strm>>>(ss_padded.ptr,g_data.ptr,pad,ss_raw,ss_pad);
+        GpuKernels::fftshift2D<<<grd_pad,blk,0,stream.strm>>>(ss_padded.ptr,ss_pad);
+        fft2.exec(ss_fourier.ptr,ss_padded.ptr);
+        GpuKernels::fftshift2D<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,ss_fou);
+        GpuKernels::subpixel_shift<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,g_ali.ptr,ss_fou);
+        //GpuKernels::fftshift2D<<<grd_pad,blk,0,stream.strm>>>(ss_padded.ptr,ss_pad);
+    }
+
+    void correct_wiener(const CtfConst ctf_const,GPU::GArrSingle&ctf_wgt,GPU::GArrDefocus&g_def,float3 bandpass,int k,GPU::Stream&stream) {
+        int3 ss = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernelsCtf::correct_stk_wiener<<<grd,blk,0,stream.strm>>>(ss_fourier.ptr,ctf_wgt.ptr,g_def.ptr,bandpass,ctf_const,ss);
+    }
+
+    void correct_wiener_ssnr(const CtfConst ctf_const,GPU::GArrSingle&ctf_wgt,GPU::GArrDefocus&g_def,float3 bandpass,float2 ssnr,int k,GPU::Stream&stream) {
+        // float2  ssnr; /// x=F; y=S;
+        single ssnr_f = -100*ssnr.x/(NP*ctf_const.apix);
+        single ssnr_s = pow(10,3*ssnr.y);
+        int3 ss = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernelsCtf::correct_stk_wiener_ssnr<<<grd,blk,0,stream.strm>>>(ss_fourier.ptr,ctf_wgt.ptr,g_def.ptr,ssnr_f,ssnr_s,bandpass,ctf_const,ss);
+    }
+
+    void whitening_filter(int k,GPU::Stream&stream) {
+        whitening_filter(ss_fourier,k,stream);
+    }
+
+    void whitening_filter(GPU::GArrSingle2&ss_data,int k,GPU::Stream&stream) {
+        rad_avg.clear(stream.strm);
+        rad_wgt.clear(stream.strm);
+        stream.sync();
+        int3 ss = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernels::radial_ps_avg<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,ss_data.ptr,ss);
+        stream.sync();
+        GpuKernels::radial_ps_norm<<<grd,blk,0,stream.strm>>>(ss_data.ptr,rad_avg.ptr,rad_wgt.ptr,ss);
+        stream.sync();
+    }
+
+    void preset_FSC(GPU::GArrSingle2&ss_data,int k,GPU::Stream&stream) {
+        rad_avg.clear(stream.strm);
+        rad_wgt.clear(stream.strm);
+        stream.sync();
+        int3 ss = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernels::radial_frc_avg<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,ss_data.ptr,ss);
+        stream.sync();
+        GpuKernels::radial_frc_norm<<<grd,blk,0,stream.strm>>>(ss_data.ptr,rad_avg.ptr,rad_wgt.ptr,ss);
+        stream.sync();
+    }
+
+    void preset_FSC(int k,GPU::Stream&stream) {
+        preset_FSC(ss_fourier,k,stream);
+    }
+
+    void norm_complex(GPU::GArrSingle2&ss_data,int k,GPU::Stream&stream) {
+        int3 ss = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernels::norm_complex<<<grd,blk,0,stream.strm>>>(ss_data.ptr,ss);
+        GpuKernels::apply_radial_wgt<<<grd,blk,0,stream.strm>>>(ss_data.ptr,MP,ss);
+    }
+
+    void apply_radial_wgt(float w_total,int k,GPU::Stream&stream) {
+        int3 ss = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernels::apply_radial_wgt<<<grd,blk,0,stream.strm>>>(ss_fourier.ptr,w_total,ss);
+    }
 
 };
 
@@ -218,12 +269,12 @@ public:
     }
 
     void project(GPU::GTex3DSingle2&ref,float3 bandpass,int k,GPU::Stream&stream) {
-        int3 ss_fou = make_int3(M,N,k);
+        //int3 ss_fou = make_int3(M,N,k);
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,M,N,k);
         GpuKernelsVol::extract_stk<<<grd,blk,0,stream.strm>>>(prj_c.ptr,ref.surface,g_ali.ptr,bandpass,M,N,k);
-        GpuKernels::divide<<<grd,blk,0,stream.strm>>>(prj_c.ptr,N*N*N,ss_fou);
-        GpuKernels::divide<<<grd,blk,0,stream.strm>>>(prj_c.ptr,N*N,ss_fou);
+        //GpuKernels::divide<<<grd,blk,0,stream.strm>>>(prj_c.ptr,N*N*N,ss_fou);
+        //GpuKernels::divide<<<grd,blk,0,stream.strm>>>(prj_c.ptr,N*N,ss_fou);
     }
 
     void invert_fourier(int k,GPU::Stream&stream) {
@@ -235,6 +286,20 @@ public:
         GpuKernels::fftshift2D<<<grd_f,blk,0,stream.strm>>>(prj_c.ptr,ss_fou);
         ifft2.exec(prj_r.ptr,prj_c.ptr);
         GpuKernels::fftshift2D<<<grd_r,blk,0,stream.strm>>>(prj_r.ptr,ss_pad);
+        GpuKernels::fftshift2D<<<grd_f,blk,0,stream.strm>>>(prj_c.ptr,ss_fou);
+    }
+
+    void scale(float scale,int k,GPU::Stream&stream) {
+        int3 ss = make_int3(N,N,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,N,N,k);
+        GpuKernels::divide<<<grd,blk,0,stream.strm>>>(prj_r.ptr,scale,ss);
+    }
+
+    void apply_bandpass(float3 bandpass,int k,GPU::Stream&stream) {
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,M,N,k);
+        GpuKernels::apply_bandpass_fourier<<<grd,blk,0,stream.strm>>>(prj_c.ptr,bandpass,M,N,k);
     }
 
     void multiply(GPU::GArrSingle&p_wgt,int k,GPU::Stream&stream) {

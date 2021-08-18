@@ -708,7 +708,7 @@ __global__ void ctf_stk_wiener( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_
                                 const CtfConst ctf_const,const Defocus*def,const float3 bandpass,const int3 ss_siz)
 {
 	
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
@@ -802,7 +802,7 @@ __global__ void create_ctf( float*g_ctf,const CtfConst ctf_const,const Defocus*d
             float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
             float ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
             if( def[ss_idx.z].Bfactor > 0 )
-            ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
+                ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
             g_ctf[get_3d_idx(ss_idx,ss_siz)] = ctf;
 
         }
@@ -822,7 +822,7 @@ __global__ void correct_stk_wiener( float2*g_data,const float*g_ctf,const Defocu
 
         float max_R = bandpass.y;
         if( def[ss_idx.z].max_res > 0 )
-        max_R = min(max_R,def[ss_idx.z].max_res);
+            max_R = min(max_R,def[ss_idx.z].max_res);
         float w = get_bp_wgt(bandpass.x,max_R,bandpass.z,R);
 
         if( w > 0.05 ) {
@@ -836,14 +836,9 @@ __global__ void correct_stk_wiener( float2*g_data,const float*g_ctf,const Defocu
 
             val.x = w*ctf*val.x;
             val.y = w*ctf*val.y;
-            ctf *= ctf;
-            if( ctf < 0.0001 ) {
-                ctf   = 1;
-                val.x = 0;
-                val.y = 0;
-            }
-            val.x = val.x/ctf;
-            val.y = val.y/ctf;
+            ctf *= w*ctf;
+            val.x = val.x/(ctf+0.01);
+            val.y = val.y/(ctf+0.01);
         }
 
         g_data[ix] = val;
@@ -881,13 +876,8 @@ __global__ void correct_stk_wiener_ssnr( float2*g_data,const float*g_ctf,const D
             val.y = w*ctf*val.y;
             ctf *= ctf;
             ctf += calc_ssnr(R,ssnr_F,ssnr_S);
-            if( ctf < 0.0001 ) {
-                ctf   = 1;
-                val.x = 0;
-                val.y = 0;
-            }
-            val.x = val.x/ctf;
-            val.y = val.y/ctf;
+            val.x = val.x/(ctf+0.001);
+            val.y = val.y/(ctf+0.001);
         }
 
         g_data[ix] = val;

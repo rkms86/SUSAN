@@ -30,7 +30,8 @@ typedef enum {
     ON_SUBSTACK,
     ON_SUBSTACK_SSNR,
     ON_SUBSTACK_WHITENING,
-    ON_SUBSTACK_PHASE
+    ON_SUBSTACK_PHASE,
+    CUMULATIVE_FSC
 } CtfCorrectionType_t;
 
 typedef enum {
@@ -159,6 +160,11 @@ uint32 get_ctf_type(const char*arg) {
 
     if( strcmp(arg,"wiener_phase") == 0 ) {
         rslt = ON_SUBSTACK_PHASE;
+        all_ok = true;
+    }
+
+    if( strcmp(arg,"cfsc") == 0 ) {
+        rslt = CUMULATIVE_FSC;
         all_ok = true;
     }
 
@@ -555,7 +561,11 @@ void print(const Info&info,FILE*fp=stdout) {
     if( info.ctf_type == ON_SUBSTACK_SSNR )
         fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
     if( info.ctf_type == ON_SUBSTACK_WHITENING )
-        fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion with whitening filter.\n");
+        fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion with whitening filter (experimental).\n");
+    if( info.ctf_type == ON_SUBSTACK_PHASE )
+        fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion with phase cross-correlation (experimental).\n");
+    if( info.ctf_type == CUMULATIVE_FSC )
+        fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion with cumulative FSC (experimental).\n");
 
     if( info.norm_type == NO_NORM )
         fprintf(stdout,"\t\tSubstack normalization policy: Disabled.\n");

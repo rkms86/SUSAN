@@ -217,7 +217,6 @@ __global__ void load_surf_abs(cudaSurfaceObject_t out_surf,const float2*p_in,con
     }
 }
 
-
 __global__ void load_surf_real(cudaSurfaceObject_t out_surf,const float2*p_in,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
@@ -482,8 +481,8 @@ __global__ void radial_ps_avg(float*p_avg,float*p_wgt,const float*p_in,const int
         int   r = (int)roundf(R);
         int idx = r + ss_siz.x*ss_idx.z;
         if( r < ss_siz.x ) {
-                atomicAdd(p_avg + idx,val);
-                atomicAdd(p_wgt + idx,1.0);
+            atomicAdd(p_avg + idx,val);
+            atomicAdd(p_wgt + idx,1.0);
         }
     }
 }
@@ -500,7 +499,7 @@ __global__ void radial_ps_avg(float*p_avg,float*p_wgt,const float2*p_in,const in
         float  R = l2_distance(x,y);
         int    r = (int)roundf(R);
         int  idx = r + ss_siz.x*ss_idx.z;
-        float out = l2_distance(val.x,val.y);
+        float out = cuCabsf(val);
         if( r < ss_siz.x ) {
             atomicAdd(p_avg + idx,out);
             atomicAdd(p_wgt + idx,1.0);
@@ -555,12 +554,63 @@ __global__ void radial_ps_norm(float2*p_data,const float*p_avg,const float*p_wgt
 
             wgt = max(wgt,1.0);
             avg = avg/wgt;
-            if( avg < 0.0001 )
-                avg = 1.0;
 
-            val.x = val.x/avg;
-            val.y = val.y/avg;
+            if( avg > 1e-7 ) {
+                val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
+                val.x = val.x/avg;
+                val.y = val.y/avg;
+            }
+            p_data[ get_3d_idx(ss_idx,ss_siz) ] = val;
+        }
+    }
+}
 
+__global__ void radial_frc_avg(float*p_avg,float*p_wgt,const float2*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float2 val = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+        float  x = ss_idx.x;
+        float  y = ss_idx.y-ss_siz.y/2;
+        float  R = l2_distance(x,y);
+        int    r = (int)roundf(R);
+        int  idx = r + ss_siz.x*ss_idx.z;
+        float out = val.x*val.x + val.y*val.y;
+        if( r < ss_siz.x ) {
+            atomicAdd(p_avg + idx,out);
+            atomicAdd(p_wgt + idx,1.0);
+        }
+    }
+}
+
+__global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wgt,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float2 val = {0,0};
+        float  x = ss_idx.x;
+        float  y = ss_idx.y-ss_siz.y/2;
+        float  R = l2_distance(x,y);
+        int    r = (int)roundf(R);
+
+        if( r < ss_siz.x ) {
+            int  idx = r + ss_siz.x*ss_idx.z;
+            float avg = p_avg[idx];
+            float wgt = p_wgt[idx];
+
+            wgt = max(wgt,1.0);
+            avg = avg/wgt;
+
+            if( avg > 1e-7 ) {
+                val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
+                avg = sqrt(avg);
+                val.x = val.x/avg;
+                val.y = val.y/avg;
+            }
             p_data[ get_3d_idx(ss_idx,ss_siz) ] = val;
         }
     }
@@ -590,6 +640,19 @@ __global__ void divide(float2*p_avg,const float wgt,const int3 ss_siz) {
         float2 val = p_avg[ idx ];
         val.x = val.x/wgt;
         val.y = val.y/wgt;
+        p_avg[ idx ] = val;
+    }
+}
+
+__global__ void divide(float*p_avg,const float wgt,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        int idx = get_3d_idx(ss_idx,ss_siz);
+        float val = p_avg[ idx ];
+        val = val/wgt;
         p_avg[ idx ] = val;
     }
 }
@@ -780,6 +843,31 @@ __global__ void apply_radial_wgt(float2*p_data,const float w_total,const int3 ss
         p_data[ idx ] = val;
     }
 }
+
+__global__ void apply_bandpass_fourier(float2*p_w,const float3 bandpass,const int M, const int N, const int K)
+{
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < K ) {
+
+        long idx = ss_idx.x + M*ss_idx.y + M*N*ss_idx.z;
+
+        float2 val = {0,0};
+
+        float R = l2_distance(ss_idx.x,ss_idx.y - N/2);
+        float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+
+        if( bp > 0.05 ) {
+            val = p_w[ idx ];
+            val.x *= bp;
+            val.y *= bp;
+        }
+
+        p_w[ idx ] = val;
+    }
+}
+
+
 
 __global__ void norm_complex(float2*p_data,const int3 ss_siz) {
 

@@ -141,7 +141,7 @@ methods
         
         
         %%% PARTICLES SELECTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        ptcls_count = obj.exec_selection(cur_part,tmp_part);
+        ptcls_count = obj.exec_selection(cur_part,tmp_part,fp_log);
         
         
         %%% RECONSTRUCTIONS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -279,32 +279,6 @@ methods
         end
         
     end
-    
-%     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%     function show_proj_cc(obj,iter_number)
-%         
-%         if( obj.check_iteration_exists(iter_number) )
-%             
-%             [~,part_file] = obj.get_iterations_files(iter_number);
-%             ptcls = SUSAN.Data.ParticlesInfo(part_file);
-%             
-%             if( any( ptcls.prj_cc(:) > 0 ) )
-%                 h = boxplot(permute(ptcls.prj_cc,[3 1 2]),'Symbol','r.','Widths',0.6,'OutlierSize',3,'Notch','on');
-%                 set(h,{'linew'},{1.5});
-%                 set(findobj(h,'LineStyle','--'),'LineStyle','-');
-%                 grid on;
-%                 set(gcf,'Position',[500 500 (180+20*size(ptcls.prj_cc,1)) 500]);
-%                 title('Cross-correlation per projection');
-%                 yticklabels('');
-%                 xlabel('Projection');
-%                 ylabel('Relative cross-correlation');
-%             end
-%             
-%         else
-%             error('Iteration does not exist.');
-%         end
-%         
-%     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function ptcls = get_ptcls(obj,iter_number)
@@ -541,7 +515,7 @@ methods(Access=private)
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    function ptcls_count = exec_selection(obj,ptcls_out,ptcls_tmp)
+    function ptcls_count = exec_selection(obj,ptcls_out,ptcls_tmp,fp_log)
         
         fprintf('  [Aligned particles] Processing:\n');
         
@@ -582,6 +556,7 @@ methods(Access=private)
         
         tmp = ptcls.select( ptcls.half_id > 0 );
         tmp.save(ptcls_tmp);
+        obj.log_selection(fp_log,num_classes,ptcls_count);
         fprintf('  [Aligned particles] Done.\n');
         
     end
@@ -711,6 +686,21 @@ methods(Access=private)
     function log_align_ends(~,fp_log,exec_time)
         fprintf(fp_log,'    Finished at %s.\n',datestr(now(),'yyyy.mm.dd HH:MM:SS.FFF'));
         fprintf(fp_log,'    Execution time: %.1f seconds (%s).\n',exec_time,datestr(datenum(0,0,0,0,0,exec_time),'HH:MM:SS.FFF'));
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function log_selection(~,fp_log,num_classes,ptcls_count)
+        if( num_classes > 1 )
+            fprintf(fp_log,'- Aligned particles processing (%d references):\n',num_classes);
+        else
+            fprintf(fp_log,'- Aligned particles processing (1 reference):\n');
+        end
+        
+        for i = 1:num_classes
+            fprintf(fp_log,'    Class %d: %d particles\n',i,ptcls_count(i,1)+ptcls_count(i,2));
+            fprintf(fp_log,'      Half 1: %d particles\n',  ptcls_count(i,1));
+            fprintf(fp_log,'      Half 2: %d particles\n',  ptcls_count(i,2));
+        end
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

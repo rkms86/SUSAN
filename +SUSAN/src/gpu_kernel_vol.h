@@ -199,23 +199,23 @@ __global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pT
 
 __global__ void invert_wgt(double*p_data,const int3 ss_siz) {
 	
-        int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-                long idx = get_3d_idx(ss_idx,ss_siz);
+        long idx = get_3d_idx(ss_idx,ss_siz);
 
-                double data = p_data[idx];
+        double data = p_data[idx];
 
-                if( abs(data) < 0.0001 ) {
-                        if( data<0 )
-                                data = -1.0;
-                        else
-                                data =  1.0;
-                }
-
-                p_data[idx] = 1/data;
+        if( abs(data) < 0.0001 ) {
+            if( data<0 )
+                data = -1.0;
+            else
+                data =  1.0;
         }
+
+        p_data[idx] = 1/data;
+    }
 }
 
 __global__ void inv_wgt_ite_sphere(double*p_vol_wgt,const int3 ss_siz) {
@@ -287,7 +287,8 @@ __global__ void inv_wgt_ite_divide(double*p_vol_wgt, const double*p_conv,const i
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
         long idx = get_3d_idx(ss_idx,ss_siz);
         double den = p_conv[idx];
-        den = fmax(den,1e-4);
+        //den = fmax(den,1e-4);
+        den = den + 0.01;
         p_vol_wgt[ idx ] = p_vol_wgt[ idx ] / den;
     }
 }

@@ -4,7 +4,7 @@ properties
     R single
     W single
 end
-    
+
 methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function obj = fsc_filter(N)

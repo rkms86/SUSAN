@@ -491,11 +491,17 @@ public:
 		if( info->rec_halves )
 			R = 2*R;
 		memset(progress_buffer,' ',66);
-		memset(progress_clear,'\b',66);
+                memset(progress_clear,'\b',66);
 		progress_buffer[66] = 0;
 		progress_buffer[67] = 0;
-		progress_clear [66] = '\r';
+                if( SUSAN_CARRIER_RETURN == '\r' ) {
+                    progress_clear [66] = SUSAN_CARRIER_RETURN;
+                }
+                else {
+                    progress_clear [65] = 0;
+                }
 		progress_clear [67] = 0;
+
 	}
 	
 	~RecPool() {
@@ -558,7 +564,7 @@ protected:
 		sprintf(progress_buffer,"        Filling fourier space: Buffering...");
 		int n = strlen(progress_buffer);
 		progress_buffer[n]  = ' ';
-		progress_buffer[65] = 0;
+                progress_buffer[65] = 0;
 		printf(progress_buffer);
 		fflush(stdout);
 	}
@@ -566,19 +572,19 @@ protected:
         virtual void show_progress(const int ptcls_in_tomo) {
 		int cur_progress=0;
 		while( (cur_progress=count_progress()) < ptcls_in_tomo ) {
-			memset(progress_buffer,' ',66);
+                        memset(progress_buffer,' ',66);
 			if( cur_progress > 0 ) {
 				int progress = count_accumul();
 				float progress_percent = 100*(float)progress/float(n_ptcls);
 				sprintf(progress_buffer,"        Filling fourier space: %6.2f%%%%",progress_percent);
 				int n = strlen(progress_buffer);
-				add_etc(progress_buffer+n,progress,n_ptcls);
+                                add_etc(progress_buffer+n,progress,n_ptcls);
 			}
 			else {
 				sprintf(progress_buffer,"        Filling fourier space: Buffering...");
 				int n = strlen(progress_buffer);
 				progress_buffer[n]  = ' ';
-				progress_buffer[65] = 0;
+                                progress_buffer[65] = 0;
 			}
 			printf(progress_clear);
 			fflush(stdout);
