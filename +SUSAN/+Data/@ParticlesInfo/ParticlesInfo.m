@@ -346,7 +346,7 @@ methods
     
         if( obj.n_refs() > 1 )
             
-            error(['Particles has ' num2str(obj.n_refs()) ' classes. It must have just 1.' ]);
+            error(['Particles has ' num2str(obj.n_refs()) ' classes. It must have only 1.' ]);
         end
         
         obj.position = obj.position + obj.ali_t;

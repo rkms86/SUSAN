@@ -150,7 +150,7 @@ methods
         %%% IF SELECTED, ALIGN THE HALFMAPS AND RE-RECONSTRUCT %%%%%%%%%%%%
         if( obj.align_references && obj.aligner.halfsets )
             obj.exec_align_references(cur_part,cur_refs,fp_log);
-            ptcls_count = obj.exec_selection(cur_part,tmp_part);
+            ptcls_count = obj.exec_selection(cur_part,tmp_part,fp_log);
             obj.exec_averaging(cur_refs,cur_dir,tmp_part,prv_refs,ptcls_count,fp_log);
         end
         

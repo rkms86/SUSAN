@@ -11,11 +11,12 @@ methods
     
         N = single(N);
         Nh = N/2;
-        obj.W = ones(Nh,1);
         
         [X,Y,Z] = meshgrid(-Nh:(Nh-1),-Nh:(Nh-1),-Nh:(Nh-1));
         obj.R = min(sqrt( X.^2 + Y.^2 + Z.^2 ) + 1, Nh);
         obj.R = fftshift(obj.R);
+        
+        obj.W = ones(size(obj.R));
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -40,6 +41,12 @@ methods
         end
         w = fsc_in./( fsc_in + tau*(1-fsc_in) );
         obj.W = interp1(w,obj.R);
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function set_identity(obj)
+    
+        obj.W(:) = 1;
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
