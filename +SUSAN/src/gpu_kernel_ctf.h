@@ -591,14 +591,13 @@ __global__ void vis_copy_data(float*p_out,const float*p_in,const float*p_env,con
 
             float r = l2_distance(x,y);
 
-            if( x*y >= 0 && r < Nh ) {
+            if( x >= 0 && r < Nh ) {
                 r = fminf(r,Nh);
                 float env = p_env[((int)r)+ss_idx.z*M];
                 if( r > p_env_min[ss_idx.z].y ) {
                     env = p_env_min[ss_idx.z].x;
                 }
-                if( x < 0 ) x = -x;
-                if( y < 0 ) y = -y;
+                if( x < 0 ) { x = -x; y = -y; }
                 y = y+Nh;
                 val = p_in[ x + y*M + ss_idx.z*N*M ];
                 val = val/(2*env) + 0.5;
@@ -623,7 +622,7 @@ __global__ void vis_add_ctf(float*p_out,const float4*p_def_inf,const float apix,
         int y = ss_idx.y-Nh;
         float R = l2_distance(x,y);
 
-        if( x*y < 0 && R < Nh ) {
+        if( x < 0 && R < Nh ) {
             float s2 = calc_s(R,N,apix);
             s2 *= s2;
             float s4 = s2*s2;
