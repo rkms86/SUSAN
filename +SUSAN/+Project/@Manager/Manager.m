@@ -75,12 +75,12 @@ methods
         obj.aligner = SUSAN.Modules.Aligner;
         obj.aligner.set_ctf_correction('on_reference',1,0);
         obj.aligner.set_padding_policy('noise');
-        obj.aligner.set_normalization('zm');
+        obj.aligner.set_normalization('zm1s');
         
         obj.averager = SUSAN.Modules.Averager;
         obj.averager.set_ctf_correction('wiener',0.5,0);
         obj.averager.set_padding_policy('noise');
-        obj.averager.set_normalization('zm');
+        obj.averager.set_normalization('zm1s');
         obj.averager.rec_halves = true;
         obj.averager.bandpass.highpass = 0;
         obj.averager.bandpass.lowpass  = obj.box_size/2-1;
@@ -510,7 +510,7 @@ methods(Access=private)
                 error('Aligner crashed.');
             end
             t = toc;
-            fprintf('  [3D Alignment] Finished using %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
+            fprintf('  [3D Alignment] Finished in %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
             obj.log_align_ends(fp_log,t);
         elseif( obj.alignment_type == 2 )
             fprintf('  [2D Alignment] Start:\n');
@@ -523,7 +523,7 @@ methods(Access=private)
                 error('Aligner crashed.');
             end
             t = toc;
-            fprintf('  [2D Alignment] Finished using %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
+            fprintf('  [2D Alignment] Finished in %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
             obj.log_align_ends(fp_log,t);
         else
             fprintf(fp_log,'Invalid alignment type. Supported values: 2 and 3 (for 2D and 3D)\n');
@@ -594,7 +594,7 @@ methods(Access=private)
             error('Reconstruction crashed.');
         end
         t = toc;
-        fprintf('  [Reconstruct Maps] Finished using %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
+        fprintf('  [Reconstruct Maps] Finished in %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
         obj.log_reconstruct_time(fp_log,t);
         
         delete([cur_dir '/tmp.ptclsraw']);
@@ -628,7 +628,7 @@ methods(Access=private)
             error('Reference aligner crashed.');
         end
         t = toc;
-        fprintf('  [References Alignment] Finished using %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
+        fprintf('  [References Alignment] Finished in %.1f seconds (%s).\n',t,datestr(datenum(0,0,0,0,0,t),'HH:MM:SS.FFF'));
         obj.log_refs_align_ends(fp_log,t);
     end
     
