@@ -5,6 +5,8 @@ function xf = read_xf(xfname)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % This file is part of the Substack Analysis (SUSAN) framework.
 % Copyright (c) 2018-2021 Ricardo Miguel Sanchez Loayza.
+% Max Planck Institute of Biophysics
+% Department of Structural Biology - Kudryashev Group.
 % 
 % This program is free software: you can redistribute it and/or modify
 % it under the terms of the GNU Affero General Public License as
