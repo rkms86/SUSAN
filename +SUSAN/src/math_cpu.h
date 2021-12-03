@@ -574,7 +574,7 @@ void denoise_l0(float*p_out,const float*p_in,const uint32 length,const float lam
     else {*/
         int i=0;
         for(i=0;i<length;i++) {
-            p_out[i] = rho*min(p_in[i]-lambda,0.0f)+(1-rho)*p_in[i];
+            p_out[i] = rho*fmin(p_in[i]-lambda,0.0f)+(1-rho)*p_in[i];
         }
     //}
 }
