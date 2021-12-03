@@ -1,6 +1,8 @@
 /*
  * This file is part of the Substack Analysis (SUSAN) framework.
  * Copyright (c) 2018-2021 Ricardo Miguel Sanchez Loayza.
+ * Max Planck Institute of Biophysics
+ * Department of Structural Biology - Kudryashev Group.
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -302,7 +304,7 @@ protected:
         //if( flag ) {
         //    flag = false;
         //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        if( ptr->ptcl.ptcl_id() == 1 ) {
+        /*if( ptr->ptcl.ptcl_id() == 1 ) {
             stream.sync();
             float*tmp = new float[NP*NP*ptr->K];
             GPU::download_async(tmp,ss_data.ss_padded.ptr,NP*NP*ptr->K,stream.strm);
@@ -311,7 +313,7 @@ protected:
             sprintf(filename,"data_%02d.mrc",ptr->r_ix);
             Mrc::write(tmp,NP,NP,ptr->K,filename);
             delete [] tmp;
-        }
+        }*/
 
         switch( ctf_type ) {
             case ArgsAli::CtfCorrectionType_t::ON_SUBSTACK:

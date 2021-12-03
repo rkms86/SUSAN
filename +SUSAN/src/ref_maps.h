@@ -1,6 +1,8 @@
 /*
  * This file is part of the Substack Analysis (SUSAN) framework.
  * Copyright (c) 2018-2021 Ricardo Miguel Sanchez Loayza.
+ * Max Planck Institute of Biophysics
+ * Department of Structural Biology - Kudryashev Group.
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -79,9 +81,9 @@ public:
 
             if( get_box_size(ref_info.mask) == box_size ) {
                 mask = load_mrc(ref_info.mask);
-                Math::mul(map,mask,numel);
-                if(half_A!=NULL) Math::mul(half_A,mask,numel);
-                if(half_B!=NULL) Math::mul(half_B,mask,numel);
+                //Math::mul(map,mask,numel);
+                //if(half_A!=NULL) Math::mul(half_A,mask,numel);
+                //if(half_B!=NULL) Math::mul(half_B,mask,numel);
             }
 
             float avg,std;
@@ -92,7 +94,7 @@ public:
                         fprintf(stderr,"Error normalizing map %s\n",ref_info.map);
                         exit(1);
                     }
-                    //Math::mul(map,mask,numel);
+                    Math::mul(map,mask,numel);
                 }
 
                 if( half_A != NULL ) {
@@ -101,7 +103,7 @@ public:
                         fprintf(stderr,"Error normalizing map %s\n",ref_info.h1);
                         exit(1);
                     }
-                    //Math::mul(half_A,mask,numel);
+                    Math::mul(half_A,mask,numel);
                 }
 
                 if( half_B != NULL ) {
@@ -110,7 +112,7 @@ public:
                         fprintf(stderr,"Error normalizing map %s\n",ref_info.h2);
                         exit(1);
                     }
-                    //Math::mul(half_A,mask,numel);
+                    Math::mul(half_A,mask,numel);
                 }
             }
 
