@@ -24,6 +24,6 @@ ix_x = (1:l) + ceil( (size(vol_in,1)-l)/2 );
 ix_y = (1:l) + ceil( (size(vol_in,2)-l)/2 );
 ix_z = (1:l) + ceil( (size(vol_in,3)-l)/2 );
 
-vol_out = in(ix_x,ix_y,ix_z);
+vol_out = vol_in(ix_x,ix_y,ix_z);
 
 end

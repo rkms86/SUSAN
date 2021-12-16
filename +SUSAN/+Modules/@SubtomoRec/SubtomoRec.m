@@ -7,6 +7,7 @@ classdef SubtomoRec < handle
 %    padding         - (uint32) extra padding for the internal reconstruction.
 %    inversion       - (struct) parameters for the W-matrix inversion.
 %    threads_per_gpu - (scalar) [experimental] multiple threads per GPU.
+%    use_alignment   - (boolean) Use alignment information. Deafult: false.
 % 
 % SUSAN.Modules.Averager Properties (Read-Only/set by methods):
 %    pad_type  - (string) Type of padding (zero/NOISE).
@@ -59,6 +60,7 @@ properties
     padding         uint32  = 32;
     inversion               = struct('iter',10,'gstd',0.5);
     threads_per_gpu uint32  = 1;
+    use_alignment   logical = false;
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -226,6 +228,12 @@ methods
         cmd = [cmd ' -ssnr_param ' sprintf('%f,%f',obj.ssnr.F,obj.ssnr.S)];
         cmd = [cmd ' -w_inv_iter ' sprintf('%d',obj.inversion.iter)];
         cmd = [cmd ' -w_inv_gstd ' sprintf('%f',obj.inversion.gstd)];
+        
+        if( obj.use_alignment )
+            cmd = [cmd ' -use_ali 1'];
+        else
+            cmd = [cmd ' -use_ali 0'];
+        end
         
     end
     

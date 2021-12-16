@@ -49,24 +49,25 @@ typedef enum {
 
 typedef struct {
 	int    n_gpu;
-    uint32 p_gpu[SUSAN_MAX_N_GPU];
-    uint32 n_threads;
+	uint32 p_gpu[SUSAN_MAX_N_GPU];
+	uint32 n_threads;
 	uint32 box_size;
-    single fpix_min;
-    single fpix_max;
-    single fpix_roll;
-    uint32 pad_size;
-    uint32 pad_type;
-    uint32 ctf_type;
-    uint32 norm_type;
-    int    w_inv_ite;
-    float  w_inv_std;
-    float  ssnr_F;
-    float  ssnr_S;
-    
-    char   out_dir[SUSAN_FILENAME_LENGTH];
-    char   ptcls_in[SUSAN_FILENAME_LENGTH];
-    char   tomos_in[SUSAN_FILENAME_LENGTH];
+	single fpix_min;
+	single fpix_max;
+	single fpix_roll;
+	uint32 pad_size;
+	uint32 pad_type;
+	uint32 ctf_type;
+	uint32 norm_type;
+	bool   use_ali;
+	int    w_inv_ite;
+	float  w_inv_std;
+	float  ssnr_F;
+	float  ssnr_S;
+
+	char   out_dir[SUSAN_FILENAME_LENGTH];
+	char   ptcls_in[SUSAN_FILENAME_LENGTH];
+	char   tomos_in[SUSAN_FILENAME_LENGTH];
 } Info;
 
 uint32 get_pad_type(const char*arg) {
@@ -191,19 +192,20 @@ bool validate(const Info&info) {
 bool parse_args(Info&info,int ac,char** av) {
 	/// Default values:
 	info.n_gpu      = 0;
-    info.n_threads  = 1;
+	info.n_threads  = 1;
 	info.box_size   = 200;
-    info.fpix_min   = 0;
-    info.fpix_max   = 30;
-    info.fpix_roll  = 4;
-    info.pad_size   = 0;
-    info.pad_type   = PAD_ZERO;
-    info.ctf_type   = WIENER_INV_SSNR;
-    info.norm_type  = NO_NORM;
-    info.w_inv_ite  = 10;
-    info.w_inv_std  = 0.75;
-    info.ssnr_F     = 0;
-    info.ssnr_S     = 1;
+	info.fpix_min   = 0;
+	info.fpix_max   = 30;
+	info.fpix_roll  = 4;
+	info.pad_size   = 0;
+	info.pad_type   = PAD_ZERO;
+	info.ctf_type   = WIENER_INV_SSNR;
+	info.norm_type  = NO_NORM;
+	info.w_inv_ite  = 10;
+	info.w_inv_std  = 0.75;
+	info.use_ali    = false;
+	info.ssnr_F     = 0;
+	info.ssnr_S     = 1;
 	memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
 	memset(info.out_dir ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	memset(info.ptcls_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
@@ -225,7 +227,8 @@ bool parse_args(Info&info,int ac,char** av) {
         W_INV_ITE,
         W_INV_STD,
         BANDPASS,
-        ROLLOFF_F
+        ROLLOFF_F,
+	USE_ALI
     };
 
     int c;
@@ -243,6 +246,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"ssnr_param",  1, 0, SSNR      },
         {"w_inv_iter",  1, 0, W_INV_ITE },
         {"w_inv_gstd",  1, 0, W_INV_STD },
+        {"use_align",   1, 0, USE_ALI   },
         {0, 0, 0, 0}
     };
     
@@ -304,6 +308,9 @@ bool parse_args(Info&info,int ac,char** av) {
 			case W_INV_STD:
 				info.w_inv_std = atof(optarg);
 				break;
+			case USE_ALI:
+				info.use_ali = atoi(optarg)>0;
+				break;
 			default:
 				printf("Unknown parameter %d\n",c);
 				exit(1);
@@ -326,7 +333,15 @@ void print(const Info&info,FILE*fp=stdout) {
         fprintf(stdout,", with padding of %d voxels",info.pad_size);
     }
     fprintf(stdout,".\n");
+
+	if( info.use_ali ) {
+		fprintf(stdout,"\t\tReconstructing aligned subtomograms.");
+	}
+	else{
+		fprintf(stdout,"\t\tReconstructing raw subtomograms (ignoring alignment information).");
+	}
     
+
     if( info.n_gpu > 1 ) {
         fprintf(stdout,"\t\tUsing %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
         for(int i=1;i<info.n_gpu;i++)

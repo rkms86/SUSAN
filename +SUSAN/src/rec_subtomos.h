@@ -233,9 +233,21 @@ protected:
 	
 	void crop_substack(RecBuffer&ptr) {
 		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
-		M33f R_tmp,R_stack,R_gpu;
-		
+		M33f R_tmp,R_stack,R_gpu,R_ali;
+
 		int r = ptr.ptcl.ref_cix();
+		
+		if( p_info->use_ali ) {
+			eu_ZYZ(0) = ptr.ptcl.ali_eu[r].x;
+			eu_ZYZ(1) = ptr.ptcl.ali_eu[r].y;
+			eu_ZYZ(2) = ptr.ptcl.ali_eu[r].z;
+		}
+		else {
+			eu_ZYZ(0) = 0;
+			eu_ZYZ(1) = 0;
+			eu_ZYZ(2) = 0;
+		}
+		Math::eZYZ_Rmat(R_ali,eu_ZYZ);
 		
 		/// P_tomo = P_ptcl + t_ali
 		pt_tomo(0) = ptr.ptcl.pos().x + ptr.ptcl.ali_t[r].x;
@@ -249,9 +261,16 @@ protected:
 				pt_stack = p_tomo->R[k]*pt_tomo + p_tomo->t[k];
 				
 				/// P_crop = R^k_prj*P_stack + t^k_prj
-				eu_ZYZ(0) = ptr.ptcl.prj_eu[k].x;
-				eu_ZYZ(1) = ptr.ptcl.prj_eu[k].y;
-				eu_ZYZ(2) = ptr.ptcl.prj_eu[k].z;
+				if( p_info->use_ali ) {
+					eu_ZYZ(0) = ptr.ptcl.prj_eu[k].x;
+					eu_ZYZ(1) = ptr.ptcl.prj_eu[k].y;
+					eu_ZYZ(2) = ptr.ptcl.prj_eu[k].z;
+				}
+				else {
+					eu_ZYZ(0) = 0;
+					eu_ZYZ(1) = 0;
+					eu_ZYZ(2) = 0;
+				}
 				Math::eZYZ_Rmat(R_tmp,eu_ZYZ);
                                 //pt_crop = R_tmp*pt_stack;
                                 pt_crop = pt_stack;
@@ -279,7 +298,7 @@ protected:
 				ptr.c_ali.ptr[k].t.y = -pt_subpix(1);
 				ptr.c_ali.ptr[k].t.z = 0;
 				ptr.c_ali.ptr[k].w = ptr.ptcl.prj_w[k];
-				R_gpu = R_stack.transpose();
+				R_gpu = (R_ali)*(R_stack.transpose());
 				Math::set( ptr.c_ali.ptr[k].R, R_gpu );
 				
 				/// Crop
