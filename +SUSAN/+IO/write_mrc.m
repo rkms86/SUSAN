@@ -38,7 +38,11 @@ fwrite(fp,single(map),'float32');
 % Save size and Mode:
 fseek(fp, 0, 'bof');
 buffer = zeros(1,4,'uint32');
-buffer(:) = [uint32(size(map)), 2];
+if( ndims(map) == 3 )
+    buffer(:) = [uint32(size(map)), 2];
+else
+    buffer(:) = [uint32(size(map)), 1, 2];
+end
 fwrite(fp,buffer,'uint32');
 
 % Save Pixel Size:
@@ -46,10 +50,20 @@ xyz_len = single(size(map));
 xyz_len = apix*xyz_len;
 fseek(fp, 28, 'bof');
 buffer = zeros(1,3,'uint32');
-buffer(:) = uint32(size(map));
+if( ndims(map) == 3 )
+    buffer(:) = uint32(size(map));
+else
+    buffer(:) = [uint32(size(map)), 1];
+end
 fwrite(fp,buffer,'uint32');
 fseek(fp, 40, 'bof');
-fwrite(fp,xyz_len,'float32');
+if( ndims(map) == 3 )
+    fwrite(fp,xyz_len,'float32');
+else
+    fwrite(fp,[xyz_len 1],'float32');
+end
+fwrite(fp,[90 90 90],'float32');
+
 
 % Save Mapping
 fseek(fp, 64, 'bof');

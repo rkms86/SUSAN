@@ -151,6 +151,9 @@ namespace Mrc {
         header[7]  = 1;
         header[8]  = 1;
         header[9]  = 1;
+        header[13] = 0x42b40000; // 90.0 in hexadecimal notation.
+        header[14] = 0x42b40000; // 90.0 in hexadecimal notation.
+        header[15] = 0x42b40000; // 90.0 in hexadecimal notation.
         header[16] = 1;
         header[17] = 2;
         header[18] = 3;
