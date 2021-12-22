@@ -52,6 +52,10 @@ add_executable(susan_refs_fsc src/refs_fsc.cu)
 target_link_libraries(susan_refs_fsc cufft)
 set_property(TARGET susan_refs_fsc PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
 
+add_executable(susan_refine_ctf src/ctf_refiner.cu)
+target_link_libraries(susan_refine_ctf cufft)
+set_property(TARGET susan_refine_ctf PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
+
 if( MPI_FOUND )
 add_executable(susan_reconstruct_mpi src/reconstruct_mpi.cu)
 target_compile_definitions(susan_reconstruct_mpi PUBLIC OPENMPI)

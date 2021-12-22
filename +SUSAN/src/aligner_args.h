@@ -264,7 +264,7 @@ bool validate(const Info&info) {
         fprintf(stderr,"Tomos file %s does not exist.\n",info.tomo_file);
         rslt = false;
     }
-    if( strlen(info.ptcls_in) == 0 ) {
+    if( strlen(info.ptcls_out) == 0 ) {
         fprintf(stderr,"Particles output is missing.\n");
         rslt = false;
     }
