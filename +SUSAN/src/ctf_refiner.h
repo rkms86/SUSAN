@@ -294,16 +294,16 @@ protected:
         //if( flag ) {
         //    flag = false;
         //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        /*if( ptr->ptcl.ptcl_id() == 1 ) {
+        if( ptr->ptcl.ptcl_id() == 1 ) {
             stream.sync();
             float*tmp = new float[NP*NP*ptr->K];
             GPU::download_async(tmp,ss_data.ss_padded.ptr,NP*NP*ptr->K,stream.strm);
             stream.sync();
-            char filename[1000];
+            char filename[SUSAN_FILENAME_LENGTH];
             sprintf(filename,"data_%02d.mrc",ptr->r_ix);
             Mrc::write(tmp,NP,NP,ptr->K,filename);
             delete [] tmp;
-        }*/
+        }
 
         rad_avgr.preset_FRC(ss_data.ss_fourier,ptr->K,stream);
     }
@@ -318,7 +318,7 @@ protected:
 
         if( ptr->ptcl.ptcl_id() == 1 ) {
             ali_data.project(vol.ref,bandpass,ptr->K,stream);
-            ali_data.multiply(ctf_wgt,ptr->K,stream);
+            //ali_data.multiply(ctf_wgt,ptr->K,stream);
             ali_data.invert_fourier(ptr->K,stream);
             float *tmp = new float[NP*NP*ptr->K];
             GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
