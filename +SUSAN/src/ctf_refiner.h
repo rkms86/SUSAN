@@ -155,7 +155,7 @@ protected:
 
         AliSubstack ss_data(M,N,max_K,P,stream);
 
-        uint32 off_type = 1;
+        uint32 off_type = ArgsAli::OffsetType_t::CIRCLE;
         float4 off_par = {0,0,0,1};
 
         AliData ali_data(MP,NP,max_K,off_par,off_type,stream);
