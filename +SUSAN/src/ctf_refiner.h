@@ -316,7 +316,7 @@ protected:
         Math::set(Rot,R_eye);
         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
 
-        /*if( ptr->ptcl.ptcl_id() == 6 ) {
+        if( ptr->ptcl.ptcl_id() == 1 ) {
             ali_data.project(vol.ref,bandpass,ptr->K,stream);
             ali_data.multiply(ctf_wgt,ptr->K,stream);
             ali_data.invert_fourier(ptr->K,stream);
@@ -327,7 +327,7 @@ protected:
             sprintf(fn,"proj_3D_%d_%d.mrc",ptr->class_ix,ptr->r_ix);
             Mrc::write(tmp,NP,NP,ptr->K,fn);
             delete [] tmp;
-        }*/
+        }
 
         ali_data.project(vol.ref,bandpass,ptr->K,stream);
         rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);

@@ -158,7 +158,7 @@ methods
         if( isdeployed )
             cmd = 'susan_refine_ctf';
         else
-            cmd = [SUSAN.bin_path '/susan_aligner'];
+            cmd = [SUSAN.bin_path '/susan_refine_ctf'];
         end
         cmd = [cmd ' -tomos_file ' tomo_list];
         cmd = [cmd ' -ptcls_in '   ptcls_in];
