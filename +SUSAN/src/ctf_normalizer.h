@@ -121,7 +121,7 @@ protected:
 	}
 	
 	void accumulate() {
-                GpuKernelsCtf::accumulate<<<grd,blk,0,stream.strm>>>(ss_acc.ptr,ss_wgt.ptr,ss_ctf_ps.ptr,ss_siz);
+        GpuKernelsCtf::accumulate<<<grd,blk,0,stream.strm>>>(ss_acc.ptr,ss_wgt.ptr,ss_ctf_ps.ptr,ss_siz);
 	}
 	
 };

@@ -82,6 +82,35 @@ public:
 
 class CtfRefGpuWorker : public Worker {
 
+protected:
+    class Refine{
+    public:
+        int M;
+        int N;
+        int max_K;
+
+        GPU::GArrSingle ctf_ref;
+        GPU::GArrSingle ctf_ite;
+
+        Refine(int m, int n, int k) {
+            M = m;
+            N = n;
+            max_K = k;
+            ctf_ref.alloc(m*n*k);
+            ctf_ite.alloc(m*n*k);
+        }
+
+        ~Refine() {
+        }
+
+        void load_ctf(GPU::GArrSingle2&ctf_in,int k,GPU::Stream&stream) {
+            int3 ss = make_int3(M,N,k);
+            dim3 blk = GPU::get_block_size_2D();
+            dim3 grd = GPU::calc_grid_size(blk,M,N,k);
+            GpuKernels::load_abs<<<grd,blk,0,stream.strm>>>(ctf_ref.ptr,ctf_in.ptr,ss);
+        }
+    };
+
 public:
     int gpu_ix;
     int N;
@@ -128,8 +157,7 @@ protected:
 
         RadialAverager rad_avgr(M,N,max_K);
 
-        GPU::GArrSingle ctf_wgt;
-        ctf_wgt.alloc(MP*NP*max_K);
+        Refine ctf_ref(MP,NP,max_K);
 
         int num_vols = R;
         if( use_halves ) num_vols = 2*R;
@@ -141,7 +169,7 @@ protected:
         while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
             switch(current_cmd) {
                 case CTF_REF:
-                    refine_ctf(vols,ctf_wgt,ss_data,ali_data,rad_avgr,stream);
+                    refine_ctf(vols,ctf_ref,ss_data,ali_data,rad_avgr,stream);
                     break;
                 default:
                     break;
@@ -212,13 +240,13 @@ protected:
         GpuKernels::fftshift3D<<<grdC,blk>>>(g_fou.ptr,MP,NP);
     }
 
-    void refine_ctf(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
+    void refine_ctf(AliRef*vols,Refine&ctf_ref,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
         p_buffer->RO_sync();
         while( p_buffer->RO_get_status() > DONE ) {
             if( p_buffer->RO_get_status() == READY ) {
                 CtfRefBuffer*ptr = (CtfRefBuffer*)p_buffer->RO_get_buffer();
                 add_data(ss_data,ptr,rad_avgr,stream);
-                search_ctf(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,rad_avgr,stream);
+                search_ctf(vols[ptr->r_ix],ss_data,ctf_ref,ptr,ali_data,rad_avgr,stream);
                 stream.sync();
             }
             p_buffer->RO_sync();
@@ -280,15 +308,10 @@ protected:
         rad_avgr.preset_FRC(ss_data.ss_fourier,ptr->K,stream);
     }
 
-    void search_ctf(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,CtfRefBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
+    void search_ctf(AliRef&vol,AliSubstack&ss_data,Refine&ctf_ref,CtfRefBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
 
         Rot33 Rot;
-        single max_cc=0,cc;
-        int max_idx=0,idx;
-        M33f max_R,R_ite,R_tmp;
-        M33f R_eye = Eigen::MatrixXf::Identity(3,3);
-
-        //int counter = 0;
+        M33f  R_eye = Eigen::MatrixXf::Identity(3,3);
 
         Math::set(Rot,R_eye);
         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
@@ -310,6 +333,18 @@ protected:
         rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
 
         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
+
+        ctf_ref.load_ctf(ali_data.prj_c,ptr->K,stream);
+
+        if( ptr->ptcl.ptcl_id() == 1 ) {
+            float *tmp = new float[MP*NP*ptr->K];
+            GPU::download_async(tmp,ctf_ref.ctf_ref.ptr,MP*NP*ptr->K,stream.strm);
+            stream.sync();
+            char fn[SUSAN_FILENAME_LENGTH];
+            sprintf(fn,"ctf_%05d.mrc",ptr->ptcl.ptcl_id());
+            Mrc::write(tmp,MP,NP,ptr->K,fn);
+            delete [] tmp;
+        }
 
         /*if( ptr->ptcl.ptcl_id() == 4746 ) {
             float *tmp = new float[NP*NP*ptr->K];
