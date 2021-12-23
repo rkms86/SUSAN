@@ -415,6 +415,19 @@ void download_async(T*p_cpu,const T*p_gpu, size_t numel, cudaStream_t&strm) {
 
 template void download_async<>(single* ,const single* ,size_t,cudaStream_t&);
 
+template<class T>
+void copy_async(T*p_gpu_a,const T*p_gpu_b, size_t numel, cudaStream_t&strm) {
+    cudaError_t err = cudaMemcpyAsync( (void*)(p_gpu_a), (const void*)p_gpu_b, sizeof(T)*numel , cudaMemcpyDeviceToDevice, strm);
+    if( err != cudaSuccess ) {
+        fprintf(stderr,"Error uploading copying CUDA memory. ");
+        fprintf(stderr,"GPU error: %s.\n",cudaGetErrorString(err));
+        exit(1);
+    }
+}
+
+template void copy_async<>(single* ,const single* ,size_t,cudaStream_t&);
+template void copy_async<>(float2* ,const float2* ,size_t,cudaStream_t&);
+
 }
 
 #endif /// GPU_H

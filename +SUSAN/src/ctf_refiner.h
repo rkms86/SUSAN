@@ -89,25 +89,30 @@ protected:
         int N;
         int max_K;
 
-        GPU::GArrSingle ctf_ref;
-        GPU::GArrSingle ctf_ite;
+        GPU::GArrSingle2 prj_buf;
+        GPU::GArrSingle  ctf_ite;
 
         Refine(int m, int n, int k) {
             M = m;
             N = n;
             max_K = k;
-            ctf_ref.alloc(m*n*k);
+            prj_buf.alloc(m*n*k);
             ctf_ite.alloc(m*n*k);
         }
 
         ~Refine() {
         }
 
-        void load_ctf(GPU::GArrSingle2&ctf_in,int k,GPU::Stream&stream) {
-            int3 ss = make_int3(M,N,k);
+        void load_buf(GPU::GArrSingle2&data_in,int k,GPU::Stream&stream) {
+            GPU::copy_async(prj_buf.ptr,data_in.ptr,M*N*k,stream.strm);
+        }
+
+        void apply_ctf(GPU::GArrSingle2&data_out,float3 delta,CtfRefBuffer*ptr,GPU::Stream&stream) {
+            int3 ss = make_int3(M,N,ptr->K);
             dim3 blk = GPU::get_block_size_2D();
-            dim3 grd = GPU::calc_grid_size(blk,M,N,k);
-            GpuKernels::load_abs<<<grd,blk,0,stream.strm>>>(ctf_ref.ptr,ctf_in.ptr,ss);
+            dim3 grd = GPU::calc_grid_size(blk,M,N,ptr->K);
+            GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_ite.ptr,delta,ptr->ctf_vals,ptr->g_def.ptr,ss);
+            GpuKernels::multiply<<<grd,blk,0,stream.strm>>>(data_out.ptr,ctf_ite.ptr,ss);
         }
     };
 
@@ -151,7 +156,7 @@ protected:
         AliSubstack ss_data(M,N,max_K,P,stream);
 
         uint32 off_type = 1;
-        float4 off_par = {1,1,1,1};
+        float4 off_par = {0,0,0,1};
 
         AliData ali_data(MP,NP,max_K,off_par,off_type,stream);
 
@@ -253,28 +258,6 @@ protected:
         }
     }
 
-    void create_ctf(GPU::GArrSingle&ctf_wgt,CtfRefBuffer*ptr,GPU::Stream&stream) {
-        int3 ss = make_int3(MP,NP,ptr->K);
-        dim3 blk = GPU::get_block_size_2D();
-        dim3 grd = GPU::calc_grid_size(blk,MP,NP,ptr->K);
-        GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_wgt.ptr,ptr->ctf_vals,ptr->g_def.ptr,ss);
-
-        //static bool flag = true;
-        //if( flag ) {
-        //    flag = false;
-        //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        /*if( ptr->ptcl.ptcl_id() == 6 ) {
-            stream.sync();
-            float*tmp = new float[MP*NP*ptr->K];
-            GPU::download_async(tmp,ctf_wgt.ptr,MP*NP*ptr->K,stream.strm);
-            stream.sync();
-            char fn[SUSAN_FILENAME_LENGTH];
-            sprintf(fn,"ctf_%d.mrc",ptr->r_ix);
-            Mrc::write(tmp,MP,NP,ptr->K,fn);
-            delete [] tmp;
-        }*/
-    }
-
     void add_data(AliSubstack&ss_data,CtfRefBuffer*ptr,RadialAverager&rad_avgr,GPU::Stream&stream) {
 
         switch( pad_type ) {
@@ -310,6 +293,13 @@ protected:
 
     void search_ctf(AliRef&vol,AliSubstack&ss_data,Refine&ctf_ref,CtfRefBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
 
+        single max_cc[ptr->K];
+        single ite_cc[ptr->K];
+        int ite_idx[ptr->K];
+        Defocus def_rslt[ptr->K];
+
+        memset(max_cc,0,sizeof(single)*ptr->K);
+
         Rot33 Rot;
         M33f  R_eye = Eigen::MatrixXf::Identity(3,3);
 
@@ -330,93 +320,49 @@ protected:
         }
 
         ali_data.project(vol.ref,bandpass,ptr->K,stream);
-        rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
+        ctf_ref.load_buf(ali_data.prj_c,ptr->K,stream);
 
-        ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
-
-        ctf_ref.load_ctf(ali_data.prj_c,ptr->K,stream);
-
-        if( ptr->ptcl.ptcl_id() == 1 ) {
-            float *tmp = new float[MP*NP*ptr->K];
-            GPU::download_async(tmp,ctf_ref.ctf_ref.ptr,MP*NP*ptr->K,stream.strm);
-            stream.sync();
-            char fn[SUSAN_FILENAME_LENGTH];
-            sprintf(fn,"ctf_%05d.mrc",ptr->ptcl.ptcl_id());
-            Mrc::write(tmp,MP,NP,ptr->K,fn);
-            delete [] tmp;
-        }
-
-        /*if( ptr->ptcl.ptcl_id() == 4746 ) {
-            float *tmp = new float[NP*NP*ptr->K];
-            GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
-            stream.sync();
-            char fn[SUSAN_FILENAME_LENGTH];
-            sprintf(fn,"cc_3D_%d_%d.mrc",ptr->class_ix,counter);
-            Mrc::write(tmp,NP,NP,ptr->K,fn);
-            delete [] tmp;
-            counter++;
-        }*/
-
-        /*if( ptr->ptcl.ptcl_id() == 1 ) {
-            V3f eu;
-            Math::Rmat_eZYZ(eu,max_R);
-            eu = eu*RAD2DEG;
-            printf("cc: %f [%d]\n",max_cc,ptr->class_ix);
-            printf("t = [%f %f %f];\n",ali_data.c_pts[max_idx].x,ali_data.c_pts[max_idx].y,ali_data.c_pts[max_idx].z);
-            printf("R = [%f %f %f];\n",eu(0),eu(1),eu(2));
-            printf("                                                                                      \n");
-            //flag = false;
-            FILE*fp=fopen("create_cc_rec.m","w");
-            fprintf(fp,"cc_rec=zeros(%d,%d,%d);\n",N,N,N);
-            for(int n=0;n<ali_data.n_pts;n++) {
-                int xx = (int)(ali_data.c_pts[n].x) + N/2 + 1;
-                int yy = (int)(ali_data.c_pts[n].y) + N/2 + 1;
-                int zz = (int)(ali_data.c_pts[n].z) + N/2 + 1;
-                fprintf(fp,"cc_rec(%3d,%3d,%3d) = %.4f;\n",xx,yy,zz,ali_data.c_cc[n]);
+        float dU,dV,dA;
+        float3 delta_w;
+        for( dU=-delta_def; dU<delta_def; dU+=10 ) {
+            delta_w.x = dU;
+            for( dV=-delta_def; dV<delta_def; dV+=10 ) {
+                delta_w.y = dV;
+                for( dA=-delta_ang; dU<delta_ang; dU+=0.5 ) {
+                    delta_w.z = dA;
+                    ctf_ref.apply_ctf(ali_data.prj_c,delta_w,ptr,stream);
+                    rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
+                    ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
+                    ali_data.invert_fourier(ptr->K,stream);
+                    stream.sync();
+                    ali_data.extract_cc(ite_cc,ite_idx,ptr->K,stream);
+                    for(int i=0;i<ptr->K;i++) {
+                        if( ite_cc[i] > max_cc[i] ) {
+                            max_cc[i] = ite_cc[i];
+                            def_rslt[i].U = dU;
+                            def_rslt[i].V = dV;
+                            def_rslt[i].angle = dA;
+                        }
+                    }
+                }
             }
-            fclose(fp);
-        }*/
-
-        //update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
+        }
+        update_particle(ptr->ptcl,def_rslt,max_cc,ptr->K);
     }
 
-    /*
-    void update_particle(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int ref_ix,const float apix) {
+    void update_particle(Particle&ptcl,const Defocus*delta_def,const single*cc, const int k) {
 
-        ptcl.ali_cc[ref_ix] = cc;
-
-        if( cc > 0 ) {
-            M33f Rprv;
-            V3f eu_prv;
-            eu_prv(0) = ptcl.ali_eu[ref_ix].x;
-            eu_prv(1) = ptcl.ali_eu[ref_ix].y;
-            eu_prv(2) = ptcl.ali_eu[ref_ix].z;
-            Math::eZYZ_Rmat(Rprv,eu_prv);
-            M33f Rnew = Rot*Rprv;
-            Math::Rmat_eZYZ(eu_prv,Rnew);
-            ptcl.ali_eu[ref_ix].x = eu_prv(0);
-            ptcl.ali_eu[ref_ix].y = eu_prv(1);
-            ptcl.ali_eu[ref_ix].z = eu_prv(2);
-
-            V3f tp,tt;
-            tp(0) = t.x;
-            tp(1) = t.y;
-            tp(2) = t.z;
-            tt = Rnew.transpose()*tp;
-
-            if( drift3D ) {
-                ptcl.ali_t[ref_ix].x += tt(0)*apix;
-                ptcl.ali_t[ref_ix].y += tt(1)*apix;
-                ptcl.ali_t[ref_ix].z += tt(2)*apix;
-            }
-            else {
-                ptcl.ali_t[ref_ix].x = tt(0)*apix;
-                ptcl.ali_t[ref_ix].y = tt(1)*apix;
-                ptcl.ali_t[ref_ix].z = tt(2)*apix;
+        for(int i=0;i<k;i++) {
+            if( ptcl.prj_w[i] > 0 ) {
+                ptcl.def[i].U += delta_def[i].U;
+                ptcl.def[i].V += delta_def[i].V;
+                ptcl.def[i].angle += delta_def[i].angle;
+                if( est_dose )
+                    ptcl.def[i].ExpFilt = delta_def[i].ExpFilt;
+                ptcl.prj_cc[i] = cc[i];
             }
         }
     }
-    */
 };
 
 class CtfRefRdrWorker : public Worker {
