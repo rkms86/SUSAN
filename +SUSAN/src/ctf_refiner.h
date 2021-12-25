@@ -41,7 +41,6 @@
 #include "ref_ali.h"
 #include "ctf_refiner_args.h"
 
-
 typedef enum {
     CTF_REF=1
 } CtfRefCmd;
@@ -475,6 +474,8 @@ protected:
     }
 
     void crop_loop(DoubleBufferHandler&stack_buffer,GPU::Stream&stream) {
+        cudaEvent_t event;
+        cudaEventCreate(&event);
         stack_buffer.WO_sync(EMPTY);
         for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
             work_progress++;
@@ -482,6 +483,7 @@ protected:
             CtfRefBuffer*ptr = (CtfRefBuffer*)stack_buffer.WO_get_buffer();
             p_ptcls->get(ptr->ptcl,i);
             read_defocus(ptr);
+            cudaEventRecord (event,stream.strm);
             crop_substack(ptr,ptr->ptcl.ref_cix());
             if( check_substack(ptr) ) {
                 upload(ptr,stream.strm);
@@ -490,6 +492,7 @@ protected:
             }
         }
         stack_buffer.WO_sync(DONE);
+        cudaEventDestroy(event);
     }
 
     void read_defocus(CtfRefBuffer*ptr) {
@@ -514,6 +517,7 @@ protected:
     }
 
     void crop_substack(CtfRefBuffer*ptr,const int r) {
+
         V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
         M33f R_tmp,R_ali,R_stack,R_gpu;
 
