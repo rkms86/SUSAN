@@ -362,10 +362,10 @@ protected:
 		else
 			ptr->r_ix = r;
 		
-                if( p_info->rec_halves )
-                    return ( ptr->ptcl.ali_w[r] >0 ) && ( ptr->ptcl.half_id() > 0 );
-                else
-                    return ( ptr->ptcl.ali_w[r] )>0;
+            if( p_info->rec_halves )
+                return ( ptr->ptcl.ali_w[r] >0 ) && ( ptr->ptcl.half_id() > 0 );
+            else
+                return ( ptr->ptcl.ali_w[r] )>0;
 	}
 	
 	void crop_substack(RecBuffer*ptr) {
@@ -395,8 +395,8 @@ protected:
 				eu_ZYZ(1) = ptr->ptcl.prj_eu[k].y;
 				eu_ZYZ(2) = ptr->ptcl.prj_eu[k].z;
 				Math::eZYZ_Rmat(R_tmp,eu_ZYZ);
-                                //pt_crop = R_tmp*pt_stack;
-                                pt_crop = pt_stack;
+                //pt_crop = R_tmp*pt_stack;
+                pt_crop = pt_stack;
 				pt_crop(0) += ptr->ptcl.prj_t[k].x;
 				pt_crop(1) += ptr->ptcl.prj_t[k].y;
 				
@@ -407,10 +407,7 @@ protected:
 				pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center;
 				
 				/// Get subpixel shift
-				//pt_subpix(0) = pt_crop(0) - floor(pt_crop(0));
-				//pt_subpix(1) = pt_crop(1) - floor(pt_crop(1));
-				//pt_subpix(2) = 0;
-				V3f pt_tmp;
+                V3f pt_tmp;
 				pt_tmp(0) = pt_crop(0) - floor(pt_crop(0));
 				pt_tmp(1) = pt_crop(1) - floor(pt_crop(1));
 				pt_tmp(2) = 0;
@@ -421,7 +418,7 @@ protected:
 				ptr->c_ali.ptr[k].t.y = -pt_subpix(1);
 				ptr->c_ali.ptr[k].t.z = 0;
 				ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
-                                R_gpu = (R_ali)*(R_stack.transpose());
+                R_gpu = (R_ali)*(R_stack.transpose());
 				Math::set( ptr->c_ali.ptr[k].R, R_gpu );
 				
 				/// Crop
@@ -509,9 +506,9 @@ public:
 		NP = N+P;
 		MP = (NP/2)+1;
 		if( info->rec_halves )
-			R = 2*R;
+            R = 2*R;
 		memset(progress_buffer,' ',66);
-                memset(progress_clear,'\b',66);
+        memset(progress_clear,'\b',66);
 		progress_buffer[66] = 0;
 		progress_buffer[67] = 0;
                 if( SUSAN_CARRIER_RETURN == '\r' ) {
@@ -579,27 +576,27 @@ protected:
 		return count;
 	}
 
-        virtual void progress_start() {
+    virtual void progress_start() {
 		timer.tic();
 		sprintf(progress_buffer,"        Filling fourier space: Buffering...");
 		int n = strlen(progress_buffer);
 		progress_buffer[n]  = ' ';
-                progress_buffer[65] = 0;
+        progress_buffer[65] = 0;
 		printf(progress_buffer);
 		fflush(stdout);
 	}
 
-        virtual void show_progress(const int ptcls_in_tomo) {
+    virtual void show_progress(const int ptcls_in_tomo) {
 		int cur_progress=0;
 		while( (cur_progress=count_progress()) < ptcls_in_tomo ) {
-                        memset(progress_buffer,' ',66);
-			if( cur_progress > 0 ) {
-				int progress = count_accumul();
-				float progress_percent = 100*(float)progress/float(n_ptcls);
-				sprintf(progress_buffer,"        Filling fourier space: %6.2f%%%%",progress_percent);
-				int n = strlen(progress_buffer);
-                                add_etc(progress_buffer+n,progress,n_ptcls);
-			}
+            memset(progress_buffer,' ',66);
+            if( cur_progress > 0 ) {
+                int progress = count_accumul();
+                float progress_percent = 100*(float)progress/float(n_ptcls);
+                sprintf(progress_buffer,"        Filling fourier space: %6.2f%%%%",progress_percent);
+                int n = strlen(progress_buffer);
+                add_etc(progress_buffer+n,progress,n_ptcls);
+            }
 			else {
 				sprintf(progress_buffer,"        Filling fourier space: Buffering...");
 				int n = strlen(progress_buffer);

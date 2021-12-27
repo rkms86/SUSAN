@@ -486,6 +486,7 @@ protected:
             cudaEventRecord(event,stream.strm);
             crop_substack(ptr,ptr->ptcl.ref_cix());
             if( check_substack(ptr) ) {
+                cudaEventRecord(event,stream.strm);
                 upload(ptr,stream.strm);
                 stream.sync();
                 stack_buffer.WO_sync(READY);
@@ -521,8 +522,6 @@ protected:
 
         V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
         M33f R_tmp,R_ali,R_stack,R_gpu;
-
-        ptr->class_ix = r;
 
         if( p_info->use_halves )
             ptr->r_ix = 2*r + (ptr->ptcl.half_id()-1);
@@ -582,6 +581,7 @@ protected:
                     ptr->c_pad.ptr[k].x = 0;
                     ptr->c_pad.ptr[k].y = 1;
                     ss_cropper.normalize_zero_mean_one_std(ptr->c_stk.ptr,k);
+                    ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
                 }
                 else {
                     ptr->c_ali.ptr[k].w = 0;
