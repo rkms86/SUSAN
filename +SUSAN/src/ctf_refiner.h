@@ -250,7 +250,7 @@ protected:
             if( p_buffer->RO_get_status() == READY ) {
                 CtfRefBuffer*ptr = (CtfRefBuffer*)p_buffer->RO_get_buffer();
                 add_data(ss_data,ptr,rad_avgr,stream);
-                search_ctf(vols[ptr->r_ix],ss_data,ctf_ref,ptr,ali_data,rad_avgr,stream);
+                //search_ctf(vols[ptr->r_ix],ss_data,ctf_ref,ptr,ali_data,rad_avgr,stream);
                 stream.sync();
             }
             p_buffer->RO_sync();
@@ -483,13 +483,14 @@ protected:
             CtfRefBuffer*ptr = (CtfRefBuffer*)stack_buffer.WO_get_buffer();
             p_ptcls->get(ptr->ptcl,i);
             read_defocus(ptr);
-            cudaEventRecord (event,stream.strm);
+            cudaEventRecord(event,stream.strm);
             crop_substack(ptr,ptr->ptcl.ref_cix());
             if( check_substack(ptr) ) {
                 upload(ptr,stream.strm);
                 stream.sync();
                 stack_buffer.WO_sync(READY);
             }
+            cudaEventRecord(event,stream.strm);
         }
         stack_buffer.WO_sync(DONE);
         cudaEventDestroy(event);
