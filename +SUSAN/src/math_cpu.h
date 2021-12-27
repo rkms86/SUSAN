@@ -21,6 +21,15 @@
 #ifndef MATH_CPU_H
 #define MATH_CPU_H
 
+#if __CUDACC_VER_MAJOR__ == 11
+    #pragma nv_diag_suppress 20011
+    #pragma nv_diag_suppress 20014
+    #pragma nv_diag_suppress 20236
+#elif __CUDACC_VER_MAJOR__ == 10
+    #pragma diag_suppress 2976
+    #pragma diag_suppress 2979
+#endif
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -34,7 +43,6 @@
 
 #include "datatypes.h"
 #include "Eigen/Geometry"
-
 
 typedef Eigen::Matrix3f M33f;
 typedef Eigen::Vector3f V3f;

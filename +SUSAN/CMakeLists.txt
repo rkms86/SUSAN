@@ -17,14 +17,8 @@ set(CUDA_ARCHS 52)
 #set(CUDA_ARCHS 52 60 70)
 
 string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
-string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored")
 message(STATUS ${CMAKE_CXX_COMPILER_VERSION})
-#string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=20011")
-#string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=20014")
-string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=2976")
-string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --diag_suppress=2979")
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --display_error_number")
-#string(APPEND CMAKE_CUDA_FLAGS " -lineinfo")
 
 add_executable(susan_denoise_l0 src/denoise_l0.cpp)
 
