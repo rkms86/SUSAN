@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.3)
 project(SUSAN LANGUAGES CXX CUDA)
 find_package(MPI 3)
 
-set(CMAKE_BUILD_TYPE Debug)
-#set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Release)
 
 include_directories("${CMAKE_SOURCE_DIR}/../dependencies/eigen")
 
@@ -13,11 +12,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 11)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-#set(CUDA_ARCHS 52)
 set(CUDA_ARCHS 52 60 61 70 75)
 
 string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
-message(STATUS ${CMAKE_CXX_COMPILER_VERSION})
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --display_error_number")
 
 add_executable(susan_denoise_l0 src/denoise_l0.cpp)
