@@ -64,12 +64,17 @@ else
 end
 fwrite(fp,[90 90 90],'float32');
 
-
 % Save Mapping
 fseek(fp, 64, 'bof');
 buffer = zeros(1,3,'uint32');
 buffer(:) = [1 2 3];
 fwrite(fp,buffer,'uint32');
+
+% Save MRC map id
+fseek(fp, 208, 'bof');
+buffer = zeros(1,8,'uint8');
+buffer(:) = ['MAP DD' 0 0];
+fwrite(fp,buffer,'uint8');
 
 % finished
 fclose(fp);

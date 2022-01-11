@@ -157,6 +157,8 @@ namespace Mrc {
         header[16] = 1;
         header[17] = 2;
         header[18] = 3;
+        header[52] = 0x2050414B;
+        header[53] = 0x00004444;
         fwrite((void*)header,sizeof(uint32),256,fp);
         fwrite((void*)data,sizeof(single),X*Y*Z,fp);
         fclose(fp);
