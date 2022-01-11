@@ -298,6 +298,7 @@ protected:
         Defocus def_rslt[ptr->K];
 
         memset(max_cc,0,sizeof(single)*ptr->K);
+        memset(def_rslt,0,sizeof(Defocus)*ptr->K);
 
         Rot33 Rot;
         M33f  R_eye = Eigen::MatrixXf::Identity(3,3);
@@ -358,7 +359,7 @@ protected:
                 ptcl.def[i].angle += delta_def[i].angle;
                 if( est_dose )
                     ptcl.def[i].ExpFilt = delta_def[i].ExpFilt;
-                ptcl.prj_cc[i] = cc[i];
+                ptcl.def[i].score = cc[i];
             }
         }
     }
@@ -575,7 +576,6 @@ protected:
                     ptr->c_pad.ptr[k].x = 0;
                     ptr->c_pad.ptr[k].y = 1;
                     ss_cropper.normalize_zero_mean_one_std(ptr->c_stk.ptr,k);
-                    ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
                 }
                 else {
                     ptr->c_ali.ptr[k].w = 0;
