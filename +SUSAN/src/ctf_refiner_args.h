@@ -47,8 +47,10 @@ typedef struct {
     single fpix_roll;
     uint32 pad_size;
     uint32 pad_type;
-    float  delta_def;
-    float  delta_ang;
+    float  def_range;
+    float  def_step;
+    float  ang_range;
+    float  ang_step;
     bool   est_dose;
     bool   use_halves;
 
@@ -143,8 +145,10 @@ bool parse_args(Info&info,int ac,char** av) {
     info.fpix_roll  = 4;
     info.pad_size   = 0;
     info.pad_type   = PAD_ZERO;
-    info.delta_def  = 1000;
-    info.delta_ang  = 20;
+    info.def_range  = 1000;
+    info.def_step   = 100;
+    info.ang_range  = 20;
+    info.ang_step   = 5;
     info.est_dose   = false;
     info.use_halves = false;
 
@@ -168,8 +172,8 @@ bool parse_args(Info&info,int ac,char** av) {
         BANDPASS,
         ROLLOFF_F,
         USE_HALVES,
-        DEF_RANGE,
-        ANG_RANGE,
+        DEF_SEARCH,
+        ANG_SEARCH,
         EST_DOSE
     };
 
@@ -186,8 +190,8 @@ bool parse_args(Info&info,int ac,char** av) {
         {"pad_type",   1, 0, PAD_TYPE  },
         {"bandpass",   1, 0, BANDPASS  },
         {"rolloff_f",  1, 0, ROLLOFF_F },
-        {"def_range",  1, 0, DEF_RANGE },
-        {"ang_range",  1, 0, ANG_RANGE },
+        {"def_search", 1, 0, DEF_SEARCH},
+        {"ang_search", 1, 0, ANG_SEARCH},
         {"est_dose",   1, 0, EST_DOSE  },
         {"use_halves", 1, 0, USE_HALVES},
         {0, 0, 0, 0}
@@ -239,11 +243,17 @@ bool parse_args(Info&info,int ac,char** av) {
             case ROLLOFF_F:
                 info.fpix_roll = atof(optarg);
                 break;
-            case DEF_RANGE:
-                info.delta_def = atof(optarg);
+            case DEF_SEARCH:
+                IO::parse_single_strlist(tmp_single, optarg);
+                info.def_range = tmp_single[0];
+                info.def_step  = tmp_single[1];
+                delete [] tmp_single;
                 break;
-            case ANG_RANGE:
-                info.delta_ang = atof(optarg);
+            case ANG_SEARCH:
+                IO::parse_single_strlist(tmp_single, optarg);
+                info.ang_range = tmp_single[0];
+                info.ang_step  = tmp_single[1];
+                delete [] tmp_single;
                 break;
             case EST_DOSE:
                 info.est_dose = (atoi(optarg)>0);
@@ -308,8 +318,10 @@ void print(const Info&info,FILE*fp=stdout) {
             fprintf(stdout,"\t\tPadding policy: Fill with gaussian noise.\n");
     }
 
-    fprintf(stdout,"\t\tDefocus search range: %.2f.\n",info.delta_def);
-    fprintf(stdout,"\t\tDefocus angle range: %.2f.\n",info.delta_ang);
+    fprintf(stdout,"\t\tDefocus search range: %.2f.\n",info.def_range);
+    fprintf(stdout,"\t\tDefocus search step: %.2f.\n",info.def_step);
+    fprintf(stdout,"\t\tDefocus angle range: %.2f.\n",info.ang_range);
+    fprintf(stdout,"\t\tDefocus angle step: %.2f.\n",info.ang_step);
 
     if( info.est_dose )
         fprintf(stdout,"\t\tWith dose weighting estimation.\n");

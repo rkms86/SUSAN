@@ -7,7 +7,8 @@ classdef CtfRefiner < handle
 %    bandpass        - (struct) frequency range to use.
 %    halfsets        - (bool)   refine using independent halfsets.
 %    threads_per_gpu - (scalar) multiple threads per GPU.
-%    ranges          - (struct) ranges for for defocus search.
+%    defocus         - (struct) search range/step.
+%    angles          - (struct) search range/step.
 %    estimate_dose_w - (bool)   enabling dose weight estimation.
 %    
 % SUSAN.Modules.CtfRefiner Methods:
@@ -42,7 +43,8 @@ properties
     threads_per_gpu uint32  = 1;
     bandpass                = struct('highpass',0,'lowpass',0,'rolloff',3);
     padding         uint32  = 32;
-    ranges                  = struct('defocus',1000,'angles',20);
+    defocus                 = struct('range',1000,'step',100);
+    angles                  = struct('range',10,'step',2);
     estimate_dose_w logical = false;
     halfsets        logical = false;
 end
@@ -172,8 +174,8 @@ methods
         cmd = [cmd ' -bandpass '   sprintf('%f,%f',R_range(1),R_range(2))];
         cmd = [cmd ' -rolloff_f '  sprintf('%f',obj.bandpass.rolloff)];
         
-        cmd = [cmd ' -def_range '  sprintf('%f',obj.ranges.defocus)];
-        cmd = [cmd ' -ang_range '  sprintf('%f',obj.ranges.angles)];
+        cmd = [cmd ' -def_search '  sprintf('%f,%f',obj.defocus.range,obj.defocus.step)];
+        cmd = [cmd ' -ang_search '  sprintf('%f,%f',obj.angles.range,obj.angles.step)];
         
         if( obj.halfsets > 0 )
             cmd = [cmd ' -use_halves 1'];

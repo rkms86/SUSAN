@@ -123,8 +123,10 @@ public:
     int R;
     int pad_type;
     int max_K;
-    float delta_def;
-    float delta_ang;
+    float def_range;
+    float def_step;
+    float ang_range;
+    float ang_step;
     bool  est_dose;
     bool  use_halves;
     float3  bandpass;
@@ -324,11 +326,11 @@ protected:
 
         float dU,dV,dA;
         float3 delta_w;
-        for( dU=-delta_def; dU<delta_def; dU+=10 ) {
+        for( dU=-def_range; dU<def_range; dU+=def_step ) {
             delta_w.x = dU;
-            for( dV=-delta_def; dV<delta_def; dV+=10 ) {
+            for( dV=-def_range; dV<def_range; dV+=def_step ) {
                 delta_w.y = dV;
-                for( dA=-delta_ang; dU<delta_ang; dU+=0.5 ) {
+                for( dA=-ang_range; dU<ang_range; dU+=ang_step ) {
                     delta_w.z = dA;
                     ctf_ref.apply_ctf(ali_data.prj_c,delta_w,ptr,stream);
                     rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
@@ -468,8 +470,10 @@ protected:
         gpu_worker.bandpass.x = max(bp_scale*p_info->fpix_min-bp_pad,0.0);
         gpu_worker.bandpass.y = min(bp_scale*p_info->fpix_max+bp_pad,(float)NP);
         gpu_worker.bandpass.z = sqrt(p_info->fpix_roll);
-        gpu_worker.delta_def  = p_info->delta_def;
-        gpu_worker.delta_ang  = p_info->delta_ang;
+        gpu_worker.def_range  = p_info->def_range;
+        gpu_worker.def_step   = p_info->def_step;
+        gpu_worker.ang_range  = p_info->ang_range;
+        gpu_worker.ang_step   = p_info->ang_step;
         gpu_worker.est_dose   = p_info->est_dose;
         gpu_worker.start();
     }
