@@ -439,7 +439,7 @@ protected:
 					if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN_W_STD ) {
 						ptr->c_pad.ptr[k].x = 0;
 						ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
-                                                //ss_cropper.normalize_zero_mean_w_std(ptr->c_stk.ptr,ptr->ptcl.prj_w[k],k); /// applying wait at the insertion level
+                                                //ss_cropper.normalize_zero_mean_w_std(ptr->c_stk.ptr,ptr->ptcl.prj_w[k],k); /// applying weight at the insertion level
                                                 ss_cropper.normalize_zero_mean_one_std(ptr->c_stk.ptr,k);
 					}
 					ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
