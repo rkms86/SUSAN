@@ -73,7 +73,7 @@ public:
 
     ~RecBuffer() {
     }
-	
+
 };
 
 class RecGpuWorker : public Worker {
@@ -132,7 +132,7 @@ protected:
 
         GPU::sync();
     }
-	
+
     void insert_loop(RecAcc*vols,RecSubstack&ss_data,GPU::Stream&stream) {
         p_buffer->RO_sync();
         while( p_buffer->RO_get_status() > DONE ) {
@@ -423,26 +423,36 @@ protected:
 				
 				/// Crop
 				if( ss_cropper.check_point(pt_crop) ) {
-					ss_cropper.crop(ptr->c_stk.ptr,p_stack,pt_crop,k);
-					if( p_info->norm_type == ArgsRec::NormalizationType_t::NO_NORM ) {
-						Math::get_avg_std(ptr->c_pad.ptr[k].x,ptr->c_pad.ptr[k].y,ptr->c_stk.ptr,N*N);
-					}
-					if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN ) {
-						ptr->c_pad.ptr[k].x = 0;
-						ptr->c_pad.ptr[k].y = ss_cropper.normalize_zero_mean(ptr->c_stk.ptr,k);
-					}
-					if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN_1_STD ) {
-						ptr->c_pad.ptr[k].x = 0;
-						ptr->c_pad.ptr[k].y = 1;
-						ss_cropper.normalize_zero_mean_one_std(ptr->c_stk.ptr,k);
-					}
-					if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN_W_STD ) {
-						ptr->c_pad.ptr[k].x = 0;
-						ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
-                                                //ss_cropper.normalize_zero_mean_w_std(ptr->c_stk.ptr,ptr->ptcl.prj_w[k],k); /// applying weight at the insertion level
-                                                ss_cropper.normalize_zero_mean_one_std(ptr->c_stk.ptr,k);
-					}
-					ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
+                    ss_cropper.crop(ptr->c_stk.ptr,p_stack,pt_crop,k);
+                    float avg,std;
+                    float *ss_ptr = ptr->c_stk.ptr+(k*N*N);
+                    Math::get_avg_std(avg,std,ss_ptr,N*N);
+
+                    if( std < SUSAN_FLOAT_TOL ) {
+                        ptr->c_pad.ptr[k].x = 0;
+                        ptr->c_pad.ptr[k].y = 1;
+                        ptr->c_ali.ptr[k].w = 0;
+                    }
+                    else {
+                        if( p_info->norm_type == ArgsRec::NormalizationType_t::NO_NORM ) {
+                            ptr->c_pad.ptr[k].x = avg;
+                            ptr->c_pad.ptr[k].y = std;
+                        }
+                        else {
+                            Math::normalize(ss_ptr,N*N,avg,std);
+                            ptr->c_pad.ptr[k].x = 0;
+                            if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN ) {
+                                ptr->c_pad.ptr[k].y = std;
+                            }
+                            if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN_1_STD ) {
+                                ptr->c_pad.ptr[k].y = 1;
+                            }
+                            if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN_W_STD ) {
+                                ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
+                            }
+                            ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
+                        }
+                    }
 					
 				}
 				else {
