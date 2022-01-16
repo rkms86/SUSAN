@@ -428,7 +428,7 @@ protected:
                     float *ss_ptr = ptr->c_stk.ptr+(k*N*N);
                     Math::get_avg_std(avg,std,ss_ptr,N*N);
 
-                    if( std < SUSAN_FLOAT_TOL ) {
+                    if( std < SUSAN_FLOAT_TOL || isnan(std) || isinf(std) ) {
                         ptr->c_pad.ptr[k].x = 0;
                         ptr->c_pad.ptr[k].y = 1;
                         ptr->c_ali.ptr[k].w = 0;
