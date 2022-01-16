@@ -330,7 +330,7 @@ protected:
             delta_w.x = dU;
             for( dV=-def_range; dV<def_range; dV+=def_step ) {
                 delta_w.y = dV;
-                for( dA=-ang_range; dU<ang_range; dU+=ang_step ) {
+                for( dA=-ang_range; dA<ang_range; dA+=ang_step ) {
                     delta_w.z = dA;
                     ctf_ref.apply_ctf(ali_data.prj_c,delta_w,ptr,stream);
                     rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
@@ -577,9 +577,21 @@ protected:
                 /// Crop
                 if( ss_cropper.check_point(pt_crop) ) {
                     ss_cropper.crop(ptr->c_stk.ptr,p_stack,pt_crop,k);
-                    ptr->c_pad.ptr[k].x = 0;
-                    ptr->c_pad.ptr[k].y = 1;
-                    ss_cropper.normalize_zero_mean_one_std(ptr->c_stk.ptr,k);
+
+                    float avg,std;
+                    float *ss_ptr = ptr->c_stk.ptr+(k*N*N);
+                    Math::get_avg_std(avg,std,ss_ptr,N*N);
+
+                    if( std < SUSAN_FLOAT_TOL || isnan(std) || isinf(std) ) {
+                        ptr->c_pad.ptr[k].x = 0;
+                        ptr->c_pad.ptr[k].y = 1;
+                        ptr->c_ali.ptr[k].w = 0;
+                    }
+                    else {
+                        Math::normalize(ss_ptr,N*N,avg,std);
+                        ptr->c_pad.ptr[k].x = 0;
+                        ptr->c_pad.ptr[k].y = 1;
+                    }
                 }
                 else {
                     ptr->c_ali.ptr[k].w = 0;

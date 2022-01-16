@@ -239,7 +239,21 @@ protected:
 			/// Crop
 			if( ss_cropper.check_point(pt_crop) ) {
 				ss_cropper.crop(p_substack,p_stack,pt_crop,k);
-				ss_cropper.normalize_zero_mean_one_std(p_substack,k);
+                //ss_cropper.normalize_zero_mean_one_std(p_substack,k);
+
+                int N = p_info->box_size;
+                float avg,std;
+                float *ss_ptr = p_substack+(k*N*N);
+                Math::get_avg_std(avg,std,ss_ptr,N*N);
+
+                if( std < SUSAN_FLOAT_TOL || isnan(std) || isinf(std) ) {
+                    p_dZ[k].x = 0;
+                    p_dZ[k].y = 0;
+                }
+                else {
+                    Math::normalize(ss_ptr,N*N,avg,std);
+                }
+
 			}
 			else {
 				p_dZ[k].x = 0;
