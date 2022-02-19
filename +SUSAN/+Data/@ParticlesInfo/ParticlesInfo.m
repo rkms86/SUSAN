@@ -245,6 +245,8 @@ methods
         ptcls_obj.prj_cc(:,:,:)   = obj.prj_cc    (:,:,ix);
         ptcls_obj.prj_w(:,:,:)    = obj.prj_w     (:,:,ix);
         ptcls_obj.defocus(:,:,:)  = obj.defocus   (:,:,ix);
+
+        ptcls_obj.sort();
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -330,9 +332,19 @@ methods
         obj.prj_w     = cat(3, obj.prj_w    , ptcls.prj_w    );
         obj.defocus   = cat(3, obj.defocus  , ptcls.defocus  );
         
+        obj.sort();
+    end
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function sort(obj)
+    % SORT groups the particles according to their TOMO_ID.
+    %   SORT() Sort the paticles according to their TOMO_ID and PTCL_ID.
+    %   The particles must be grouped by their TOMO_ID as the Modules
+    %   process them per tomogram.
+    %
+    %   See also SUSAN.Data.ParticlesInfo.
         [~,ix] = sortrows([obj.tomo_id obj.ptcl_id]);
-        
-        
+                
         obj.ptcl_id   = obj.ptcl_id(ix);
         obj.tomo_id   = obj.tomo_id(ix);
         obj.tomo_cix  = obj.tomo_cix(ix);
@@ -639,7 +651,6 @@ methods(Access=private)
         obj.prj_w     = prj_blk(:,7,:);
         obj.defocus   = ctf_blk;
     end
-    
 end
 
  end
