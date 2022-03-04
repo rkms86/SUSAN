@@ -347,19 +347,25 @@ methods
             ref_ix = 1;
         end
         
-        if( iter_number < 1 )
-            
-            ref = SUSAN.Data.ReferenceInfo.load(obj.initial_reference);
-            map_file = ref(ref_ix).map;
-            
-        elseif( obj.check_iteration_exists(iter_number) )
-            
-            iter_dir = obj.get_iterations_dir(iter_number);
-            
-            map_file = sprintf('%s/map_class%03d.mrc',iter_dir,ref_ix);
+        if( isscalar(iter_number) && isscalar(ref_ix) )
+            map_file = obj.get_iterations_map_file(iter_number,ref_ix);
         else
-            error('Iteration does not exist.');
+            
+            map_file = {};
+            
+            for i = 1:length(iter_number)
+                
+                for j = 1:length(ref_ix)
+                    
+                    tmp = obj.get_iterations_map_file(iter_number(i),ref_ix(j));
+                    map_file{end+1} = tmp;
+                    
+                end
+                
+            end
+            
         end
+            
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -495,6 +501,32 @@ methods(Access=protected)
         iter_dir = obj.get_iterations_dir(iter_number);
         refs = [iter_dir '/reference.refstxt'];
         part = [iter_dir '/particles.ptclsraw'];
+        
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function mapfile = get_iterations_map_file(obj,iter_ix,ref_ix)
+        
+        if( ref_ix < 1 )
+            error('Invalid reference: ite %d ref %d.',iter_ix,ref_ix);
+        end
+        
+        if( iter_ix < 1 )
+            ref = SUSAN.Data.ReferenceInfo.load(obj.initial_reference);
+            if( ref_ix > length(ref) )
+                error('Reference not found: ite %d ref %d.',iter_ix,ref_ix);
+            end
+            mapfile = ref(ref_ix).map;
+            
+        else
+            
+            mapfile = sprintf('%s/ite_%04d/map_class%03d.mrc',obj.name,iter_ix,ref_ix);
+            
+            if( ~SUSAN.Utils.exist_file( mapfile ) )
+                error('Reference not found: %s.',mapfile);
+            end
+            
+        end
         
     end
     

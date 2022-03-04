@@ -33,7 +33,7 @@ public:
     SvgCtf(const char*filename,const float in_apix) {
         fp = fopen(filename,"w");
         apix = in_apix;
-        fprintf(fp,"<svg height=\"530\" width=\"800\" style=\"fill:white;stroke:black;stroke-width:2;\" font-family=\"Arial,Helvetica,sans-serif\">\n");
+        fprintf(fp,"<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" height=\"530\" width=\"800\" style=\"fill:white;stroke:black;stroke-width:2;\" font-family=\"Arial,Helvetica,sans-serif\">\n");
         has_avg = false;
         has_est = false;
         has_fit = false;
@@ -176,7 +176,7 @@ public:
     SvgFsc(const char*filename,const float in_apix) {
         fp = fopen(filename,"w");
         apix = in_apix;
-        fprintf(fp,"<svg height=\"530\" width=\"800\" style=\"fill:white;stroke:black;stroke-width:2;\" font-family=\"Arial,Helvetica,sans-serif\">\n");
+        fprintf(fp,"<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" height=\"530\" width=\"800\" style=\"fill:white;stroke:black;stroke-width:2;\" font-family=\"Arial,Helvetica,sans-serif\">\n");
         has_unm = false;
         has_msk = false;
         has_rnd = false;
