@@ -20,10 +20,23 @@ function vol_out = vol_crop_center(vol_in, l)
 % along with this program.  If not, see <https://www.gnu.org/licenses/>.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+vol_in = conditional_load_mrc(vol_in);
+
 ix_x = (1:l) + ceil( (size(vol_in,1)-l)/2 );
 ix_y = (1:l) + ceil( (size(vol_in,2)-l)/2 );
 ix_z = (1:l) + ceil( (size(vol_in,3)-l)/2 );
 
 vol_out = vol_in(ix_x,ix_y,ix_z);
+
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function v = conditional_load_mrc(arg)
+
+if( ischar(arg) )
+    v = SUSAN.IO.read_mrc(arg);
+else
+    v = arg;
+end
 
 end

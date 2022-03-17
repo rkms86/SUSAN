@@ -20,6 +20,8 @@ function vol_out = vol_add_center(big_vol, small_vol)
 % along with this program.  If not, see <https://www.gnu.org/licenses/>.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+vol_in = conditional_load_mrc(small_vol);
+
 ix_x = (1:size(small_vol,1)) + ceil( (size(big_vol,1)-size(small_vol,1))/2 );
 ix_y = (1:size(small_vol,2)) + ceil( (size(big_vol,2)-size(small_vol,2))/2 );
 ix_z = (1:size(small_vol,3)) + ceil( (size(big_vol,3)-size(small_vol,3))/2 );
@@ -27,5 +29,16 @@ ix_z = (1:size(small_vol,3)) + ceil( (size(big_vol,3)-size(small_vol,3))/2 );
 vol_out = big_vol;
 
 vol_out(ix_x,ix_y,ix_z) = small_vol;
+
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function v = conditional_load_mrc(arg)
+
+if( ischar(arg) )
+    v = SUSAN.IO.read_mrc(arg);
+else
+    v = arg;
+end
 
 end
