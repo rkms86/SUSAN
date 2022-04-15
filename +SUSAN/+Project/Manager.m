@@ -69,30 +69,24 @@ methods
             obj.box_size = arg2;
             obj.save(arg1);
         elseif( nargin == 1 )
-            obj.load(arg1);
+            if( isa(arg1,'cell') )
+                if( length(arg1) == 2 )
+                    obj.name = arg1{1};
+                    obj.box_size = arg1{2};
+                    obj.save(arg1{1});
+                elseif( length(arg1) == 1 )
+                    obj.load(arg1{1});
+                else
+                    error('1 or 2 struct input arguments required.');
+                end
+            else
+                obj.load(arg1);
+            end
         else
             error('1 or 2 input arguments required.');
         end
         
-        obj.aligner = SUSAN.Modules.Aligner;
-        obj.aligner.set_ctf_correction('on_reference',1,0);
-        obj.aligner.set_padding_policy('noise');
-        obj.aligner.set_normalization('zm1s');
-        
-        obj.averager = SUSAN.Modules.Averager;
-        obj.averager.set_ctf_correction('wiener',0.5,0);
-        obj.averager.set_padding_policy('noise');
-        obj.averager.set_normalization('zm1s');
-        obj.averager.rec_halves = true;
-        obj.averager.bandpass.highpass = 0;
-        obj.averager.bandpass.lowpass  = obj.box_size/2-1;
-        obj.averager.bandpass.rolloff  = 3;
-        
-        obj.refs_aligner = SUSAN.Modules.ReferenceAligner;
-        obj.refs_aligner.bandpass.highpass = 0;
-        obj.refs_aligner.bandpass.lowpass  = obj.box_size/2-1;
-        obj.refs_aligner.set_angular_search(1.2,0.2,1.2,0.2);
-        obj.refs_aligner.set_offset_ellipsoid(4,1);
+        obj.init();
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -174,8 +168,8 @@ methods
             obj.exec_averaging(cur_refs,cur_dir,tmp_part,prv_refs,ptcls_count,fp_log);
         end
         
-        %%% FSC CALCULATION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        fpix_out = obj.exec_fsc_calc(iter_number,ptcls_count,fp_log);
+        %%% POSTPROCESS: RETURN FSC CALCULATION %%%%%%%%%%%%%%%%%%%%%%%%%%%
+        fpix_out = obj.exec_postprocess(iter_number,ptcls_count,fp_log);
         
         
         %%% END %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -468,6 +462,31 @@ methods(Access=protected)
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function init(obj)
+        
+        obj.aligner = SUSAN.Modules.Aligner;
+        obj.aligner.set_ctf_correction('on_reference',1,0);
+        obj.aligner.set_padding_policy('noise');
+        obj.aligner.set_normalization('zm1s');
+        
+        obj.averager = SUSAN.Modules.Averager;
+        obj.averager.set_ctf_correction('wiener',0.5,0);
+        obj.averager.set_padding_policy('noise');
+        obj.averager.set_normalization('zm1s');
+        obj.averager.rec_halves = true;
+        obj.averager.bandpass.highpass = 0;
+        obj.averager.bandpass.lowpass  = obj.box_size/2-1;
+        obj.averager.bandpass.rolloff  = 3;
+        
+        obj.refs_aligner = SUSAN.Modules.ReferenceAligner;
+        obj.refs_aligner.bandpass.highpass = 0;
+        obj.refs_aligner.bandpass.lowpass  = obj.box_size/2-1;
+        obj.refs_aligner.set_angular_search(1.2,0.2,1.2,0.2);
+        obj.refs_aligner.set_offset_ellipsoid(4,1);
+        
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function rslt = check_iteration_exists(obj,iter_number)
         
         iter_dir = sprintf('%s/ite_%04d',obj.name,iter_number);
@@ -667,7 +686,7 @@ methods(Access=protected)
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    function fpix_out = exec_fsc_calc(obj,iter_number,ptcls_count,fp_log)
+    function fpix_out = exec_postprocess(obj,iter_number,ptcls_count,fp_log)
         
         fpix_out = zeros(size(ptcls_count,1),1);
         obj.log_fsc_starts(fp_log,size(ptcls_count,1))
