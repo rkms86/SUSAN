@@ -6,12 +6,6 @@ set(CMAKE_BUILD_TYPE Release)
 
 include_directories("${CMAKE_SOURCE_DIR}/../dependencies/eigen")
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-set(CMAKE_CUDA_STANDARD 11)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
 set(CUDA_ARCHS 52 60 61 70 75)
 
 string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
