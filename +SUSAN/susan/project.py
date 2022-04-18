@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-import os,susan,math,os.path,collections,datetime,numpy
+import os,susan,os.path,collections,datetime,numpy
 import susan.data
 import susan.modules
 
