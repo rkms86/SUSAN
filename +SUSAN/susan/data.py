@@ -238,7 +238,7 @@ def _decode_if_needed(line):
     except:
         return line
 
-def _read_value(fp,tag):
+def read_value(fp,tag):
     line = _decode_if_needed( fp.readline().strip() )
     while len(line) > 0 and line[0] == "#" :
         line = _decode_if_needed( fp.readline().strip() )
@@ -246,7 +246,7 @@ def _read_value(fp,tag):
         raise NameError("Requested field "+tag+", but the line is "+line)
     return line[(len(tag)+1):]
 
-def _write_value(fp,tag,value):
+def write_value(fp,tag,value):
     fp.write(tag+':'+value+'\n')
     
 class reference(typing.NamedTuple):
@@ -257,16 +257,16 @@ class reference(typing.NamedTuple):
 
 def load_references(filename):
     fp = open(filename,"rb")
-    num_refs = int(_read_value(fp,'num_ref'))
+    num_refs = int(read_value(fp,'num_ref'))
     names=[]
     masks=[]
     half1=[]
     half2=[]
     for i in range(num_refs):
-        names.append(_read_value(fp,'map'))
-        masks.append(_read_value(fp,'mask'))
-        half1.append(_read_value(fp,'h1'))
-        half2.append(_read_value(fp,'h2'))
+        names.append(read_value(fp,'map'))
+        masks.append(read_value(fp,'mask'))
+        half1.append(read_value(fp,'h1'))
+        half2.append(read_value(fp,'h2'))
     fp.close()
     result = [
         reference(*refs_details)
@@ -276,12 +276,12 @@ def load_references(filename):
 
 def save_references(refs,filename):
     fp=open(filename,'w')
-    _write_value(fp,'num_ref',str(len(refs)))
+    write_value(fp,'num_ref',str(len(refs)))
     for i in range(len(refs)):
         fp.write('## Reference '+str(i+1)+'\n')
-        _write_value(fp,'map',refs[i].ref)
-        _write_value(fp,'mask',refs[i].mask)
-        _write_value(fp,'h1',refs[i].h1)
-        _write_value(fp,'h2',refs[i].h2)
+        write_value(fp,'map',refs[i].ref)
+        write_value(fp,'mask',refs[i].mask)
+        write_value(fp,'h1',refs[i].h1)
+        write_value(fp,'h2',refs[i].h2)
     fp.close()
 
