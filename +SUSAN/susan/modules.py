@@ -88,8 +88,8 @@ class aligner:
         if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
             raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
         
-        if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','wiener_white']:
-            raise NameError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr" or "wiener_white" are valid')
+        if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','wiener_white','cfsc']:
+            raise NameError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
             
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         self.validate()
