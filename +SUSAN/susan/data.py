@@ -16,7 +16,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-import struct, numpy, typing
+import numpy as np
+import struct, typing
 
 class particles:
     def __init__(self, *args, **kwargs):
@@ -157,36 +158,36 @@ class particles:
         return ptcls_out
     
     def __alloc_empty__(self):
-        self.ptcl_id  = numpy.zeros(self.n_ptcl,dtype=numpy.uint32)
-        self.tomo_id  = numpy.zeros(self.n_ptcl,dtype=numpy.uint32)
-        self.tomo_cix = numpy.zeros(self.n_ptcl,dtype=numpy.uint32)
-        self.position = numpy.zeros((self.n_ptcl,3),dtype=numpy.float32) # in Angstroms
-        self.ref_cix  = numpy.zeros(self.n_ptcl,dtype=numpy.uint32)
-        self.half_id  = numpy.zeros(self.n_ptcl,dtype=numpy.uint32)
-        self.extra_1  = numpy.zeros(self.n_ptcl,dtype=numpy.float32)
-        self.extra_2  = numpy.zeros(self.n_ptcl,dtype=numpy.float32)
+        self.ptcl_id  = np.zeros(self.n_ptcl,dtype=np.uint32)
+        self.tomo_id  = np.zeros(self.n_ptcl,dtype=np.uint32)
+        self.tomo_cix = np.zeros(self.n_ptcl,dtype=np.uint32)
+        self.position = np.zeros((self.n_ptcl,3),dtype=np.float32) # in Angstroms
+        self.ref_cix  = np.zeros(self.n_ptcl,dtype=np.uint32)
+        self.half_id  = np.zeros(self.n_ptcl,dtype=np.uint32)
+        self.extra_1  = np.zeros(self.n_ptcl,dtype=np.float32)
+        self.extra_2  = np.zeros(self.n_ptcl,dtype=np.float32)
         
         # 3D alignment
-        self.ali_eu   = numpy.zeros((self.n_ptcl,3,self.n_refs),dtype=numpy.float32) # in Radians
-        self.ali_t    = numpy.zeros((self.n_ptcl,3,self.n_refs),dtype=numpy.float32) # in Angstroms
-        self.ali_cc   = numpy.zeros((self.n_ptcl,1,self.n_refs),dtype=numpy.float32)
-        self.ali_w    = numpy.zeros((self.n_ptcl,1,self.n_refs),dtype=numpy.float32)
+        self.ali_eu   = np.zeros((self.n_ptcl,3,self.n_refs),dtype=np.float32) # in Radians
+        self.ali_t    = np.zeros((self.n_ptcl,3,self.n_refs),dtype=np.float32) # in Angstroms
+        self.ali_cc   = np.zeros((self.n_ptcl,1,self.n_refs),dtype=np.float32)
+        self.ali_w    = np.zeros((self.n_ptcl,1,self.n_refs),dtype=np.float32)
         
         # 2D alignment
-        self.prj_eu   = numpy.zeros((self.n_ptcl,3,self.n_proj),dtype=numpy.float32) # in Radians
-        self.prj_t    = numpy.zeros((self.n_ptcl,2,self.n_proj),dtype=numpy.float32) # in Angstroms
-        self.prj_cc   = numpy.zeros((self.n_ptcl,1,self.n_proj),dtype=numpy.float32)
-        self.prj_w    = numpy.zeros((self.n_ptcl,1,self.n_proj),dtype=numpy.float32)
+        self.prj_eu   = np.zeros((self.n_ptcl,3,self.n_proj),dtype=np.float32) # in Radians
+        self.prj_t    = np.zeros((self.n_ptcl,2,self.n_proj),dtype=np.float32) # in Angstroms
+        self.prj_cc   = np.zeros((self.n_ptcl,1,self.n_proj),dtype=np.float32)
+        self.prj_w    = np.zeros((self.n_ptcl,1,self.n_proj),dtype=np.float32)
         
         # Defocus
-        self.def_U    = numpy.zeros((self.n_ptcl,self.n_proj),dtype=numpy.float32) # U (angstroms)
-        self.def_V    = numpy.zeros((self.n_ptcl,self.n_proj),dtype=numpy.float32) # V (angstroms)
-        self.def_ang  = numpy.zeros((self.n_ptcl,self.n_proj),dtype=numpy.float32) # angles (sexagesimal)
-        self.def_phas = numpy.zeros((self.n_ptcl,self.n_proj),dtype=numpy.float32) # phase shift (sexagesimal?)
-        self.def_Bfct = numpy.zeros((self.n_ptcl,self.n_proj),dtype=numpy.float32) # Bfactor
-        self.def_ExFl = numpy.zeros((self.n_ptcl,self.n_proj),dtype=numpy.float32) # Exposure filter
-        self.def_mres = numpy.zeros((self.n_ptcl,self.n_proj),dtype=numpy.float32) # Max. resolution (angstroms)
-        self.def_scor = numpy.zeros((self.n_ptcl,self.n_proj),dtype=numpy.float32) # score
+        self.def_U    = np.zeros((self.n_ptcl,self.n_proj),dtype=np.float32) # U (angstroms)
+        self.def_V    = np.zeros((self.n_ptcl,self.n_proj),dtype=np.float32) # V (angstroms)
+        self.def_ang  = np.zeros((self.n_ptcl,self.n_proj),dtype=np.float32) # angles (sexagesimal)
+        self.def_phas = np.zeros((self.n_ptcl,self.n_proj),dtype=np.float32) # phase shift (sexagesimal?)
+        self.def_Bfct = np.zeros((self.n_ptcl,self.n_proj),dtype=np.float32) # Bfactor
+        self.def_ExFl = np.zeros((self.n_ptcl,self.n_proj),dtype=np.float32) # Exposure filter
+        self.def_mres = np.zeros((self.n_ptcl,self.n_proj),dtype=np.float32) # Max. resolution (angstroms)
+        self.def_scor = np.zeros((self.n_ptcl,self.n_proj),dtype=np.float32) # score
         
     def __parse_buffer__(self,index,buffer):
         i=0
@@ -231,41 +232,41 @@ class particles:
             self.def_mres[index,j], self.def_scor[index,j] = struct.unpack('ffffffff',buffer[i:i+32])
             i=i+32
 
-def decode_if_needed(line):
+def _decode_if_needed(line):
     try:
         return line.decode('utf-8')
     except:
         return line
 
-def read_value(fp,tag):
-    line = decode_if_needed( fp.readline().strip() )
+def _read_value(fp,tag):
+    line = _decode_if_needed( fp.readline().strip() )
     while len(line) > 0 and line[0] == "#" :
-        line = decode_if_needed( fp.readline().strip() )
+        line = _decode_if_needed( fp.readline().strip() )
     if not line.startswith(tag):
         raise NameError("Requested field "+tag+", but the line is "+line)
     return line[(len(tag)+1):]
 
-def write_value(fp,tag,value):
+def _write_value(fp,tag,value):
     fp.write(tag+':'+value+'\n')
     
 class reference(typing.NamedTuple):
-    ref : str
+    ref  : str
     mask : str
-    h1 : str
-    h2 : str
+    h1   : str
+    h2   : str
 
 def load_references(filename):
     fp = open(filename,"rb")
-    num_refs = int(read_value(fp,'num_ref'))
+    num_refs = int(_read_value(fp,'num_ref'))
     names=[]
     masks=[]
     half1=[]
     half2=[]
     for i in range(num_refs):
-        names.append(read_value(fp,'map'))
-        masks.append(read_value(fp,'mask'))
-        half1.append(read_value(fp,'h1'))
-        half2.append(read_value(fp,'h2'))
+        names.append(_read_value(fp,'map'))
+        masks.append(_read_value(fp,'mask'))
+        half1.append(_read_value(fp,'h1'))
+        half2.append(_read_value(fp,'h2'))
     fp.close()
     result = [
         reference(*refs_details)
@@ -275,12 +276,12 @@ def load_references(filename):
 
 def save_references(refs,filename):
     fp=open(filename,'w')
-    write_value(fp,'num_ref',str(len(refs)))
+    _write_value(fp,'num_ref',str(len(refs)))
     for i in range(len(refs)):
         fp.write('## Reference '+str(i+1)+'\n')
-        write_value(fp,'map',refs[i].ref)
-        write_value(fp,'mask',refs[i].mask)
-        write_value(fp,'h1',refs[i].h1)
-        write_value(fp,'h2',refs[i].h2)
+        _write_value(fp,'map',refs[i].ref)
+        _write_value(fp,'mask',refs[i].mask)
+        _write_value(fp,'h1',refs[i].h1)
+        _write_value(fp,'h2',refs[i].h2)
     fp.close()
 
