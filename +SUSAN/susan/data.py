@@ -19,11 +19,16 @@
 import numpy as np
 import struct, typing
 
-class particles:
+class Particles:
     def __init__(self, *args, **kwargs):
         if len(args) == 1:
-            filename = args[0] 
-            self.load(filename)
+            if isinstance(args[0], str):
+                filename = args[0] 
+                self.load(filename)
+            #elif isinstance(args[0],np.ndarray)
+            #    # Parse positions....
+            else:
+                raise NameError('Invalid input')
         else:
             if len(args) == 3:
                 n_ptcl = args[0]

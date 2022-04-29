@@ -19,6 +19,23 @@
 import numpy as np
 from numba import jit
 
+def _decode_if_needed(line):
+    try:
+        return line.decode('utf-8')
+    except:
+        return line
+
+def text_parser_read(fp,tag):
+    line = _decode_if_needed( fp.readline().strip() )
+    while len(line) > 0 and line[0] == "#" :
+        line = _decode_if_needed( fp.readline().strip() )
+    if not line.startswith(tag):
+        raise NameError("Requested field "+tag+", but the line is "+line)
+    return line[(len(tag)+1):]
+
+def text_partser_write(fp,tag,value):
+    fp.write(tag+':'+value+'\n')
+
 def read_mrc(filename):
     mrc_shape = np.fromfile(filename,dtype=np.uint32 ,count=3)
     mrc_mode  = np.fromfile(filename,dtype=np.uint32 ,count=1,offset=12)
@@ -26,7 +43,7 @@ def read_mrc(filename):
     mrc_cellA = np.fromfile(filename,dtype=np.float32,count=3,offset=40)
     mrc_offst = np.fromfile(filename,dtype=np.uint32 ,count=1,offset=92)
 
-    pix_size  = mrc_cellA/mrc_sampl
+    pix_size  = (mrc_cellA/mrc_sampl).astype(np.float32)
 
     if mrc_mode == 0:
         in_type = np.int8
@@ -147,13 +164,23 @@ def fsc_get(v1,v2,msk=None):
     V1 = np.fft.fftshift( np.fft.rfftn(v1), axes=(0,1))
     V2 = np.fft.fftshift( np.fft.rfftn(v2), axes=(0,1))
     
-    num = np.real(V1*np.conjugate(V2))
-    d_1 = np.real(V1*np.conjugate(V1))
-    d_2 = np.real(V2*np.conjugate(V2))
+    num = np.real(V1*np.conjugate(V2)).astype(np.float32)
+    d_1 = np.real(V1*np.conjugate(V1)).astype(np.float32)
+    d_2 = np.real(V2*np.conjugate(V2)).astype(np.float32)
     
     fsc = _fsc_get_core(num,d_1,d_2)
     
     return fsc
+
+def fsc_analyse(fsc,apix=1.0,thres=0.143):
+    apix = np.array(apix)
+    if( apix.size > 1 ):
+        apix = apix[0]
+    fpix = np.argwhere(fsc<thres)[0,0]
+    res  = (2*(fsc.size-1)*apix)/fpix
+    rslt = {'fpix':fpix, 'res':res}
+    return rslt
+    
     
     
 
