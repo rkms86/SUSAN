@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.3)
 project(SUSAN LANGUAGES CXX CUDA)
-find_package(MPI 3)
+find_package(MPI)
 
 set(CMAKE_BUILD_TYPE Release)
 
