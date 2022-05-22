@@ -16,11 +16,21 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-from . import data
-from . import io
-from . import utils
-from . import modules
-from . import project
+__all__ = ['read','write']
 
-__all__ = []
-__all__.extend(['data','io','utils','modules','project'])
+def _decode_if_needed(line):
+    try:
+        return line.decode('utf-8')
+    except:
+        return line
+
+def read(fp,tag):
+    line = _decode_if_needed( fp.readline().strip() )
+    while len(line) > 0 and line[0] == "#" :
+        line = _decode_if_needed( fp.readline().strip() )
+    if not line.startswith(tag):
+        raise NameError("Requested field "+tag+", but the line is "+line)
+    return line[(len(tag)+1):]
+
+def write(fp,tag,value):
+    fp.write(tag+':'+value+'\n')

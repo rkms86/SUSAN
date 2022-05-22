@@ -28,11 +28,16 @@
 #include "tomogram.h"
 #include "reconstruct_args.h"
 
-void print_data_info(Particles&ptcls,Tomograms&tomos) {
+void print_data_info(Particles&ptcls,Tomograms&tomos,ArgsRec::Info&info) {
+    if(info.verbosity>0) {
         printf("\t\tAvailable particles:  %d.\n",ptcls.n_ptcl);
         printf("\t\tNumber of classes:    %d.\n",ptcls.n_refs);
-	printf("\t\tTomograms available:  %d.\n",tomos.num_tomo);
-	printf("\t\tAvailabe projections: %d (max).\n",tomos.num_proj);
+    	printf("\t\tTomograms available:  %d.\n",tomos.num_tomo);
+    	printf("\t\tAvailabe projections: %d (max).\n",tomos.num_proj);
+    }
+    else {
+        printf("    - %d Particles (%d classes) in %d tomograms with max %d projections.\n",ptcls.n_ptcl,ptcls.n_refs,tomos.num_tomo,tomos.num_proj);
+    }
 }
 
 int main(int ac, char** av) {
@@ -50,7 +55,7 @@ int main(int ac, char** av) {
         Tomograms tomos(info.tomos_in);
         printf(" Done\n"); fflush(stdout);
 
-        print_data_info(ptcls,tomos);
+        print_data_info(ptcls,tomos,info);
 
         StackReader stkrdr(&ptcls,&tomos,&barrier);
         RecPool pool(&info,ptcls.n_refs,tomos.num_proj,ptcls.n_ptcl,stkrdr,info.n_threads);

@@ -16,148 +16,152 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-import os,susan,math
+from importlib.util import find_spec as _find_spec
+from os.path import dirname as _dir_name
+import susan.utils.datatypes as _dt
 
-def get_gpu_str(list_gpus_ids):
-    gpu_str = ''
-    for i in range(len(list_gpus_ids)):
-        gpu_str = gpu_str + '%d,' % list_gpus_ids[i]
-    gpu_str = gpu_str[0:-1]
+def _bin_path():
+    tmp = _find_spec('susan')
+    rslt = _dir_name(tmp.origin)
+    return rslt+'/../bin/'
+
+def _get_gpu_str(list_gpus_ids):
+    gpu_str = ','.join( str(num) for num in  list_gpus_ids )
     return gpu_str
 
-def denoise_l0(map_name,lambda_val,rho_val):
-    args =        ' -map_file '   + map_name
-    args = args + ' -lambda %f' % lambda_val
-    args = args + ' -rho %f' % rho_val
-    cmd = os.path.dirname(susan.__file__)+'/../bin/susan_denoise_l0'
-    cmd = cmd + args
-    rslt = os.system(cmd)
-    if not rslt == 0:
-        raise NameError('Error executing the denoiser: ' + cmd)
+###############################################################################
 
-class aligner:
+class Aligner:
     def __init__(self):
         self.list_gpus_ids     = [0]
         self.threads_per_gpu   = 1
-        self.bandpass_highpass = 0
-        self.bandpass_lowpass  = 20
-        self.bandpass_rolloff  = 3
+        self.bandpass          = _dt.bandpass(0,-1,2)
         self.dimensionality    = 3
         self.extra_padding     = 0
         self.allow_drift       = True
         self.halfsets_independ = False
-        self.cone_range        = 0
-        self.cone_step         = 1
-        self.inplane_range     = 0
-        self.inplane_step      = 1
-        self.refine_level      = 0
-        self.refine_factor     = 1
-        self.offset_range      = [4,4,4]
-        self.offset_step       = 1
-        self.offset_type       = 'ellipsoid'
+        self.cone              = _dt.search_params(0,1)
+        self.inplane           = _dt.search_params(0,1)
+        self.refine            = _dt.refine_params(0,1)
+        self.offset            = _dt.offset_params([4,4,4],1,'ellipsoid')
         self.padding_type      = 'noise'
-        self.normalize_type    = 'zero_mean'
+        self.normalize_type    = 'zero_mean_one_std'
         self.ctf_correction    = 'on_reference'
         self.pseudo_symmetry   = 'c1'
-        self.ssnr_S            = 0
-        self.ssnr_F            = 0
+        self.ssnr              = _dt.ssnr(1,0.01)
+        self.mpi               = _dt.mpi_params('srun -n %d ',1)
+        self.verbosity         = 0
         
     def set_angular_search(self,c_r=0,c_s=1,i_r=0,i_s=1):
-        self.cone_range    = c_r
-        self.cone_step     = c_s
-        self.inplane_range = i_r
-        self.inplane_step  = i_s
+        self.cone.span    = c_r
+        self.cone.step    = c_s
+        self.inplane.span = i_r
+        self.inplane_step = i_s
         
     def set_offset_search(self,off_range,off_step,off_type='ellipsoid'):
         if not off_type in ['ellipsoid','cylinider']:
-            raise NameError('Invalid offset type. Only "ellipsoid" or "cylinder" are valid')
-        self.offset_range = off_range
-        self.offset_step  = off_step
-        self.offset_type  = off_type
+            raise ValueError('Invalid offset type. Only "ellipsoid" or "cylinder" are valid')
+        
+        if isinstance(off_range,int) or isinstance(off_range,float):
+            self.offset.span = (off_range,off_range,off_range)
+        elif len(off_range) == 3:
+            self.offset.span = off_range
+        elif len(off_range) == 2:
+            self.offset.span = (off_range[0],off_range[0],off_range[1])
+        else:
+            raise ValueError('Offset range can have up to 3 elements.')
+        self.offset.step = off_step
+        self.offset.kind = off_type
         
     def validate(self):
         if not self.dimensionality in [2,3]:
-            raise NameError('Invalid dimensionality type. Only 3 or 3 are valid')
+            raise ValueError('Invalid dimensionality type. Only 3 or 3 are valid')
         
         if not self.offset_type in ['ellipsoid','cylinider']:
-            raise NameError('Invalid offset type. Only "ellipsoid" or "cylinder" are valid')
+            raise ValueError('Invalid offset type. Only "ellipsoid" or "cylinder" are valid')
         
         if not self.padding_type in ['zero','noise']:
-            raise NameError('Invalid padding type. Only "zero" or "noise" are valid')
+            raise ValueError('Invalid padding type. Only "zero" or "noise" are valid')
         
         if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
-            raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
+            raise ValueError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
         
         if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','wiener_white','cfsc']:
-            raise NameError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
-            
+            raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
+        
+        if not self.offset.step > 0 or not self.cone.step > 0 or not self.inplane.step > 0:
+            raise ValueError('The steps values must be larger than 0')
+        
+        if self.offset.span < self.offset.step:
+            raise ValueError('Offset: Step cannot be larger than Range/Span')
+
+        if self.cone.span < self.cone.step:
+            raise ValueError('Cone: Step cannot be larger than Range/Span')
+
+        if self.inplane.span < self.inplane.step:
+            raise ValueError('Inplane: Step cannot be larger than Range/Span')
+
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         self.validate()
-        n_threads = '%d' % (len(self.list_gpus_ids)*self.threads_per_gpu)
-        gpu_str = get_gpu_str(self.list_gpus_ids)
-        args =        ' -tomos_file ' + tomos_file
-        args = args + ' -ptcls_in '   + ptcls_in
-        args = args + ' -ptcls_out '  + ptcls_out
-        args = args + ' -refs_file '  + refs_file
-        args = args + ' -n_threads '  + n_threads
-        args = args + ' -gpu_list '   + gpu_str
-        args = args + ' -box_size %d' % box_size
-        args = args + ' -pad_size %d' % self.extra_padding
-        args = args + ' -pad_type '   + self.padding_type
-        args = args + ' -norm_type '  + self.normalize_type
-        args = args + ' -ctf_type '   + self.ctf_correction
-        args = args + ' -ssnr_param ' + ('%f' % self.ssnr_F) + (',%f' % self.ssnr_S)
-        args = args + ' -bandpass '   + ('%f' % self.bandpass_highpass) + (',%f' % self.bandpass_lowpass)
-        args = args + ' -rolloff_f '  + ('%f' % self.bandpass_rolloff)
-        args = args + ' -p_symmetry ' + self.pseudo_symmetry
-        if self.halfsets_independ:
-            args = args + ' -ali_halves 1'
-        else:
-            args = args + ' -ali_halves 0'
-        if self.allow_drift:
-            args = args + ' -allow_drift 1'
-        else:
-            args = args + ' -allow_drift 0'
-        args = args + ' -cone '       + ('%f' % self.cone_range) + (',%f' % self.cone_step)
-        args = args + ' -inplane '    + ('%f' % self.inplane_range) + (',%f' % self.inplane_step)
-        args = args + ' -refine '     + ('%f' % self.refine_factor) + (',%f' % self.refine_level)
-        args = args + ' -off_type '   + self.offset_type
-        args = args + ' -off_params ' + ('%f' % self.offset_range[0]) + (',%f' % self.offset_range[1]) + (',%f' % self.offset_range[2]) + (',%f' % self.offset_step)
-        args = args + ' -type %d'     % self.dimensionality
+        n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
+        gpu_str   = _get_gpu_str(self.list_gpus_ids)
+        args =        ' -tomos_file '      + tomos_file
+        args = args + ' -ptcls_in '        + ptcls_in
+        args = args + ' -ptcls_out '       + ptcls_out
+        args = args + ' -refs_file '       + refs_file
+        args = args + ' -n_threads %d'     % n_threads
+        args = args + ' -gpu_list '        + gpu_str
+        args = args + ' -box_size %d'      % box_size
+        args = args + ' -pad_size %d'      % self.extra_padding
+        args = args + ' -pad_type '        + self.padding_type
+        args = args + ' -norm_type '       + self.normalize_type
+        args = args + ' -ctf_type '        + self.ctf_correction
+        args = args + ' -ssnr_param %f,%f' % (self.ssnr.F,self.ssnr.S)
+        args = args + ' -bandpass %f,%f'   % (self.bandpass.highpass,self.bandpass.lowpass)
+        args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
+        args = args + ' -p_symmetry '      + self.pseudo_symmetry
+        args = args + ' -ali_halves %d'    % self.halfsets_independ
+        args = args + ' -cone %f,%f'       % (self.cone.span,self.cone.step)
+        args = args + ' -inplane %f,%f'    % (self.inplace.span,self.inplace.step)
+        args = args + ' -refine %d,%d'     % (self.refine.factor,self.refine.levels)
+        args = args + ' -off_type '        + self.offset.kind
+        args = args + ' -off_params %f,%f,%f,%f' + (self.offset.span[0],self.offset.span[1],self.offset.span[2],self.offset.step)
+        args = args + ' -type %d'          % self.dimensionality
+        args = args + ' -verbosity %d'     % self.verbosity
         return args
     
     def align(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = os.path.dirname(susan.__file__)+'/../bin/susan_aligner'
+        cmd = _bin_path() + 'susan_aligner'
         cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)
     
     def align_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size,mpi_nodes):
-        cmd = 'srun -n ' + ('%d ' % mpi_nodes)
-        cmd = cmd + os.path.dirname(susan.__file__)+'/../bin/susan_aligner_mpi'
+        cmd = self.mpi_params.cmd % self.mpi_params.arg
+        cmd = cmd + _bin_path() + 'susan_aligner_mpi'
         cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)
-        
-class averager:
+
+###############################################################################
+
+class Averager:
     def __init__(self):
         self.list_gpus_ids     = [0]
         self.threads_per_gpu   = 1
-        self.bandpass_highpass = 0
-        self.bandpass_lowpass  = 20
-        self.bandpass_rolloff  = 3
+        self.bandpass          = _dt.bandpass(0,-1,2)
         self.extra_padding     = 0
         self.rec_halfsets      = False
         self.padding_type      = 'noise'
-        self.normalize_type    = 'zero_mean'
+        self.normalize_type    = 'zero_mean_one_std'
         self.ctf_correction    = 'wiener'
         self.symmetry          = 'c1'
-        self.ssnr_S            = 0
-        self.ssnr_F            = 0
-        self.inversion_iter    = 10
-        self.inversion_gstd    = 0.75
+        self.ssnr              = _dt.ssnr(1,0.01)
+        self.inversion         = _dt.inversion_params(10,0.75)
+        self.mpi               = _dt.mpi_params('srun -n %d ',1)
+        self.verbosity         = 0
         
     def validate(self):
         if not self.padding_type in ['zero','noise']:
@@ -171,107 +175,161 @@ class averager:
             
     def get_args(self,out_pfx,tomos_file,ptcls_in,box_size):
         self.validate()
-        n_threads = '%d' % (len(self.list_gpus_ids)*self.threads_per_gpu)
-        gpu_str = get_gpu_str(self.list_gpus_ids)
-        args =        ' -tomos_file ' + tomos_file
-        args = args + ' -out_prefix ' + out_pfx
-        args = args + ' -ptcls_file ' + ptcls_in
-        args = args + ' -n_threads '  + n_threads
-        args = args + ' -gpu_list '   + gpu_str
-        args = args + ' -box_size %d' % box_size
-        args = args + ' -pad_size %d' % self.extra_padding
-        args = args + ' -pad_type '   + self.padding_type
-        args = args + ' -norm_type '  + self.normalize_type
-        args = args + ' -ctf_type '   + self.ctf_correction
-        args = args + ' -ssnr_param ' + ('%f' % self.ssnr_F) + (',%f' % self.ssnr_S)
-        args = args + ' -w_inv_iter ' + ('%d' % self.inversion_iter)
-        args = args + ' -w_inv_gstd ' + ('%f' % self.inversion_gstd)
-        args = args + ' -bandpass '   + ('%f' % self.bandpass_highpass) + (',%f' % self.bandpass_lowpass)
-        args = args + ' -rolloff_f '  + ('%f' % self.bandpass_rolloff)
-        args = args + ' -symmetry '   + self.symmetry
-        if self.rec_halfsets:
-            args = args + ' -rec_halves 1'
-        else:
-            args = args + ' -rec_halves 0'
+        if self.bandpass.lowpass <= 0:
+            self.bandpass.lowpass = box_size/2-1
+        n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
+        gpu_str   = _get_gpu_str(self.list_gpus_ids)
+        args =        ' -tomos_file '      + tomos_file
+        args = args + ' -out_prefix '      + out_pfx
+        args = args + ' -ptcls_file '      + ptcls_in
+        args = args + ' -n_threads %d'     % n_threads
+        args = args + ' -gpu_list '        + gpu_str
+        args = args + ' -box_size %d'      % box_size
+        args = args + ' -pad_size %d'      % self.extra_padding
+        args = args + ' -pad_type '        + self.padding_type
+        args = args + ' -norm_type '       + self.normalize_type
+        args = args + ' -ctf_type '        + self.ctf_correction
+        args = args + ' -ssnr_param %f,%f' % (self.ssnr.F,self.ssnr.S)
+        args = args + ' -w_inv_iter %d'    % self.inversion.ite
+        args = args + ' -w_inv_gstd %f'    % self.inversion.std
+        args = args + ' -bandpass %f,%f'   % (self.bandpass.highpass,self.bandpass.lowpass)
+        args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
+        args = args + ' -symmetry '        + self.symmetry
+        args = args + ' -rec_halves %d'    % self.rec_halfsets
+        args = args + ' -verbosity %d'     % self.verbosity
         return args
     
     def reconstruct(self,out_pfx,tomos_file,ptcls_in,box_size):
-        cmd = os.path.dirname(susan.__file__)+'/../bin/susan_reconstruct'
+        cmd = _bin_path() + 'susan_reconstruct'
         cmd = cmd + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
         rslt = os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the reconstruction: ' + cmd)
     
     def reconstruct_mpi(self,out_pfx,tomos_file,ptcls_in,box_size,mpi_nodes):
-        cmd = 'srun -n ' + ('%d ' % mpi_nodes)
-        cmd = cmd + os.path.dirname(susan.__file__)+'/../bin/susan_reconstruct_mpi'
+        cmd = self.mpi_params.cmd % self.mpi_params.arg
+        cmd = cmd + _bin_path() + 'susan_reconstruct_mpi'
         cmd = cmd + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
         rslt = os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the reconstruction: ' + cmd)
-        
-class ref_fsc:
+
+###############################################################################
+
+class CtfEstimator:
     def __init__(self):
-        self.gpu_id    = 0
-        self.rand_fpix = 15
-        self.pix_size  = -1
-        self.threshold = 0.143
-        self.save_svg  = False
-        
-    def calculate(self,out_dir,refs_file):
-        cmd = os.path.dirname(susan.__file__)+'/../bin/susan_refs_fsc'
-        cmd = cmd + ' -out_dir '   + out_dir
-        cmd = cmd + ' -refs_file ' + refs_file
-        cmd = cmd + ' -gpu_id '    + ('%d' % self.gpu_id)
-        cmd = cmd + ' -rand_fpix ' + ('%f' % self.rand_fpix)
-        cmd = cmd + ' -pix_size '  + ('%f' % self.pix_size)
-        cmd = cmd + ' -threshold ' + ('%f' % self.threshold)
-        if self.save_svg:
-            cmd = cmd + ' -save_svg 1'
-        else:
-            cmd = cmd + ' -save_svg 0'
-        rslt = os.system(cmd)
-        if not rslt == 0:
-            raise NameError('Error calculating the FSCs: ' + cmd)
-    
-class ref_align:
-    def __init__(self):
-        self.gpu_id            = 0
-        self.bandpass_highpass = 0
-        self.bandpass_lowpass  = 20
-        self.bandpass_rolloff  = 3
-        self.cone_range        = 0
-        self.cone_step         = 1
-        self.inplane_range     = 0
-        self.inplane_step      = 1
-        self.refine_level      = 0
-        self.refine_factor     = 1
-        self.offset_range      = [4,4,4]
-        self.offset_step       = 1
-        self.offset_type       = 'ellipsoid'
-        self.pix_size          = 1
+        self.list_gpus_ids     = [0]
+        self.threads_per_gpu   = 1
+        self.binning           = 0
+        self.resolution_angs   = _dt.range_params(40,7)
+        self.defocus_angstroms = _dt.range_params(10000,90000)
+        self.tilt_search       = 3000
+        self.refine_defocus    = _dt.search_params(2000,100)
+        self.max_bfactor       = 600
+        self.resolution_thres  = 0.75
+        #self.mpi               = _dt.mpi_params('srun -n %d ',1)
+        self.verbose           = 0
+        #self.verbosity         = 0
         
     def validate(self):
-        if not self.offset_type in ['ellipsoid','cylinider']:
-            raise NameError('Invalid offset type. Only "ellipsoid" or "cylinder" are valid')
+        if not self.refine_defocus.step > 0:
+            raise ValueError('The steps values must be larger than 0')
         
-    def align(self,ptcls_out,refs_file,ptcls_in,box_size):
+        if self.refine_defocus.span < self.refine_defocus.step:
+            raise ValueError('Refine Defocus: Step cannot be larger than Range/Span')
+
+        if self.resolution_angs.max_val < self.resolution_angs.min_val:
+            raise ValueError('Resolution (angstroms): min is larger than max')
+
+        if self.defocus_angstroms.max_val < self.defocus_angstroms.min_val:
+            raise ValueError('Defocus (angstroms): min is larger than max')
+            
+    def get_args(self,out_dir,tomos_file,ptcls_in,box_size):
         self.validate()
-        cmd = os.path.dirname(susan.__file__)+'/../bin/susan_refs_aligner'
-        cmd = cmd + ' -ptcls_in '   + ptcls_in
-        cmd = cmd + ' -ptcls_out '  + ptcls_out
-        cmd = cmd + ' -refs_file '  + refs_file
-        cmd = cmd + ' -gpu_id '     + ('%d' % self.gpu_id)
-        cmd = cmd + ' -box_size '   + ('%d' % box_size)
-        cmd = cmd + ' -bandpass '   + ('%f' % self.bandpass_highpass) + (',%f' % self.bandpass_lowpass)
-        cmd = cmd + ' -rolloff_f '  + ('%f' % self.bandpass_rolloff)
-        cmd = cmd + ' -cone '       + ('%f' % self.cone_range) + (',%f' % self.cone_step)
-        cmd = cmd + ' -inplane '    + ('%f' % self.inplane_range) + (',%f' % self.inplane_step)
-        cmd = cmd + ' -refine '     + ('%f' % self.refine_factor) + (',%f' % self.refine_level)
-        cmd = cmd + ' -off_type '   + self.offset_type
-        cmd = cmd + ' -off_params ' + ('%f' % self.offset_range[0]) + (',%f' % self.offset_range[1]) + (',%f' % self.offset_range[2]) + (',%f' % self.offset_step)
-        cmd = cmd + ' -pix_size '   + ('%f' % self.pix_size)
+        if out_dir[-1] == '/':
+            out_dir = out_dir[:-1]
+        n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
+        gpu_str   = _get_gpu_str(self.list_gpus_ids)
+        args =        ' -tomos_in '        + tomos_file
+        args = args + ' -data_out '        + out_dir
+        args = args + ' -ptcls_file '      + ptcls_in
+        args = args + ' -n_threads %d'     % n_threads
+        args = args + ' -gpu_list '        + gpu_str
+        args = args + ' -box_size %d'      % box_size
+        args = args + ' -res_range %f,%f'  % (self.resolution_angs.min_val,self.resolution_angs.max_val)
+        args = args + ' -res_thres %f'     % self.resolution_thres
+        args = args + ' -def_range %f,%f'  % (self.defocus_angstroms.min_val,self.defocus_angstroms.max_val)
+        args = args + ' -tilt_search %f'   % self.tilt_search
+        args = args + ' -refine_def %f,%f' % (self.refine_defocus.span,self.refine_defocus.step)
+        args = args + ' -binning %d'       % self.binning
+        args = args + ' -bfactor_max %f'   % self.max_bfactors
+        args = args + ' -verbose %d'       % self.verbose
+        #args = args + ' -verbosity %d'     % self.verbosity
+        return args
+    
+    def estimate(self,out_dir,tomos_file,ptcls_in,box_size):
+        cmd = _bin_path() + 'susan_estimate_ctf'
+        cmd = cmd + self.get_args(out_dir,tomos_file,ptcls_in,box_size)
         rslt = os.system(cmd)
         if not rslt == 0:
-            raise NameError('Error calculating the FSCs: ' + cmd)
+            raise NameError('Error executing the CTF estimation: ' + cmd)
+
+###############################################################################
+
+class CtfRefiner:
+    def __init__(self):
+        self.list_gpus_ids     = [0]
+        self.threads_per_gpu   = 1
+        self.bandpass          = _dt.bandpass(0,-1,2)
+        self.dimensionality    = 3
+        self.extra_padding     = 0
+        self.padding_type      = 'noise'
+        self.halfsets_independ = False
+        self.estimate_dose_wgt = False
+        self.defocus_angstroms = _dt.search_params(1000,100)
+        self.angles            = _dt.search_params(2,1)
+        #self.mpi               = _dt.mpi_params('srun -n %d ',1)
+        self.verbosity         = 0
+        
+    def validate(self):
+        if not self.padding_type in ['zero','noise']:
+            raise ValueError('Invalid padding type. Only "zero" or "noise" are valid')
+        
+        if not self.defocus_angstroms.step > 0 or not self.angles.step > 0:
+            raise ValueError('The steps values must be larger than 0')
+        
+        if self.defocus_angstroms.span < self.offset.step:
+            raise ValueError('Defocus (Angstroms): Step cannot be larger than Range/Span')
+
+        if self.angles.span < self.cone.step:
+            raise ValueError('ANgles (degrees): Step cannot be larger than Range/Span')
+
+    def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
+        self.validate()
+        n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
+        gpu_str   = _get_gpu_str(self.list_gpus_ids)
+        args =        ' -tomos_file '      + tomos_file
+        args = args + ' -ptcls_in '        + ptcls_in
+        args = args + ' -ptcls_out '       + ptcls_out
+        args = args + ' -refs_file '       + refs_file
+        args = args + ' -n_threads %d'     % n_threads
+        args = args + ' -gpu_list '        + gpu_str
+        args = args + ' -box_size %d'      % box_size
+        args = args + ' -pad_size %d'      % self.extra_padding
+        args = args + ' -pad_type '        + self.padding_type
+        args = args + ' -bandpass %f,%f'   % (self.bandpass.highpass,self.bandpass.lowpass)
+        args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
+        args = args + ' -def_search %f,%f' % (self.defocus_angstroms.span,self.defocus_angstroms.step)
+        args = args + ' -ang_search %f,%f' % (self.angles.span,self.angles.step)
+        args = args + ' -use_halves %d'    % self.halfsets_independ
+        args = args + ' -est_dose %d'      % self.estimate_dose_wgt
+        args = args + ' -verbosity %d'     % self.verbosity
+        return args
+    
+    def refine(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
+        cmd = _bin_path() + 'susan_refine_ctf'
+        cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
+        rslt = os.system(cmd)
+        if not rslt == 0:
+            raise NameError('Error executing the alignment: ' + cmd)
     

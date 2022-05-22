@@ -16,11 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-from . import data
-from . import io
-from . import utils
-from . import modules
-from . import project
+from . import _functions
+from ._functions import *
 
-__all__ = []
-__all__.extend(['data','io','utils','modules','project'])
+__all__ = _functions.__all__ #.copy()

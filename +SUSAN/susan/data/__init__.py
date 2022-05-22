@@ -16,11 +16,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-from . import data
-from . import io
-from . import utils
-from . import modules
-from . import project
+from . import Reference
+from . import Particles
+from . import Tomograms
+from .Reference import *
+from .Particles import *
+from .Tomograms import *
 
-__all__ = []
-__all__.extend(['data','io','utils','modules','project'])
+__all__ = ['Particles','Reference','Tomograms']
+
+

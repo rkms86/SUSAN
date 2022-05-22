@@ -95,6 +95,8 @@ typedef struct {
     char   ptcls_out[SUSAN_FILENAME_LENGTH];
     char   ptcls_in [SUSAN_FILENAME_LENGTH];
     char   tomo_file[SUSAN_FILENAME_LENGTH];
+    
+    int verbosity;
 } Info;
 
 uint32 get_pad_type(const char*arg) {
@@ -319,6 +321,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.off_y         = 0;
     info.off_z         = 0;
     info.off_s         = 1;
+    info.verbosity     = 0;
     memset(info.p_gpu    ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
     memset(info.refs_file,0,SUSAN_FILENAME_LENGTH*sizeof(char));
     memset(info.ptcls_out,0,SUSAN_FILENAME_LENGTH*sizeof(char));
@@ -350,6 +353,7 @@ bool parse_args(Info&info,int ac,char** av) {
         REFINE,
         OFF_TYPE,
         OFF_PARAM,
+        VERBOSITY,
         TYPE
     };
 
@@ -377,6 +381,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"refine",      1, 0, REFINE    },
         {"off_type",    1, 0, OFF_TYPE  },
         {"off_params",  1, 0, OFF_PARAM },
+        {"verbosity",   1, 0, VERBOSITY },
         {"type",        1, 0, TYPE },
         {0, 0, 0, 0}
     };
@@ -477,6 +482,9 @@ bool parse_args(Info&info,int ac,char** av) {
                 info.off_s = tmp_single[3];
                 delete [] tmp_single;
                 break;
+            case VERBOSITY:
+                info.verbosity = atoi(optarg);
+                break;
             case TYPE:
                 info.type = atoi(optarg);
                 break;
@@ -495,7 +503,7 @@ bool parse_args(Info&info,int ac,char** av) {
     return validate(info);
 }
 
-void print_angles(const Info&info) {
+void print_angles(const Info&info,FILE*fp) {
 	
     AnglesProvider angles;
     angles.cone_range    = info.cone_range;
@@ -519,107 +527,243 @@ void print_angles(const Info&info) {
                 } /// inplane
             } /// cone
         } /// symmetry
-        fprintf(stdout,"\t\tAngles in refinement level %2d: %7d.\n",lvl,count_level);
+        fprintf(fp,"\t\tAngles in refinement level %2d: %7d.\n",lvl,count_level);
         count_total += count_level;
     } /// level
-    fprintf(stdout,"\t\tTotal angles: %d.\n",count_total);
+    fprintf(fp,"\t\tTotal angles: %d.\n",count_total);
 }
 
-void print(const Info&info,FILE*fp=stdout) {
-    fprintf(stdout,"\tVolume %dD alignment",info.type);
+void print_angles_minimal(const Info&info,FILE*fp) {
+	
+    AnglesProvider angles;
+    angles.cone_range    = info.cone_range;
+    angles.cone_step     = info.cone_step;
+    angles.inplane_range = info.inplane_range;
+    angles.inplane_step  = info.inplane_step;
+    angles.refine_level  = info.refine_level;
+    angles.refine_factor = info.refine_factor;
+    angles.set_symmetry(info.pseudo_sym);
+
+    int count_total=0;
+    int count_level=0;
+    int lvl = 0;
+
+    fprintf(stdout,"    - Angles");
+    for( angles.levels_init(); angles.levels_available(); angles.levels_next(), lvl++ ) {
+        count_level=0;
+        for( angles.sym_init(); angles.sym_available(); angles.sym_next() ) {
+            for( angles.cone_init(); angles.cone_available(); angles.cone_next() ) {
+                for( angles.inplane_init(); angles.inplane_available(); angles.inplane_next() ) {
+                    count_level++;
+                } /// inplane
+            } /// cone
+        } /// symmetry
+        fprintf(fp," | %d",count_level);
+        count_total += count_level;
+    } /// level
+    fprintf(fp," [%d].\n",count_total);
+}
+
+void print_full(const Info&info,FILE*fp) {
+    fprintf(fp,"\tVolume %dD alignment",info.type);
     if( info.ali_halves )
-        fprintf(stdout," (independent half-sets)");
-    fprintf(stdout,":\n");
+        fprintf(fp," (independent half-sets)");
+    fprintf(fp,":\n");
 
-    fprintf(stdout,"\t\tParticles in:   %s.\n",info.ptcls_in);
-    fprintf(stdout,"\t\tTomograms file: %s.\n",info.tomo_file);
-    fprintf(stdout,"\t\tReference file: %s.\n",info.refs_file);
-    fprintf(stdout,"\t\tParticles out:  %s.\n",info.ptcls_out);
+    fprintf(fp,"\t\tParticles in:   %s.\n",info.ptcls_in);
+    fprintf(fp,"\t\tTomograms file: %s.\n",info.tomo_file);
+    fprintf(fp,"\t\tReference file: %s.\n",info.refs_file);
+    fprintf(fp,"\t\tParticles out:  %s.\n",info.ptcls_out);
 
-    fprintf(stdout,"\t\tVolume size: %dx%dx%d",info.box_size,info.box_size,info.box_size);
+    fprintf(fp,"\t\tVolume size: %dx%dx%d",info.box_size,info.box_size,info.box_size);
     if( info.pad_size > 0 ) {
-        fprintf(stdout,", with padding of %d voxels",info.pad_size);
+        fprintf(fp,", with padding of %d voxels",info.pad_size);
     }
-    fprintf(stdout,".\n");
+    fprintf(fp,".\n");
     
     if( info.n_gpu > 1 ) {
-        fprintf(stdout,"\t\tUsing %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
+        fprintf(fp,"\t\tUsing %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
         for(int i=1;i<info.n_gpu;i++)
-            fprintf(stdout,",%d",info.p_gpu[i]);
-        fprintf(stdout,"), ");
+            fprintf(fp,",%d",info.p_gpu[i]);
+        fprintf(fp,"), ");
     }
     else {
-        fprintf(stdout,"\t\tUsing 1 GPU (GPU id: %d), ",info.p_gpu[0]);
+        fprintf(fp,"\t\tUsing 1 GPU (GPU id: %d), ",info.p_gpu[0]);
     }
     
     if( info.n_threads > 1 ) {
-        fprintf(stdout,"and %d threads.\n",info.n_threads);
+        fprintf(fp,"and %d threads.\n",info.n_threads);
     }
     else{
-        fprintf(stdout,"and 1 thread.\n");
+        fprintf(fp,"and 1 thread.\n");
     }
 
-    fprintf(stdout,"\t\tBandpass: [%.1f - %.1f] fourier pixels",info.fpix_min,info.fpix_max);
+    fprintf(fp,"\t\tBandpass: [%.1f - %.1f] fourier pixels",info.fpix_min,info.fpix_max);
     if( info.fpix_roll > 0 )
-        fprintf(stdout," with a roll off of %.2f.\n",info.fpix_roll);
+        fprintf(fp," with a roll off of %.2f.\n",info.fpix_roll);
     else
-        fprintf(stdout,".\n");
+        fprintf(fp,".\n");
 
     if( info.pad_size > 0 ) {
         if( info.pad_type == PAD_ZERO )
-            fprintf(stdout,"\t\tPadding policy: Fill with zeros.\n");
+            fprintf(fp,"\t\tPadding policy: Fill with zeros.\n");
         if( info.pad_type == PAD_GAUSSIAN )
-            fprintf(stdout,"\t\tPadding policy: Fill with gaussian noise.\n");
+            fprintf(fp,"\t\tPadding policy: Fill with gaussian noise.\n");
     }
-		
+
     if( info.ctf_type == NO_INV )
-        fprintf(stdout,"\t\tCTF correction policy: Disabled.\n");
+        fprintf(fp,"\t\tCTF correction policy: Disabled.\n");
     if( info.ctf_type == ON_REFERENCE )
-        fprintf(stdout,"\t\tCTF correction policy: On reference.\n");
+        fprintf(fp,"\t\tCTF correction policy: On reference.\n");
     if( info.ctf_type == ON_SUBSTACK )
-        fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion.\n");
+        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion.\n");
     if( info.ctf_type == ON_SUBSTACK_SSNR )
-        fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
+        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
     if( info.ctf_type == ON_SUBSTACK_WHITENING )
-        fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion with whitening filter (experimental).\n");
+        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with whitening filter (experimental).\n");
     if( info.ctf_type == ON_SUBSTACK_PHASE )
-        fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion with phase cross-correlation (experimental).\n");
+        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with phase cross-correlation (experimental).\n");
     if( info.ctf_type == CUMULATIVE_FSC )
-        fprintf(stdout,"\t\tCTF correction policy: On substack - Wiener inversion with cumulative FSC (experimental).\n");
+        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with cumulative FSC (experimental).\n");
 
     if( info.norm_type == NO_NORM )
-        fprintf(stdout,"\t\tSubstack normalization policy: Disabled.\n");
+        fprintf(fp,"\t\tSubstack normalization policy: Disabled.\n");
     if( info.norm_type == ZERO_MEAN )
-        fprintf(stdout,"\t\tSubstack normalization policy: Mean=0.\n");
+        fprintf(fp,"\t\tSubstack normalization policy: Mean=0.\n");
     if( info.norm_type == ZERO_MEAN_1_STD )
-        fprintf(stdout,"\t\tSubstack normalization policy: Mean=0, Std=1.\n");
+        fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std=1.\n");
     if( info.norm_type == ZERO_MEAN_W_STD )
-        fprintf(stdout,"\t\tSubstack normalization policy: Mean=0, Std according to projection weight.\n");
+        fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std according to projection weight.\n");
 
-    fprintf(stdout,"\t\tPseudo-symmetry search: %s.\n",info.pseudo_sym);
-    fprintf(stdout,"\t\tCone search:    Range=%.3f, Step=%.3f.\n",info.cone_range,info.cone_step);
-    fprintf(stdout,"\t\tInplane search: Range=%.3f, Step=%.3f.\n",info.inplane_range,info.inplane_step);
-    fprintf(stdout,"\t\tAngle refinement: Levels=%d, Factor=%d.\n",info.refine_level,info.refine_factor);
-    print_angles(info);
+    fprintf(fp,"\t\tPseudo-symmetry search: %s.\n",info.pseudo_sym);
+    fprintf(fp,"\t\tCone search:    Range=%.3f, Step=%.3f.\n",info.cone_range,info.cone_step);
+    fprintf(fp,"\t\tInplane search: Range=%.3f, Step=%.3f.\n",info.inplane_range,info.inplane_step);
+    fprintf(fp,"\t\tAngle refinement: Levels=%d, Factor=%d.\n",info.refine_level,info.refine_factor);
+    print_angles(info,fp);
 	
     uint32_t total_points=0;
     if( info.off_type == ELLIPSOID ) {
         Vec3*pt = PointsProvider::ellipsoid(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
-        fprintf(stdout,"\t\tEllipsoid offset search (3D): ");
+        fprintf(fp,"\t\tEllipsoid offset search (3D): ");
         delete [] pt;
+        fprintf(fp,"Range=[%.2f,%.2f,%.2f], Step=%.2f. Total points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
     }
     if( info.off_type == CYLINDER ) {
         Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
-        fprintf(stdout,"\t\tCylindrical offset search (3D): ");
+        fprintf(fp,"\t\tCylindrical offset search (3D): ");
         delete [] pt;
+        fprintf(fp,"Range=[%.2f,%.2f,%.2f], Step=%.2f. Total points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
     }
     if( info.off_type == CIRCLE ) {
         Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
-        fprintf(stdout,"\t\tCircular offset search (2D): ");
+        fprintf(fp,"\t\tCircular offset search (2D): ");
         delete [] pt;
+        fprintf(fp,"Range=[%.2f,%.2f]. Total points: %d\n",info.off_x,info.off_y,total_points);
     }
+}
+
+void print_minimal(const Info&info,FILE*fp) {
+    fprintf(fp,"  Volume %dD alignment",info.type);
+    if( info.ali_halves )
+        fprintf(fp," (independent half-sets)");
+    
+    fprintf(fp,". Box size: %d",info.box_size);
+    if( info.pad_size > 0 ) {
+        fprintf(fp," + %d (pad)",info.pad_size);
+    }
+    fprintf(fp,"\n");
+
+    fprintf(fp,"    - Input files: %s | %s\n",info.tomo_file,info.refs_file);
+    fprintf(fp,"    - Particles In/Out: %s | %s\n",info.ptcls_in,info.ptcls_out);
+    
+    if( info.n_gpu > 1 ) {
+        fprintf(fp,"    - %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
+        for(int i=1;i<info.n_gpu;i++)
+            fprintf(fp,",%d",info.p_gpu[i]);
+        fprintf(fp,"), ");
+    }
+    else {
+        fprintf(fp,"    - 1 GPU (GPU id: %d), ",info.p_gpu[0]);
+    }
+    
+    if( info.n_threads > 1 ) {
+        fprintf(fp,"and %d threads.\n",info.n_threads);
+    }
+    else{
+        fprintf(fp,"and 1 thread.\n");
+    }
+
+    fprintf(fp,"    - Bandpass: [%.1f - %.1f] ",info.fpix_min,info.fpix_max);
+    if( info.fpix_roll > 0 )
+        fprintf(fp," (roll off: %.2f).\n",info.fpix_roll);
+    else
+        fprintf(fp,".\n");
+
+    fprintf(fp,"    - ");
+    if( info.pad_size > 0 ) {
+        if( info.pad_type == PAD_ZERO )
+            fprintf(fp,"Zero padding. ");
+        if( info.pad_type == PAD_GAUSSIAN )
+            fprintf(fp,"Random padding. ");
+    }
+
+    if( info.ctf_type == NO_INV )
+        fprintf(fp,"No CTF. ");
+    if( info.ctf_type == ON_REFERENCE )
+        fprintf(fp,"On reference CTF. ");
+    if( info.ctf_type == ON_SUBSTACK )
+        fprintf(fp,"On Substack (Wiener). ");
+    if( info.ctf_type == ON_SUBSTACK_SSNR )
+        fprintf(fp,"On Substack (Wiener SSNR: S=%.2f F=%.2f). ",info.ssnr_S,info.ssnr_F);
+    if( info.ctf_type == ON_SUBSTACK_WHITENING )
+        fprintf(fp,"On Substack (Wiener Whitening). ");
+    if( info.ctf_type == ON_SUBSTACK_PHASE )
+        fprintf(fp,"On Substack (Phase-Correlation). ");
+    if( info.ctf_type == CUMULATIVE_FSC )
+        fprintf(fp,"On Substack (CFSC). ");
+
+    if( info.norm_type == NO_NORM )
+        fprintf(fp,"No Normalization.\n");
+    if( info.norm_type == ZERO_MEAN )
+        fprintf(fp,"Normalized to Mean=0.\n");
+    if( info.norm_type == ZERO_MEAN_1_STD )
+        fprintf(fp,"Normalized to Mean=0, Std=1.\n");
+    if( info.norm_type == ZERO_MEAN_W_STD )
+        fprintf(fp,"Normalized to Mean=0, Std=PRJ_W.\n");
+
+    fprintf(fp," - Angular search: Sym=%s | ",info.pseudo_sym);
+    
+    fprintf(fp,"Cone=%.3f,%.3f | ",info.cone_range,info.cone_step);
+    fprintf(fp,"Inplace=%.3f,%.3f | ",info.inplane_range,info.inplane_step);
+    fprintf(fp,"Refinement: %d|%d.\n",info.refine_level,info.refine_factor);
+    print_angles_minimal(info,fp);
 	
-    fprintf(stdout,"Range=[%.2f,%.2f,%.2f], Step=%.2f. Total points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
+    uint32_t total_points=0;
+    if( info.off_type == ELLIPSOID ) {
+        Vec3*pt = PointsProvider::ellipsoid(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
+        fprintf(fp,"    - Ellipsoid offset (3D): ");
+        delete [] pt;
+        fprintf(fp,"[%.2f,%.2f,%.2f], Step=%.2f. Points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
+    }
+    if( info.off_type == CYLINDER ) {
+        Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
+        fprintf(fp,"    - Cylindrical offset (3D): ");
+        delete [] pt;
+        fprintf(fp,"[%.2f,%.2f,%.2f], Step=%.2f. Points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
+    }
+    if( info.off_type == CIRCLE ) {
+        Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
+        fprintf(fp,"    - Circular offset (2D): ");
+        delete [] pt;
+        fprintf(fp,"[%.2f,%.2f]. Points: %d\n",info.off_x,info.off_y,total_points);
+    }
+}
+
+void print(const Info&info,FILE*fp=stdout) {
+	if( info.verbosity > 0 )
+		print_full(info,fp);
+	else
+		print_minimal(info,fp);
 }
 
 }

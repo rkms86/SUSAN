@@ -72,6 +72,8 @@ typedef struct {
     char   out_pfx[SUSAN_FILENAME_LENGTH];
     char   ptcls_in[SUSAN_FILENAME_LENGTH];
     char   tomos_in[SUSAN_FILENAME_LENGTH];
+    
+    int verbosity;
 } Info;
 
 uint32 get_pad_type(const char*arg) {
@@ -231,6 +233,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.ssnr_F     = 0;
     info.ssnr_S     = 1;
     info.rec_halves = false;
+    info.verbosity  = 0;
     memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
 	memset(info.out_pfx ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	memset(info.ptcls_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
@@ -255,6 +258,7 @@ bool parse_args(Info&info,int ac,char** av) {
         BANDPASS,
         ROLLOFF_F,
         SYMMETRY,
+        VERBOSITY,
         REC_HALVES
     };
 
@@ -277,6 +281,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"rolloff_f",   1, 0, ROLLOFF_F },
         {"symmetry",    1, 0, SYMMETRY  },
         {"rec_halves",  1, 0, REC_HALVES},
+        {"verbosity",   1, 0, VERBOSITY },
         {0, 0, 0, 0}
     };
     
@@ -352,6 +357,9 @@ bool parse_args(Info&info,int ac,char** av) {
 			case REC_HALVES:
 				info.rec_halves = (atoi(optarg)>0);
 				break;
+            case VERBOSITY:
+                info.verbosity = atoi(optarg);
+                break;
 			default:
 				printf("Unknown parameter %d\n",c);
 				exit(1);
@@ -362,73 +370,146 @@ bool parse_args(Info&info,int ac,char** av) {
     return validate(info);
 }
 
-void print(const Info&info,FILE*fp=stdout) {
-	fprintf(stdout,"\tVolume reconstruction");
+void print_full(const Info&info,FILE*fp) {
+	fprintf(fp,"\tVolume reconstruction");
 	if( info.rec_halves )
-		fprintf(stdout," (including half-sets)");
-	fprintf(stdout,":\n");
+		fprintf(fp," (including half-sets)");
+	fprintf(fp,":\n");
 
-	fprintf(stdout,"\t\tParticles file: %s.\n",info.ptcls_in);
-	fprintf(stdout,"\t\tTomograms file: %s.\n",info.tomos_in);
-	fprintf(stdout,"\t\tOutput prefix: %s.\n",info.out_pfx);
+	fprintf(fp,"\t\tParticles file: %s.\n",info.ptcls_in);
+	fprintf(fp,"\t\tTomograms file: %s.\n",info.tomos_in);
+	fprintf(fp,"\t\tOutput prefix: %s.\n",info.out_pfx);
 
-    fprintf(stdout,"\t\tVolume size: %dx%dx%d",info.box_size,info.box_size,info.box_size);
+    fprintf(fp,"\t\tVolume size: %dx%dx%d",info.box_size,info.box_size,info.box_size);
     if( info.pad_size > 0 ) {
-        fprintf(stdout,", with padding of %d voxels",info.pad_size);
+        fprintf(fp,", with padding of %d voxels",info.pad_size);
     }
-    fprintf(stdout,".\n");
+    fprintf(fp,".\n");
     
     if( info.n_gpu > 1 ) {
-        fprintf(stdout,"\t\tUsing %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
+        fprintf(fp,"\t\tUsing %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
         for(int i=1;i<info.n_gpu;i++)
-            fprintf(stdout,",%d",info.p_gpu[i]);
-        fprintf(stdout,"), ");
+            fprintf(fp,",%d",info.p_gpu[i]);
+        fprintf(fp,"), ");
     }
     else {
-        fprintf(stdout,"\t\tUsing 1 GPU (GPU id: %d), ",info.p_gpu[0]);
+        fprintf(fp,"\t\tUsing 1 GPU (GPU id: %d), ",info.p_gpu[0]);
     }
     
     if( info.n_threads > 1 ) {
-		fprintf(stdout,"and %d threads.\n",info.n_threads);
+		fprintf(fp,"and %d threads.\n",info.n_threads);
 	}
 	else{
-		fprintf(stdout,"and 1 thread.\n");
+		fprintf(fp,"and 1 thread.\n");
 	}
 	
-	fprintf(stdout,"\t\tBandpass: [%.1f - %.1f] fourier pixels",info.fpix_min,info.fpix_max);
+	fprintf(fp,"\t\tBandpass: [%.1f - %.1f] fourier pixels",info.fpix_min,info.fpix_max);
 	if( info.fpix_roll > 0 )
-		fprintf(stdout," with a roll off of %.2f.\n",info.fpix_roll);
+		fprintf(fp," with a roll off of %.2f.\n",info.fpix_roll);
 	else
-		fprintf(stdout,".\n");
+		fprintf(fp,".\n");
 
 	if( info.pad_size > 0 ) {
 		if( info.pad_type == PAD_ZERO )
-			fprintf(stdout,"\t\tPadding policy: Fill with zeros.\n");
+			fprintf(fp,"\t\tPadding policy: Fill with zeros.\n");
 		if( info.pad_type == PAD_GAUSSIAN )
-			fprintf(stdout,"\t\tPadding policy: Fill with gaussian noise.\n");
+			fprintf(fp,"\t\tPadding policy: Fill with gaussian noise.\n");
 	}
 	
     if( info.ctf_type == NO_INV )
-		fprintf(stdout,"\t\tCTF correction policy: Disabled.\n");
+		fprintf(fp,"\t\tCTF correction policy: Disabled.\n");
 	if( info.ctf_type == PHASE_FLIP )
-		fprintf(stdout,"\t\tCTF correction policy: Phase-flip.\n");
+		fprintf(fp,"\t\tCTF correction policy: Phase-flip.\n");
 	if( info.ctf_type == WIENER_INV )
-		fprintf(stdout,"\t\tCTF correction policy: Wiener inversion.\n");
+		fprintf(fp,"\t\tCTF correction policy: Wiener inversion.\n");
 	if( info.ctf_type == WIENER_INV_SSNR )
-		fprintf(stdout,"\t\tCTF correction policy: Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
+		fprintf(fp,"\t\tCTF correction policy: Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
 	
-	fprintf(stdout,"\t\tInversion of the sampled fourier space using %d iterations and a gaussian filter with std of %f.\n",info.w_inv_ite,info.w_inv_std);
+	fprintf(fp,"\t\tInversion of the sampled fourier space using %d iterations and a gaussian filter with std of %f.\n",info.w_inv_ite,info.w_inv_std);
 	
 	if( info.norm_type == NO_NORM )
-		fprintf(stdout,"\t\tSubstack normalization policy: Disabled.\n");
+		fprintf(fp,"\t\tSubstack normalization policy: Disabled.\n");
 	if( info.norm_type == ZERO_MEAN )
-		fprintf(stdout,"\t\tSubstack normalization policy: Mean=0.\n");
+		fprintf(fp,"\t\tSubstack normalization policy: Mean=0.\n");
 	if( info.norm_type == ZERO_MEAN_1_STD )
-		fprintf(stdout,"\t\tSubstack normalization policy: Mean=0, Std=1.\n");
+		fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std=1.\n");
 	if( info.norm_type == ZERO_MEAN_W_STD )
-		fprintf(stdout,"\t\tSubstack normalization policy: Mean=0, Std according to projection weight.\n");
+		fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std according to projection weight.\n");
 	
-	fprintf(stdout,"\t\tSymmetry type: %s.\n",info.sym);
+	fprintf(fp,"\t\tSymmetry type: %s.\n",info.sym);
+}
+
+void print_minimal(const Info&info,FILE*fp) {
+	fprintf(fp,"    Volume reconstruction");
+	if( info.rec_halves )
+		fprintf(fp," (including half-sets)");
+	
+    fprintf(fp,". Box size: %d",info.box_size);
+    if( info.pad_size > 0 ) {
+        fprintf(fp," + %d (pad)",info.pad_size);
+    }
+    fprintf(fp,"\n");
+
+    fprintf(fp,"    - Input files: %s | %s\n",info.ptcls_in,info.tomos_in);
+    fprintf(fp,"    - Output prefix: %s\n",info.out_pfx);
+    
+    if( info.n_gpu > 1 ) {
+        fprintf(fp,"    - %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
+        for(int i=1;i<info.n_gpu;i++)
+            fprintf(fp,",%d",info.p_gpu[i]);
+        fprintf(fp,"), ");
+    }
+    else {
+        fprintf(fp,"    - 1 GPU (GPU id: %d), ",info.p_gpu[0]);
+    }
+    
+    if( info.n_threads > 1 ) {
+        fprintf(fp,"and %d threads.\n",info.n_threads);
+    }
+    else{
+        fprintf(fp,"and 1 thread.\n");
+    }
+	
+	fprintf(fp,"    - Bandpass: [%.1f - %.1f] ",info.fpix_min,info.fpix_max);
+    if( info.fpix_roll > 0 )
+        fprintf(fp," (roll off: %.2f).\n",info.fpix_roll);
+    else
+        fprintf(fp,".\n");
+
+    fprintf(fp,"    - ");
+    if( info.pad_size > 0 ) {
+        if( info.pad_type == PAD_ZERO )
+            fprintf(fp,"Zero padding. ");
+        if( info.pad_type == PAD_GAUSSIAN )
+            fprintf(fp,"Random padding. ");
+    }
+
+    if( info.ctf_type == NO_INV )
+        fprintf(fp,"No CTF. ");
+    if( info.ctf_type == PHASE_FLIP )
+        fprintf(fp,"Phase-flip. ");
+    if( info.ctf_type == WIENER_INV )
+        fprintf(fp,"Wiener Inversion. ");
+    if( info.ctf_type == WIENER_INV_SSNR )
+        fprintf(fp,"Wiener SSNR: S=%.2f F=%.2f. ",info.ssnr_S,info.ssnr_F);
+    
+    if( info.norm_type == NO_NORM )
+        fprintf(fp,"No Normalization.\n");
+    if( info.norm_type == ZERO_MEAN )
+        fprintf(fp,"Normalized to Mean=0.\n");
+    if( info.norm_type == ZERO_MEAN_1_STD )
+        fprintf(fp,"Normalized to Mean=0, Std=1.\n");
+    if( info.norm_type == ZERO_MEAN_W_STD )
+        fprintf(fp,"Normalized to Mean=0, Std=PRJ_W.\n");
+
+    fprintf(fp,"    - %s Symmetry. Inversion: Ite=%d Std=%f\n",info.sym,info.w_inv_ite,info.w_inv_std);
+}
+
+void print(const Info&info,FILE*fp=stdout) {
+	if( info.verbosity > 0 )
+		print_full(info,fp);
+	else
+		print_minimal(info,fp);
 }
 
 

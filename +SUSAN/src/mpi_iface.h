@@ -106,8 +106,11 @@ public:
         return num_nodes>1;
     }
 
-    void print_info() {
-        printf("\t\tMPI nodes: %d\n",num_nodes);
+    void print_info(int verbosity=1) {
+        if( verbosity > 0 )
+            printf("\t\tMPI nodes: %d\n",num_nodes);
+        else
+            printf("    - MPI nodes: %d\n",num_nodes);
     }
 
     Particles*scatter_particles(MpiScatterInfo&scatter_info,Particles*ptcls_in) {

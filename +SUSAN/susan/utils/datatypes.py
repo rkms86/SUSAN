@@ -16,11 +16,55 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-from . import data
-from . import io
-from . import utils
-from . import modules
-from . import project
+from dataclasses import dataclass as _dc
 
-__all__ = []
-__all__.extend(['data','io','utils','modules','project'])
+@_dc
+class fsc_info:
+    fpix: float
+    res:  float
+
+@_dc
+class ssnr:
+    S: float
+    F: float
+    # SSNR(f) = (10^(3*S)) * exp( -f * 100*F )
+
+@_dc
+class bandpass:
+    highpass: float
+    lowpass:  float
+    rolloff:  float
+
+@_dc
+class search_params:
+    span: float
+    step: float
+
+@_dc
+class offset_params:
+    span: list
+    step: float
+    kind: str
+
+@_dc
+class refine_params:
+    levels: int
+    factor: int
+
+@_dc
+class range_params:
+    min_val: int
+    max_val: int
+
+@_dc
+class mpi_params:
+    cmd: str
+    arg: int
+ 
+@_dc
+class inversion_params:
+    ite: int
+    std: float
+ 
+ 
+ 

@@ -16,11 +16,23 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-import os,susan,os.path,collections,datetime,numpy
-import susan.data
-import susan.modules
+import numpy as _np
+#import os,susan,os.path,collections,datetime,numpy
+#import susan.data
+#import susan.modules
+import susan.data    as _ssa_data
+import susan.utils   as _ssa_utils
+import susan.modules as _ssa_modules
 
-class iteration_files:
+import susan.io.mrc.get_info  as _mrc_get_info
+import susan.utils.datatypes  as _dt
+import susan.utils.txt_parser as _prsr
+
+from os      import remove as _rm
+from os      import mkdir  as _mkdir
+from os.path import exists as _file_exists
+
+class _iteration_files:
     def __init__(self):
         self.ptcl_rslt = ''
         self.ptcl_temp = ''
@@ -33,121 +45,141 @@ class iteration_files:
         if not os.path.exists(self.reference):
             raise NameError('File '+ self.reference + ' does not exist')
 
-class manager:
-    def __init__(self,prj_name,box_size=-1):
-        if box_size < 0:
-            if os.path.exists(prj_name):
-                if os.path.isdir(prj_name):
-                    fp = open(prj_name+"/info.prjtxt","r")
-                    self.prj_name = susan.data.read_value(fp,"name")
-                    self.box_size = int(susan.data.read_value(fp,"box_size"))
-                    fp.close()
-                else:
-                    raise NameError('Project does not exist')
-            else:
-                raise NameError('Project does not exist')
+class Manager:
+    def __init__(self,prj_name,box_size=None):
+        if box_size is None:
+            fp = open(prj_name+"/info.prjtxt","r")
+            self.prj_name = _prsr.read(fp,'name')
+            self.box_size = int(_prsr.read(fp,'name'))
+            fp.close()
         else:
-            if not os.path.exists(prj_name):
-                os.mkdir(prj_name)
+            if not _file_exists(prj_name):
+                _mkdir(prj_name)
             fp = open(prj_name+"/info.prjtxt","w")
-            susan.data.write_value(fp,'name',prj_name)
-            susan.data.write_value(fp,'box_size',str(box_size))
+            _prsr.write(fp,'name',prj_name)
+            _prsr.write(fp,'box_size',str(box_size))
             fp.close()
             self.prj_name = prj_name
             self.box_size = box_size
         
-        self.mpi_nodes         = 1
-        self.list_gpus_ids     = [0]
-        self.threads_per_gpu   = 1
-        self.dimensionality    = 3
-        self.halfsets_independ = False
         self.tomogram_file     = ''
         self.initial_reference = ''
         self.initial_particles = ''
+        
+        self.list_gpus_ids     = [0]
+        self.threads_per_gpu   = 1
+        self.iteration_type    = 3
+        
         self.cc_threshold      = 0.8
         self.fsc_threshold     = 0.143
-        self.aligner           = susan.modules.aligner()
-        self.averager          = susan.modules.averager()
-        self.ref_aligner       = susan.modules.ref_align()
-        self.ref_fsc           = susan.modules.ref_fsc()
         
-        self.aligner.ctf_correction = 'on_reference'
+        self.mpi               = _dt.mpi_params('srun -n %d ',1)
+        self.verbosity         = 0
+        
+        self.aligner           = susan.modules.Aligner()
+        self.averager          = susan.modules.Averager()
+        
+        self.aligner.ctf_correction = 'cfsc'
         
         self.averager.ctf_correction    = 'wiener'
         self.averager.rec_halfsets      = True
-        self.averager.bandpass_highpass = 0
-        self.averager.bandpass_lowpass  = (self.box_size)/2
-        
-        self.ref_aligner.cone_range    = 2
-        self.ref_aligner.cone_step     = 0.5
-        self.ref_aligner.inplane_range = 2
-        self.ref_aligner.inplane_step  = 0.5
-        self.ref_aligner.refine_level  = 2
-        self.ref_aligner.refine_factor = 2
+        self.averager.bandpass.highpass = 0
+        self.averager.bandpass.lowpass  = (self.box_size)/2-1
     
     def get_iteration_dir(self,ite):
-        return self.prj_name + '/ite_' + ('%04d' % ite)
+        return self.prj_name + '/ite_%04d/' % ite
     
     def get_iteration_files(self,ite):
-        rslt = iteration_files()
+        rslt = _iteration_files()
         if ite < 1:
             rslt.ptcl_rslt = self.initial_particles
             rslt.reference = self.initial_reference
         else:
             base_dir = self.get_iteration_dir(ite)
-            rslt.ptcl_rslt = base_dir + '/particles.ptclsraw'
-            rslt.ptcl_temp = base_dir + '/temp.ptclsraw'
-            rslt.reference = base_dir + '/reference.refstxt'
+            rslt.ptcl_rslt = base_dir + 'particles.ptclsraw'
+            rslt.ptcl_temp = base_dir + 'temp.ptclsraw'
+            rslt.reference = base_dir + 'reference.refstxt'
             rslt.ite_dir   = base_dir
         return rslt
 
-    def get_names_map(self,ite,ref):
-        ite_dir = self.get_iteration_dir(ite)
-        map_name = ite_dir + '/map_class' + ('%03d'%(ref)) + '.mrc'
+    def get_names_map(self,ite,ref=1):
+        if ite == 0:
+            refs_info = _ssa_data.Reference(self.initial_reference)
+            map_name = refs_info.ref[ref-1]
+        else:
+            ite_dir = self.get_iteration_dir(ite)
+            map_name = ite_dir + 'map_class%03d.mrc' % ref
         return map_name
 
-    def get_names_halfmaps(self,ite,ref):
-        ite_dir = self.get_iteration_dir(ite)
-        h1_name = ite_dir + '/map_class' + ('%03d'%(ref)) + '_half1.mrc'
-        h2_name = ite_dir + '/map_class' + ('%03d'%(ref)) + '_half2.mrc'
+    def get_names_mask(self,ite,ref=1):
+        if ite == 0:
+            refs_info = _ssa_data.Reference(self.initial_reference)
+            mask_name = refs_info.ref[ref-1]
+        else:
+            refs_info = _ssa_data.Reference(self.get_iteration_dir(ite)+'reference.refstxt')
+            mask_name = refs_info.ref[ref-1]
+        return mask_name
+
+    def get_names_halfmaps(self,ite,ref=1):
+        if ite == 0:
+            refs_info = _ssa_data.Reference(self.initial_reference)
+            h1_name = refs_info.h1[ref-1]
+            h2_name = refs_info.h2[ref-1]
+        else:
+            ite_dir = self.get_iteration_dir(ite)
+            h1_name = ite_dir + 'map_class%03d_half1.mrc' % ref
+            h2_name = ite_dir + 'map_class%03d_half2.mrc' % ref
         return (h1_name,h2_name)
 
     def setup_iteration(self,ite):
         base_dir = self.get_iteration_dir(ite)
-        if not os.path.exists(base_dir):
-            os.mkdir(base_dir)
+        if not _file_exists(base_dir):
+            _mkdir(base_dir)
         cur = self.get_iteration_files(ite)
         prv = self.get_iteration_files(ite-1)
         prv.check()
         return (cur,prv)
-
-    def exec_alignment(self,cur,prv):
+    
+    def _vaidate_ite_type(self):
+        if self.iteration_type in (3,'3','3D','3d'):
+            return 3
+        elif self.iteration_type in (2,'2','2D','2d'):
+            return 2
+        elif self.iteration_type in ('ctf','CTF','Ctf'):
+            return 'ctf'
+        else:
+            raise ValueError('Invalid Iteration Type (accepted valud: 3, 2, "ctf"')
+    
+    def _exec_alignment(self,cur,prv,ite_type):
         self.aligner.list_gpus_ids     = self.list_gpus_ids
         self.aligner.threads_per_gpu   = self.threads_per_gpu
-        self.aligner.dimensionality    = self.dimensionality
-        #self.aligner.halfsets_independ = self.halfsets_independ
+        self.aligner.dimensionality    = ite_type
         
-        if self.aligner.dimensionality == 3:
-            header = '  [3D Alignment] '
-        else:
-            if self.aligner.dimensionality == 2:
-                header = '  [2D Alignment] '
-            else:
-                raise NameError('Invalid dimensionality in the project')
+        self.aligner.mpi.cmd = self.mpi.cmd
+        self.aligner.mpi.arg = self.mpi.arg
         
-        print( header + 'Start:' )
-        start_time = datetime.datetime.now()
-        if self.mpi_nodes > 1:
+        print( '  [%dD Alignment] Start:' % ite_type )
+        
+        start_time = _ssa_utils.time_now()
+        if self.mpi.arg > 1:
             self.aligner.align_mpi(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size,self.mpi_nodes)
         else:
             self.aligner.align(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size)
-        end_time = datetime.datetime.now()
-        elapsed = end_time-start_time
-        print( header + 'Finished using ' + ('%.1f' % elapsed.total_seconds()) + ' seconds (' + str(elapsed) +  ').'  )
+        elapsed = _ssa_utils.time_now()-start_time
+        
+        print( '  [%dD Alignment] Finished. Elapsed time: %.1f seconds (%s).' + (ite_type,elapsed.total_seconds(),str(elapsed)) )
+
+    def exec_estimation(self,cur,prv):
+        ite_type  = self._vaidate_ite_type
+        
+        if ite_type == 'ctf':
+            raise ValueError('CTF iteration not implemented yet')
+        else:
+            self._exec_alignment(cur,prc,ite_type)
         
     def exec_particle_selection(self,cur):
-        print('  [Aligned partices] Processing')
-        ptcls_in = susan.data.particles(cur.ptcl_rslt)
+        print('  [Aligned partices] Processing:')
+        ptcls_in = susan.data.Particles(cur.ptcl_rslt)
         
         # Classify
         if ptcls_in.n_refs > 1 :
@@ -160,17 +192,17 @@ class manager:
             hid = ptcls_in.half_id[idx].flatten()
             ccc = ptcls_in.ali_cc [idx,:,i].flatten()
             
-            th1 = numpy.quantile(ccc[ hid==1 ], 1-self.cc_threshold)
-            th2 = numpy.quantile(ccc[ hid==2 ], 1-self.cc_threshold)            
+            th1 = _np.quantile(ccc[ hid==1 ], 1-self.cc_threshold)
+            th2 = _np.quantile(ccc[ hid==2 ], 1-self.cc_threshold)            
             
-            hid[ numpy.logical_and(hid==1,ccc<th1) ] = 0
-            hid[ numpy.logical_and(hid==2,ccc<th2) ] = 0
+            hid[ _np.logical_and(hid==1,ccc<th1) ] = 0
+            hid[ _np.logical_and(hid==2,ccc<th2) ] = 0
             
             ptcls_in.half_id[idx] = hid
             
-            print('    Class ' + str(i+1) + ': ' + str( sum(hid>0) ) + ' particles.' )
-            print('      Half 1: ' + str( sum( hid==1 ) ) + ' particles.' )
-            print('      Half 2: ' + str( sum( hid==2 ) ) + ' particles.' )
+            print('    Class %2d: %7d particles.' % (i+1,(hid>0).sum()) )
+            print('      Half 1: %7d particles.'  % ( (hid==1).sum()  ) )
+            print('      Half 2: %7d particles.'  % ( (hid==2).sum()  ) )
             
         ptcls_out = ptcls_in[ (ptcls_in.half_id>0).flatten() ]
         ptcls_out.save(cur.ptcl_temp)
@@ -181,51 +213,48 @@ class manager:
         self.averager.threads_per_gpu   = self.threads_per_gpu
         
         print( '  [Reconstruct Maps] Start:' )
-        start_time = datetime.datetime.now()
+        start_time = _ssa_utils.time_now()
         if self.mpi_nodes > 1:
-            self.averager.reconstruct_mpi(cur.ite_dir+'/map',self.tomogram_file,cur.ptcl_temp,self.box_size,self.mpi_nodes)
+            self.averager.reconstruct_mpi(cur.ite_dir+'map',self.tomogram_file,cur.ptcl_temp,self.box_size,self.mpi_nodes)
         else:
-            self.averager.reconstruct(cur.ite_dir+'/map',self.tomogram_file,cur.ptcl_temp,self.box_size)
-        end_time = datetime.datetime.now()
-        elapsed = end_time-start_time	
-        print( '  [Reconstruct Maps] Finished using ' + ('%.1f' % elapsed.total_seconds()) + ' seconds (' + str(elapsed) +  ').'  )
+            self.averager.reconstruct(cur.ite_dir+'map',self.tomogram_file,cur.ptcl_temp,self.box_size)
+        elapsed = _ssa_utils.time_now()-start_time
+        
+        print( '  [Reconstruct Maps] Finished. Elapsed time: %.1f seconds (%s).' + (elapsed.total_seconds(),str(elapsed)) )
+        
         os.remove(cur.ptcl_temp)
         
-        refs_in = susan.data.load_references(prv.reference)
-        names=[]
-        masks=[]
-        half1=[]
-        half2=[]
-        for i in range(len(refs_in)):
-            names.append( cur.ite_dir + '/map_class' + ('%03d'%(i+1)) + '.mrc' )
-            half1.append( cur.ite_dir + '/map_class' + ('%03d'%(i+1)) + '_half1.mrc' )
-            half2.append( cur.ite_dir + '/map_class' + ('%03d'%(i+1)) + '_half2.mrc' )
-            masks.append( refs_in[i].mask )
-        refs_out = [
-            susan.data.reference(*refs_details)
-            for refs_details in zip(names, masks, half1, half2)
-        ]
-        susan.data.save_references(refs_out,cur.reference)
+        refs = susan.data.References(prv.reference)
+        for i in range(refs.n_refs):
+            refs.ref[i] = '%s/map_class%03d.mrc'       % (cur.ite_dir,i+1)
+            refs.h1[i]  = '%s/map_class%03d_half1.mrc' % (cur.ite_dir,i+1)
+            refs.h2[i]  = '%s/map_class%03d_half2.mrc' % (cur.ite_dir,i+1)
+        refs.save(cur.reference)
     
-    def exec_fsc(self,cur):
-        self.ref_fsc.gpu_id = self.list_gpus_ids[0]
-        print( '  [FSC Calculation] Start:' )
-        self.ref_fsc.calculate(cur.ite_dir+'/',cur.reference)
-        print( '  [FSC Calculation] Done.' )
+    def exec_postprocessing(self,cur):
+        refs = susan.data.References(prv.reference)
+        if refs.n_refs == 1:
+            print( '  [FSC Calculation] Start (1 reference):' )
+        else:
+            print( '  [FSC Calculation] Start (%d references):' % refs.n_refs )
         
-        min_fp = self.box_size/2
-        fp = open(cur.ite_dir+'/resolution_result.txt',"r")
-        num_refs = int(susan.data.read_value(fp,'num_ref'))
-        for i in range(num_refs):
-            cur_fp = float( susan.data.read_value(fp,'max_fpix') )
-            min_fp = min(min_fp,cur_fp)
-        fp.close()
-        return min_fp
+        rslt = _np.zeros( (refs.n_refs) )
+        for i in range(refs.n_refs):
+            fsc = _ssa_utils.fsc_get(refs.h1[i],refs.h2[i],refs.msk[i])
+            _,pix_size,_ = susan.io.mrc.get_info(refs.ref[i])
+            fsc_rslt = _ssa_utils.fsc_analyse(fsc,pix_size,self.fsc_threshold)
+            print('    - Reference %2d: %7.3f angstroms [%d fourier pixels]' % (i+1,fsc_rslt.res,fsc_rslt.fpix))
+            rslt[i] = fsc_rslt.fpix
+        
+        if refs.n_refs == 1:
+            return rslt[0]
+        else:
+            return rslt
     
     def execute_iteration(self,ite):
         cur,prv = self.setup_iteration(ite)
-        self.exec_alignment(cur,prv)
+        self.exec_estimation(cur,prv)
         self.exec_particle_selection(cur)
         self.exec_averaging(cur,prv)
-        rslt = self.exec_fsc(cur)
+        rslt = self.exec_postprocessing(cur)
         return rslt

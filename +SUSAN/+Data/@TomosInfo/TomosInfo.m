@@ -249,12 +249,12 @@ methods
             
             for j = 1:obj.num_proj(i)
                 fprintf(fp,'%8.3f %8.3f %8.3f ',obj.proj_eZYZ(j,1,i),obj.proj_eZYZ(j,2,i),obj.proj_eZYZ(j,3,i));
-                fprintf(fp,'%8.2f %8.2f ',obj.proj_shift(j,1,i),obj.proj_shift(j,2,i));
-                fprintf(fp,'%9.4f ',obj.proj_weight(j,1,i));
-                fprintf(fp,'%10.2f %10.2f ',obj.defocus(j,1,i),obj.defocus(j,2,i)); % Defocus.U    Defocus.V
-                fprintf(fp,'%8.3f %8.3f '  ,obj.defocus(j,3,i),obj.defocus(j,4,i)); % Def.ang      Def.ph_shft
-                fprintf(fp,'%8.2f %8.2f '  ,obj.defocus(j,5,i),obj.defocus(j,6,i)); % Def.BFactor  Def.ExpFilt
-                fprintf(fp,'%8.4f %8.5f '  ,obj.defocus(j,7,i),obj.defocus(j,8,i)); % Def.max_res  Def.score
+                fprintf(fp,'%8.2f %8.2f '      ,obj.proj_shift(j,1,i),obj.proj_shift(j,2,i));
+                fprintf(fp,'%9.4f '            ,obj.proj_weight(j,1,i));
+                fprintf(fp,'%10.2f %10.2f '    ,obj.defocus(j,1,i),obj.defocus(j,2,i)); % Defocus.U    Defocus.V
+                fprintf(fp,'%8.3f %8.3f '      ,obj.defocus(j,3,i),obj.defocus(j,4,i)); % Def.ang      Def.ph_shft
+                fprintf(fp,'%8.2f %8.2f '      ,obj.defocus(j,5,i),obj.defocus(j,6,i)); % Def.BFactor  Def.ExpFilt
+                fprintf(fp,'%8.4f %8.5f '      ,obj.defocus(j,7,i),obj.defocus(j,8,i)); % Def.max_res  Def.score
                 fprintf(fp,'\n');
             end
             
