@@ -57,7 +57,7 @@ class Aligner:
         self.cone.span    = c_r
         self.cone.step    = c_s
         self.inplane.span = i_r
-        self.inplane_step = i_s
+        self.inplane.step = i_s
         
     def set_offset_search(self,off_range,off_step,off_type='ellipsoid'):
         if not off_type in ['ellipsoid','cylinider']:
