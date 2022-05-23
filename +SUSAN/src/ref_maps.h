@@ -91,7 +91,7 @@ public:
                 if( map != NULL ) {
                     Math::get_avg_std(avg,std,map,numel);
                     if( !Math::normalize(map,numel,avg,std) ) {
-                        fprintf(stderr,"Error normalizing map %s\n",ref_info.map);
+                        fprintf(stderr,"Error normalizing map %s [m=%f | s=%f]\n",ref_info.map,avg,std);
                         exit(1);
                     }
                     Math::mul(map,mask,numel);
@@ -100,7 +100,7 @@ public:
                 if( half_A != NULL ) {
                     Math::get_avg_std(avg,std,half_A,numel);
                     if( !Math::normalize(half_A,numel,avg,std) ) {
-                        fprintf(stderr,"Error normalizing map %s\n",ref_info.h1);
+                        fprintf(stderr,"Error normalizing map %s [m=%f | s=%f]\n",ref_info.h1,avg,std);
                         exit(1);
                     }
                     Math::mul(half_A,mask,numel);
@@ -109,7 +109,7 @@ public:
                 if( half_B != NULL ) {
                     Math::get_avg_std(avg,std,half_B,numel);
                     if( !Math::normalize(half_B,numel,avg,std) ) {
-                        fprintf(stderr,"Error normalizing map %s\n",ref_info.h2);
+                        fprintf(stderr,"Error normalizing map %s [m=%f | s=%f]\n",ref_info.h2,avg,std);
                         exit(1);
                     }
                     Math::mul(half_A,mask,numel);

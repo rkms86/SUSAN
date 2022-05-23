@@ -11,8 +11,6 @@ set(CUDA_ARCHS 52 60 61 70 75)
 string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --display_error_number")
 
-add_executable(susan_denoise_l0 src/denoise_l0.cpp)
-
 add_executable(susan_estimate_ctf src/estimate_ctf.cu)
 target_link_libraries(susan_estimate_ctf cufft)
 set_property(TARGET susan_estimate_ctf PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
@@ -32,10 +30,6 @@ set_property(TARGET susan_aligner PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
 add_executable(susan_refs_aligner src/refs_aligner.cu)
 target_link_libraries(susan_refs_aligner cufft)
 set_property(TARGET susan_refs_aligner PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
-
-add_executable(susan_refs_fsc src/refs_fsc.cu)
-target_link_libraries(susan_refs_fsc cufft)
-set_property(TARGET susan_refs_fsc PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
 
 add_executable(susan_refine_ctf src/ctf_refiner.cu)
 target_link_libraries(susan_refine_ctf cufft)

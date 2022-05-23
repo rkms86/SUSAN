@@ -24,7 +24,8 @@ import susan.data    as _ssa_data
 import susan.utils   as _ssa_utils
 import susan.modules as _ssa_modules
 
-import susan.io.mrc.get_info  as _mrc_get_info
+from susan.io.mrc import get_info as _mrc_get_info
+
 import susan.utils.datatypes  as _dt
 import susan.utils.txt_parser as _prsr
 
@@ -40,9 +41,9 @@ class _iteration_files:
         self.ite_dir   = ''
         
     def check(self):
-        if not os.path.exists(self.ptcl_rslt):
+        if not _file_exists(self.ptcl_rslt):
             raise NameError('File '+ self.ptcl_rslt + ' does not exist')
-        if not os.path.exists(self.reference):
+        if not _file_exists(self.reference):
             raise NameError('File '+ self.reference + ' does not exist')
 
 class Manager:
@@ -76,8 +77,8 @@ class Manager:
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         
-        self.aligner           = susan.modules.Aligner()
-        self.averager          = susan.modules.Averager()
+        self.aligner           = _ssa_modules.Aligner()
+        self.averager          = _ssa_modules.Averager()
         
         self.aligner.ctf_correction = 'cfsc'
         
@@ -148,7 +149,7 @@ class Manager:
         elif self.iteration_type in ('ctf','CTF','Ctf'):
             return 'ctf'
         else:
-            raise ValueError('Invalid Iteration Type (accepted valud: 3, 2, "ctf"')
+            raise ValueError('Invalid Iteration Type (accepted valud: 3, 2, "ctf")')
     
     def _exec_alignment(self,cur,prv,ite_type):
         self.aligner.list_gpus_ids     = self.list_gpus_ids
@@ -162,35 +163,37 @@ class Manager:
         
         start_time = _ssa_utils.time_now()
         if self.mpi.arg > 1:
+            self.aligner.mpi_params.cmd = self.mpi.cmd
+            self.aligner.mpi_params.arg = self.mpi.arg
             self.aligner.align_mpi(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size,self.mpi_nodes)
         else:
             self.aligner.align(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size)
         elapsed = _ssa_utils.time_now()-start_time
         
-        print( '  [%dD Alignment] Finished. Elapsed time: %.1f seconds (%s).' + (ite_type,elapsed.total_seconds(),str(elapsed)) )
+        print( '  [%dD Alignment] Finished. Elapsed time: %.1f seconds (%s).' % (ite_type,elapsed.total_seconds(),str(elapsed)) )
 
     def exec_estimation(self,cur,prv):
-        ite_type  = self._vaidate_ite_type
+        ite_type  = self._vaidate_ite_type()
         
         if ite_type == 'ctf':
             raise ValueError('CTF iteration not implemented yet')
         else:
-            self._exec_alignment(cur,prc,ite_type)
+            self._exec_alignment(cur,prv,ite_type)
         
     def exec_particle_selection(self,cur):
         print('  [Aligned partices] Processing:')
-        ptcls_in = susan.data.Particles(cur.ptcl_rslt)
+        ptcls_in = _ssa_data.Particles(cur.ptcl_rslt)
         
         # Classify
         if ptcls_in.n_refs > 1 :
-            ptcls_in.ref_cix = numpy.argmax(ptcls_in.ali_cc,axis=2)
+            ptcls_in.ref_cix = _np.argmax(ptcls_in.ali_cc,axis=2)
             ptcls_in.save(cur.ptcl_rslt)
         
         # Select particles for reconstruction
         for i in range(ptcls_in.n_refs):
             idx = (ptcls_in.ref_cix == i).flatten()
             hid = ptcls_in.half_id[idx].flatten()
-            ccc = ptcls_in.ali_cc [idx,:,i].flatten()
+            ccc = ptcls_in.ali_cc [i,idx].flatten()
             
             th1 = _np.quantile(ccc[ hid==1 ], 1-self.cc_threshold)
             th2 = _np.quantile(ccc[ hid==2 ], 1-self.cc_threshold)            
@@ -214,17 +217,19 @@ class Manager:
         
         print( '  [Reconstruct Maps] Start:' )
         start_time = _ssa_utils.time_now()
-        if self.mpi_nodes > 1:
+        if self.mpi.arg > 1:
+            self.averager.mpi_params.cmd = self.mpi.cmd
+            self.averager.mpi_params.arg = self.mpi.arg
             self.averager.reconstruct_mpi(cur.ite_dir+'map',self.tomogram_file,cur.ptcl_temp,self.box_size,self.mpi_nodes)
         else:
             self.averager.reconstruct(cur.ite_dir+'map',self.tomogram_file,cur.ptcl_temp,self.box_size)
         elapsed = _ssa_utils.time_now()-start_time
         
-        print( '  [Reconstruct Maps] Finished. Elapsed time: %.1f seconds (%s).' + (elapsed.total_seconds(),str(elapsed)) )
+        print( '  [Reconstruct Maps] Finished. Elapsed time: %.1f seconds (%s).' % (elapsed.total_seconds(),str(elapsed)) )
         
-        os.remove(cur.ptcl_temp)
+        _rm(cur.ptcl_temp)
         
-        refs = susan.data.References(prv.reference)
+        refs = _ssa_data.Reference(prv.reference)
         for i in range(refs.n_refs):
             refs.ref[i] = '%s/map_class%03d.mrc'       % (cur.ite_dir,i+1)
             refs.h1[i]  = '%s/map_class%03d_half1.mrc' % (cur.ite_dir,i+1)
@@ -232,7 +237,7 @@ class Manager:
         refs.save(cur.reference)
     
     def exec_postprocessing(self,cur):
-        refs = susan.data.References(prv.reference)
+        refs = _ssa_data.Reference(cur.reference)
         if refs.n_refs == 1:
             print( '  [FSC Calculation] Start (1 reference):' )
         else:
@@ -241,7 +246,7 @@ class Manager:
         rslt = _np.zeros( (refs.n_refs) )
         for i in range(refs.n_refs):
             fsc = _ssa_utils.fsc_get(refs.h1[i],refs.h2[i],refs.msk[i])
-            _,pix_size,_ = susan.io.mrc.get_info(refs.ref[i])
+            _,pix_size,_ = _mrc_get_info(refs.ref[i])
             fsc_rslt = _ssa_utils.fsc_analyse(fsc,pix_size,self.fsc_threshold)
             print('    - Reference %2d: %7.3f angstroms [%d fourier pixels]' % (i+1,fsc_rslt.res,fsc_rslt.fpix))
             rslt[i] = fsc_rslt.fpix
@@ -252,9 +257,14 @@ class Manager:
             return rslt
     
     def execute_iteration(self,ite):
+        start_time = _ssa_utils.time_now()
+        print('============================')
+        print('Project: %s (Iteration %d)'%(self.prj_name,ite))
         cur,prv = self.setup_iteration(ite)
         self.exec_estimation(cur,prv)
         self.exec_particle_selection(cur)
         self.exec_averaging(cur,prv)
         rslt = self.exec_postprocessing(cur)
+        elapsed = _ssa_utils.time_now()-start_time
+        print('Iteration %d Finished [Elapsed time: %.1f seconds (%s]'%(ite,elapsed.total_seconds(),str(elapsed)))
         return rslt

@@ -24,12 +24,12 @@ from susan.utils import force_extension as _force_ext
 
 class Tomograms:
     
-    def __init__(self,filename=None,n_ptcl=0,n_proj=0):
+    def __init__(self,filename=None,n_tomo=0,n_proj=0):
         if isinstance(filename, str):
             self.load(filename) 
         else:
-            if n_ptcl > 0 and n_proj > 0:
-                self.alloc(n_ptcl,n_proj)
+            if n_tomo > 0 and n_proj > 0:
+                self.alloc(n_tomo,n_proj)
             else:
                 raise NameError('Invalid input')
     
@@ -57,9 +57,9 @@ class Tomograms:
         self.proj_eZYZ  = _np.zeros((n_tomos,n_projs,3),dtype=_np.float32)
         self.proj_shift = _np.zeros((n_tomos,n_projs,2),dtype=_np.float32)
         self.proj_wgt   = _np.zeros((n_tomos,n_projs)  ,dtype=_np.float32)
-        self.voltage    = _np.zeros( n_tomos   ,dtype=_np.float32)
-        self.sph_aber   = _np.zeros( n_tomos   ,dtype=_np.float32)
-        self.amp_cont   = _np.zeros( n_tomos   ,dtype=_np.float32)
+        self.voltage    = 300 *_np.ones( n_tomos,dtype=_np.float32)
+        self.sph_aber   = 2.7 *_np.ones( n_tomos,dtype=_np.float32)
+        self.amp_cont   = 0.07*_np.ones( n_tomos,dtype=_np.float32)
         
         # Defocus
         self.def_U    = _np.zeros((n_tomos,n_projs),dtype=_np.float32) # U (angstroms)
@@ -161,25 +161,24 @@ class Tomograms:
             line = _np.loadtxt(def_file,dtype=_np.float32,comments='#',max_rows=1)
             version = int(line[-1])
             if version == 2:
-                fp=open(def_file,'r')
-                for i in range(self.num_proj[i]):
-                    line = _np.loadtxt(fp,dtype=_np.float32,comments='#',max_rows=1)
-                    self.def_U  [idx,i] = 10*line[4]
-                    self.def_V  [idx,i] = 10*line[4]
-                    self.def_ang[idx,i] = 0
-                fp.close()
+                self.def_U  [idx,0] = 10*line[4]
+                self.def_V  [idx,0] = 10*line[4]
+                self.def_ang[idx,0] = 0
+                data = _np.loadtxt(def_file,dtype=_np.float32,comments='#',skiprows=1)
+                n = data.shape[0]
+                self.def_U  [idx,1:n+1] = 10*data[:,4]
+                self.def_V  [idx,1:n+1] = 10*data[:,4]
+                self.def_ang[idx,1:n+1] = 0
             elif version == 3:
-                fp=open(def_file,'r')
-                for i in range(self.num_proj[i]):
-                    line = _np.loadtxt(fp,dtype=_np.float32,comments='#',max_rows=1)
-                    self.def_U  [idx,i] = 10*line[4]
-                    self.def_V  [idx,i] = 10*line[5]
-                    self.def_ang[idx,i] = line[6]
-                fp.close()
+                data = _np.loadtxt(def_file,dtype=_np.float32,comments='#',skiprows=1)
+                n = data.shape[0]
+                self.def_U  [idx,:n] = 10*data[:,4]
+                self.def_V  [idx,:n] = 10*data[:,5]
+                self.def_ang[idx,:n] = data[:,6]
             else:
                 raise NameError('Invalid DEFOCUS format')
         elif _is_ext(def_file,'txt'):
-            P = self.num_proj[i]
+            P = self.num_proj[idx]
             buffer = _np.loadtxt(def_file,dtype=_np.float32,comments='#',ndmin=2,max_rows=P)
             self.def_U     [idx,:P]   = buffer[:,0]
             self.def_V     [idx,:P]   = buffer[:,1]

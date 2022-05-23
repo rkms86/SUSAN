@@ -16,6 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
+import os as _os
 from importlib.util import find_spec as _find_spec
 from os.path import dirname as _dir_name
 import susan.utils.datatypes as _dt
@@ -23,7 +24,7 @@ import susan.utils.datatypes as _dt
 def _bin_path():
     tmp = _find_spec('susan')
     rslt = _dir_name(tmp.origin)
-    return rslt+'/../bin/'
+    return rslt+'/../+SUSAN/bin/'
 
 def _get_gpu_str(list_gpus_ids):
     gpu_str = ','.join( str(num) for num in  list_gpus_ids )
@@ -77,7 +78,7 @@ class Aligner:
         if not self.dimensionality in [2,3]:
             raise ValueError('Invalid dimensionality type. Only 3 or 3 are valid')
         
-        if not self.offset_type in ['ellipsoid','cylinider']:
+        if not self.offset.kind in ['ellipsoid','cylinder']:
             raise ValueError('Invalid offset type. Only "ellipsoid" or "cylinder" are valid')
         
         if not self.padding_type in ['zero','noise']:
@@ -92,7 +93,7 @@ class Aligner:
         if not self.offset.step > 0 or not self.cone.step > 0 or not self.inplane.step > 0:
             raise ValueError('The steps values must be larger than 0')
         
-        if self.offset.span < self.offset.step:
+        if self.offset.span[0] < self.offset.step or self.offset.span[1] < self.offset.step  or self.offset.span[2] < self.offset.step :
             raise ValueError('Offset: Step cannot be larger than Range/Span')
 
         if self.cone.span < self.cone.step:
@@ -122,10 +123,10 @@ class Aligner:
         args = args + ' -p_symmetry '      + self.pseudo_symmetry
         args = args + ' -ali_halves %d'    % self.halfsets_independ
         args = args + ' -cone %f,%f'       % (self.cone.span,self.cone.step)
-        args = args + ' -inplane %f,%f'    % (self.inplace.span,self.inplace.step)
+        args = args + ' -inplane %f,%f'    % (self.inplane.span,self.inplane.step)
         args = args + ' -refine %d,%d'     % (self.refine.factor,self.refine.levels)
         args = args + ' -off_type '        + self.offset.kind
-        args = args + ' -off_params %f,%f,%f,%f' + (self.offset.span[0],self.offset.span[1],self.offset.span[2],self.offset.step)
+        args = args + ' -off_params %f,%f,%f,%f' % (self.offset.span[0],self.offset.span[1],self.offset.span[2],self.offset.step)
         args = args + ' -type %d'          % self.dimensionality
         args = args + ' -verbosity %d'     % self.verbosity
         return args
@@ -133,15 +134,15 @@ class Aligner:
     def align(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         cmd = _bin_path() + 'susan_aligner'
         cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
-        rslt = os.system(cmd)
+        rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)
     
-    def align_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size,mpi_nodes):
+    def align_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         cmd = self.mpi_params.cmd % self.mpi_params.arg
         cmd = cmd + _bin_path() + 'susan_aligner_mpi'
         cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
-        rslt = os.system(cmd)
+        rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)
 
@@ -202,15 +203,15 @@ class Averager:
     def reconstruct(self,out_pfx,tomos_file,ptcls_in,box_size):
         cmd = _bin_path() + 'susan_reconstruct'
         cmd = cmd + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
-        rslt = os.system(cmd)
+        rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the reconstruction: ' + cmd)
     
-    def reconstruct_mpi(self,out_pfx,tomos_file,ptcls_in,box_size,mpi_nodes):
+    def reconstruct_mpi(self,out_pfx,tomos_file,ptcls_in,box_size):
         cmd = self.mpi_params.cmd % self.mpi_params.arg
         cmd = cmd + _bin_path() + 'susan_reconstruct_mpi'
         cmd = cmd + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
-        rslt = os.system(cmd)
+        rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the reconstruction: ' + cmd)
 
@@ -270,7 +271,7 @@ class CtfEstimator:
     def estimate(self,out_dir,tomos_file,ptcls_in,box_size):
         cmd = _bin_path() + 'susan_estimate_ctf'
         cmd = cmd + self.get_args(out_dir,tomos_file,ptcls_in,box_size)
-        rslt = os.system(cmd)
+        rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the CTF estimation: ' + cmd)
 
@@ -329,7 +330,7 @@ class CtfRefiner:
     def refine(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         cmd = _bin_path() + 'susan_refine_ctf'
         cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
-        rslt = os.system(cmd)
+        rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)
     

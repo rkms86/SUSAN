@@ -17,6 +17,8 @@
 ###########################################################################
 
 import susan.utils.txt_parser as _prsr
+from susan.utils import is_extension as _is_ext
+from susan.utils import force_extension as _force_ext
 
 class Reference:
     ref = []

@@ -731,7 +731,7 @@ void print_minimal(const Info&info,FILE*fp) {
     if( info.norm_type == ZERO_MEAN_W_STD )
         fprintf(fp,"Normalized to Mean=0, Std=PRJ_W.\n");
 
-    fprintf(fp," - Angular search: Sym=%s | ",info.pseudo_sym);
+    fprintf(fp,"    - Angular search: Sym=%s | ",info.pseudo_sym);
     
     fprintf(fp,"Cone=%.3f,%.3f | ",info.cone_range,info.cone_step);
     fprintf(fp,"Inplace=%.3f,%.3f | ",info.inplane_range,info.inplane_step);

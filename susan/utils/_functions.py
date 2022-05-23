@@ -16,7 +16,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-__all__ = ['fsc_get','fsc_analyse','denoise_l0','bandpass','euZYZ_rotm','rotm_euZYZ','is_extension','force_extension','time_now']
+__all__ = ['fsc_get',
+           'fsc_analyse',
+           'denoise_l0',
+           'bandpass',
+           'euZYZ_rotm',
+           'rotm_euZYZ',
+           'is_extension',
+           'force_extension',
+           'time_now',
+           'create_sphere',
+           'bin_vol']
 
 import datetime
 import susan.io.mrc as mrc
@@ -158,3 +168,24 @@ def force_extension(filename,extension):
 def time_now():
     return datetime.datetime.now()
 
+def create_sphere(radius,box_size):
+    N = box_size//2
+    t = np.arange(-N,N)
+    x,y,z = np.meshgrid(t,t,t)
+    rad = np.sqrt( x**2 + y**2 + z**2 )
+    return np.float32((radius-rad).clip(0,1))
+
+def bin_vol(data,bin_level):
+    s = (2**bin_level)
+    v = bandpass(data,data.shape[0]//s-1)
+    v = v[::s,::s,::s]
+    return np.float32(v)
+
+    
+    
+    
+    
+    
+    
+    
+    

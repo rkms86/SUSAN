@@ -98,10 +98,10 @@ class Particles:
         
         # 3D alignment
         R = self.ali_eu.shape[0]
-        i=10;    self.ali_eu[:,ix,:] = buffer[i:i+3*R].reshape((R,1,3))
-        i=i+3*R; self.ali_t [:,ix,:] = buffer[i:i+3*R].reshape((R,1,3))
-        i=i+3*R; self.ali_cc[:,ix]   = buffer[i:i+  R].reshape((R,1))
-        i=i+  R; self.ali_w [:,ix]   = buffer[i:i+  R].reshape((R,1))
+        i=10;    self.ali_eu[:,ix,:] = buffer[i:i+3*R].reshape((R,3))
+        i=i+3*R; self.ali_t [:,ix,:] = buffer[i:i+3*R].reshape((R,3))
+        i=i+3*R; self.ali_cc[:,ix]   = buffer[i:i+  R].reshape((R))
+        i=i+  R; self.ali_w [:,ix]   = buffer[i:i+  R].reshape((R))
         
         # 2D alignment
         P = self.prj_eu.shape[1]

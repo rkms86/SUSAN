@@ -32,8 +32,8 @@ typedef uint32_t uint32;
 typedef uint64_t uint64;
 typedef float    single;
 
-//#define SUSAN_CARRIER_RETURN '\r'
-#define SUSAN_CARRIER_RETURN 0
+#define SUSAN_CARRIER_RETURN '\r'
+//#define SUSAN_CARRIER_RETURN 0
 
 #define SUSAN_FILENAME_LENGTH 1024
 #define SUSAN_CHUNK_SIZE (1024*1024)
