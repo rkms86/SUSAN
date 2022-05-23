@@ -116,9 +116,12 @@ def fsc_analyse(fsc,apix=1.0,thres=0.143):
     apix = np.array(apix)
     if( apix.size > 1 ):
         apix = apix[0]
-    fpix = np.argwhere(fsc<thres)[0,0]
+    fpix = np.argwhere(fsc<thres)
+    if fpix.size > 0:
+        fpix = fpix[0,0]
+    else:
+        fpix = fsc.size-1
     res  = (2*(fsc.size-1)*apix)/fpix
-    #rslt = {'fpix':fpix, 'res':res}
     rslt = datatypes.fsc_info(fpix,res)
     return rslt
 

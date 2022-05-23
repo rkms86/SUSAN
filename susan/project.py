@@ -186,7 +186,7 @@ class Manager:
         
         # Classify
         if ptcls_in.n_refs > 1 :
-            ptcls_in.ref_cix = _np.argmax(ptcls_in.ali_cc,axis=2)
+            ptcls_in.ref_cix = _np.argmax(ptcls_in.ali_cc,axis=1)
             ptcls_in.save(cur.ptcl_rslt)
         
         # Select particles for reconstruction
