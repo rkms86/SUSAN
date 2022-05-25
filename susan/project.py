@@ -149,7 +149,7 @@ class Manager:
 
     def get_fsc(self,ite,ref=1):
         i = ref-1
-        refs = self.get_name_refs(ite)
+        refs = _ssa_data.Reference(self.get_name_refstxt(ite))
         return _ssa_utils.fsc_get(refs.h1[i],refs.h2[i],refs.msk[i])
 
     def setup_iteration(self,ite):
