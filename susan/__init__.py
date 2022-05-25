@@ -22,5 +22,18 @@ from . import utils
 from . import modules
 from . import project
 
+def read(filename):
+	if utils.is_extension(filename,'mrc') or  utils.is_extension(filename,'map') or utils.is_extension(filename,'ali') or utils.is_extension(filename,'st'):
+		v,_ = io.mrc.read(filename)
+		return v
+	elif utils.is_extension(filename,'ptclsraw'):
+		return data.Particles(filename)
+	elif utils.is_extension(filename,'refstxt'):
+		return data.Reference(filename)
+	elif utils.is_extension(filename,'tomostxt'):
+		return data.Tomograms(filename)
+	else:
+		raise ValueError('Unsupported file.')
+
 __all__ = []
-__all__.extend(['data','io','utils','modules','project'])
+__all__.extend(['data','io','utils','modules','project','read'])

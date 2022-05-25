@@ -96,11 +96,17 @@ class Aligner:
         if self.offset.span[0] < self.offset.step or self.offset.span[1] < self.offset.step  or self.offset.span[2] < self.offset.step :
             raise ValueError('Offset: Step cannot be larger than Range/Span')
 
-        if self.cone.span < self.cone.step:
-            raise ValueError('Cone: Step cannot be larger than Range/Span')
+        if self.cone.span == 0:
+            self.cone.step = 1
+        else:
+            if self.cone.span < self.cone.step:
+                raise ValueError('Cone: Step cannot be larger than Range/Span')
 
-        if self.inplane.span < self.inplane.step:
-            raise ValueError('Inplane: Step cannot be larger than Range/Span')
+        if self.inplane.span == 0:
+            self.inplane.step = 1
+        else:
+            if self.inplane.span < self.inplane.step:
+                raise ValueError('Inplane: Step cannot be larger than Range/Span')
 
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         self.validate()

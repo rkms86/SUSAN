@@ -17,13 +17,12 @@
 ###########################################################################
 
 import numpy as _np
-#import os,susan,os.path,collections,datetime,numpy
-#import susan.data
-#import susan.modules
+
 import susan.data    as _ssa_data
 import susan.utils   as _ssa_utils
 import susan.modules as _ssa_modules
 
+from susan.io.mrc import read     as _mrc_read
 from susan.io.mrc import get_info as _mrc_get_info
 
 import susan.utils.datatypes  as _dt
@@ -132,6 +131,27 @@ class Manager:
             h2_name = ite_dir + 'map_class%03d_half2.mrc' % ref
         return (h1_name,h2_name)
 
+    def get_name_refstxt(self,ite):
+        files = self.get_iteration_files(ite)
+        return files.reference
+
+    def get_map(self,ite,ref=1):
+        v,_ = _mrc_read(self.get_names_map(ite,ref))
+        return v
+
+    def get_ptcls(self,ite):
+        files = self.get_iteration_files(ite)
+        return _ssa_data.Particles(files.ptcl_rslt)
+
+    def get_cc(self,ite,ref=1):
+        ptcls = self.get_ptcls(ite)
+        return ptcls.ali_cc[ref-1]
+
+    def get_fsc(self,ite,ref=1):
+        i = ref-1
+        refs = self.get_name_refs(ite)
+        return _ssa_utils.fsc_get(refs.h1[i],refs.h2[i],refs.msk[i])
+
     def setup_iteration(self,ite):
         base_dir = self.get_iteration_dir(ite)
         if not _file_exists(base_dir):
@@ -141,7 +161,7 @@ class Manager:
         prv.check()
         return (cur,prv)
     
-    def _vaidate_ite_type(self):
+    def _validate_ite_type(self):
         if self.iteration_type in (3,'3','3D','3d'):
             return 3
         elif self.iteration_type in (2,'2','2D','2d'):
@@ -173,7 +193,7 @@ class Manager:
         print( '  [%dD Alignment] Finished. Elapsed time: %.1f seconds (%s).' % (ite_type,elapsed.total_seconds(),str(elapsed)) )
 
     def exec_estimation(self,cur,prv):
-        ite_type  = self._vaidate_ite_type()
+        ite_type  = self._validate_ite_type()
         
         if ite_type == 'ctf':
             raise ValueError('CTF iteration not implemented yet')
@@ -186,7 +206,7 @@ class Manager:
         
         # Classify
         if ptcls_in.n_refs > 1 :
-            ptcls_in.ref_cix = _np.argmax(ptcls_in.ali_cc,axis=1)
+            ptcls_in.ref_cix = _np.argmax(ptcls_in.ali_cc,axis=0)
             ptcls_in.save(cur.ptcl_rslt)
         
         # Select particles for reconstruction
@@ -268,3 +288,4 @@ class Manager:
         elapsed = _ssa_utils.time_now()-start_time
         print('Iteration %d Finished [Elapsed time: %.1f seconds (%s]'%(ite,elapsed.total_seconds(),str(elapsed)))
         return rslt
+
