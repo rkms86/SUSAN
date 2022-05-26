@@ -25,6 +25,9 @@
     #pragma nv_diag_suppress 20011
     #pragma nv_diag_suppress 20014
     #pragma nv_diag_suppress 20236
+    #pragma diag_suppress 3123
+    #pragma diag_suppress 3124
+    #pragma diag_suppress 3126
 #elif __CUDACC_VER_MAJOR__ == 10
     #pragma diag_suppress 2976
     #pragma diag_suppress 2979

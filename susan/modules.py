@@ -245,8 +245,8 @@ class CtfEstimator:
         if self.refine_defocus.span < self.refine_defocus.step:
             raise ValueError('Refine Defocus: Step cannot be larger than Range/Span')
 
-        if self.resolution_angs.max_val < self.resolution_angs.min_val:
-            raise ValueError('Resolution (angstroms): min is larger than max')
+        #if self.resolution_angs.max_val < self.resolution_angs.min_val:
+        #    raise ValueError('Resolution (angstroms): min is larger than max')
 
         if self.defocus_angstroms.max_val < self.defocus_angstroms.min_val:
             raise ValueError('Defocus (angstroms): min is larger than max')
@@ -269,7 +269,7 @@ class CtfEstimator:
         args = args + ' -tilt_search %f'   % self.tilt_search
         args = args + ' -refine_def %f,%f' % (self.refine_defocus.span,self.refine_defocus.step)
         args = args + ' -binning %d'       % self.binning
-        args = args + ' -bfactor_max %f'   % self.max_bfactors
+        args = args + ' -bfactor_max %f'   % self.max_bfactor
         args = args + ' -verbose %d'       % self.verbose
         #args = args + ' -verbosity %d'     % self.verbosity
         return args

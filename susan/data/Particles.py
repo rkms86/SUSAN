@@ -335,7 +335,7 @@ class Particles:
 
     @staticmethod
     def _validate_tomogram(tomograms):
-        if not isinstance(tomograms,_tomodef):
+        if not isinstance(tomograms,_tomodef.Tomograms):
             raise ValueError('Tomograms must be a Tomograms object.')
         apix = _np.unique( tomograms.pix_size )
         if apix.size != 1:
@@ -420,9 +420,6 @@ class Particles:
         ptcls.tomo_id [:]   = tid
         ptcls.update_defocus(tomograms)
         return ptcls
-    
-    #@staticmethod
-    #def grid_3d()
 
 
 
