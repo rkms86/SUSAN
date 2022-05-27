@@ -90,31 +90,101 @@ class Particles:
             raise NameError("Invalid File signature")
         return _np.frombuffer(buffer[8:],_np.uint32)
     
+    @staticmethod
+    @_jit(nopython=True,cache=True)
+    def _parse_buffer_stg1(ix,buffer,pid,tid,tcix,pos,rcix,hid,e1,e2):
+        pid[ix],tid[ix],tcix[ix] = buffer[:3].view(_np.uint32)
+        pos[ix] = buffer[3:6]
+        rcix[ix],hid[ix] = buffer[6:8].view(_np.uint32)
+        e1[ix],e2[ix] = buffer[8:10]
+    
+    @staticmethod
+    @_jit(nopython=True,cache=True)
+    def _parse_buffer_stg2(ix,R,buffer,eu,t,cc,w):
+        i = 0
+        for j in range(R):
+            eu[j,ix,0] = buffer[i  ]
+            eu[j,ix,1] = buffer[i+1]
+            eu[j,ix,2] = buffer[i+2]
+            i = i+3
+        
+        for j in range(R):
+            t[j,ix,0] = buffer[i  ]
+            t[j,ix,1] = buffer[i+1]
+            t[j,ix,2] = buffer[i+2]
+            i = i+3
+        
+        for j in range(R):
+            cc[j,ix] = buffer[i]
+            i = i+1
+        
+        for j in range(R):
+            w[j,ix] = buffer[i]
+            i = i+1
+    
+    @staticmethod
+    @_jit(nopython=True,cache=True)
+    def _parse_buffer_stg3(ix,P,buffer,eu,t,cc,w):
+        i = 0
+        for j in range(P):
+            eu[ix,j,0] = buffer[i  ]
+            eu[ix,j,1] = buffer[i+1]
+            eu[ix,j,2] = buffer[i+2]
+            i = i+3
+        
+        for j in range(P):
+            t[ix,j,0] = buffer[i  ]
+            t[ix,j,1] = buffer[i+1]
+            i = i+2
+        
+        for j in range(P):
+            cc[ix,j] = buffer[i]
+            i = i+1
+        
+        for j in range(P):
+            w[ix,j] = buffer[i]
+            i = i+1
+    
+    @staticmethod
+    @_jit(nopython=True,cache=True)
+    def _parse_buffer_stg4(ix,P,buffer,dU,dV,dA,ph,Bf,EF,res,scr):
+        i = 0
+        for j in range(P):
+            dU [ix,j] = buffer[i  ]
+            dV [ix,j] = buffer[i+1]
+            dA [ix,j] = buffer[i+2]
+            ph [ix,j] = buffer[i+3]
+            Bf [ix,j] = buffer[i+4]
+            EF [ix,j] = buffer[i+5]
+            res[ix,j] = buffer[i+6]
+            scr[ix,j] = buffer[i+7]
+            i = i+8
+    
     def _parse_buffer(self,ix,buffer):
-        self.ptcl_id[ix], self.tomo_id[ix], self.tomo_cix[ix] = buffer[:3].view(_np.uint32)
-        self.position[ix] = buffer[3:6]
-        self.ref_cix[ix], self.half_id[ix] = buffer[6:8].view(_np.uint32)
-        self.extra_1[ix], self.extra_2[ix] = buffer[8:10]
+        
+        # Parse with NUMBA: 1.7x faster 
+        Particles._parse_buffer_stg1(ix,buffer,
+                                     self.ptcl_id,self.tomo_id,self.tomo_cix,
+                                     self.position,self.ref_cix,self.half_id,
+                                     self.extra_1,self.extra_2)
         
         # 3D alignment
         R = self.ali_eu.shape[0]
-        i=10;    self.ali_eu[:,ix,:] = buffer[i:i+3*R].reshape((R,3))
-        i=i+3*R; self.ali_t [:,ix,:] = buffer[i:i+3*R].reshape((R,3))
-        i=i+3*R; self.ali_cc[:,ix]   = buffer[i:i+  R].reshape((R))
-        i=i+  R; self.ali_w [:,ix]   = buffer[i:i+  R].reshape((R))
+        Particles._parse_buffer_stg2(ix,R,buffer[10:],
+                                     self.ali_eu,self.ali_t,
+                                     self.ali_cc,self.ali_w)
         
         # 2D alignment
         P = self.prj_eu.shape[1]
-        i=i+  R; self.prj_eu[ix,:,:] = buffer[i:i+3*P].reshape((P,3))
-        i=i+3*P; self.prj_t [ix,:,:] = buffer[i:i+2*P].reshape((P,2))
-        i=i+2*P; self.prj_cc[ix,:]   = buffer[i:i+  P]
-        i=i+  P; self.prj_w [ix,:]   = buffer[i:i+  P]
+        Particles._parse_buffer_stg3(ix,P,buffer[(10+8*R):],
+                                     self.prj_eu,self.prj_t,
+                                     self.prj_cc,self.prj_w)
         
         # Defocus
-        i=i+  P; defocus = buffer[i:].reshape(P,8).transpose()
-        self.def_U   [ix,:], self.def_V   [ix,:], self.def_ang[ix,:], \
-        self.def_phas[ix,:], self.def_Bfct[ix,:], self.def_ExFl[ix,:], \
-        self.def_mres[ix,:], self.def_scor[ix,:] = defocus
+        Particles._parse_buffer_stg4(ix,P,buffer[(10+8*R+7*P):],
+                                     self.def_U   ,self.def_V   ,self.def_ang,
+                                     self.def_phas,self.def_Bfct,self.def_ExFl,
+                                     self.def_mres,self.def_scor)
         
     def sort(self):
         idx = _np.lexsort((self.ptcl_id,self.tomo_id))
@@ -158,6 +228,85 @@ class Particles:
             self._parse_buffer(i,buffer)
         fp.close()
     
+    @staticmethod
+    @_jit(nopython=True,cache=True)
+    def _set_buffer_stg1(ix,buffer,pid,tid,tcix,pos,rcix,hid,e1,e2):
+        tmp = _np.uint32(pid[ix])
+        buffer[0] = tmp.view(_np.float32)
+        tmp = _np.uint32(tid[ix])
+        buffer[1] = tmp.view(_np.float32)
+        tmp = _np.uint32(tcix[ix])
+        buffer[2] = tmp.view(_np.float32)
+        buffer[3:6] = pos[ix]
+        tmp = _np.uint32(rcix[ix])
+        buffer[6] = tmp.view(_np.float32)
+        tmp = _np.uint32(hid[ix])
+        buffer[7] = tmp.view(_np.float32)
+        buffer[8] = e1[ix]
+        buffer[9] = e2[ix]
+    
+    @staticmethod
+    @_jit(nopython=True,cache=True)
+    def _set_buffer_stg2(ix,R,buffer,eu,t,cc,w):
+        i = 0
+        for j in range(R):
+            buffer[i  ] = eu[j,ix,0]
+            buffer[i+1] = eu[j,ix,1]
+            buffer[i+2] = eu[j,ix,2]
+            i = i+3
+        
+        for j in range(R):
+            buffer[i  ] = t[j,ix,0]
+            buffer[i+1] = t[j,ix,1]
+            buffer[i+2] = t[j,ix,2]
+            i = i+3
+        
+        for j in range(R):
+            buffer[i] = cc[j,ix]
+            i = i+1
+        
+        for j in range(R):
+            buffer[i] = w[j,ix]
+            i = i+1
+    
+    @staticmethod
+    @_jit(nopython=True,cache=True)
+    def _set_buffer_stg3(ix,P,buffer,eu,t,cc,w):
+        i = 0
+        for j in range(P):
+            buffer[i  ] = eu[ix,j,0]
+            buffer[i+1] = eu[ix,j,1]
+            buffer[i+2] = eu[ix,j,2]
+            i = i+3
+        
+        for j in range(P):
+            buffer[i  ] = t[ix,j,0]
+            buffer[i+2] = t[ix,j,1]
+            i = i+2
+        
+        for j in range(P):
+            buffer[i] = cc[ix,j]
+            i = i+1
+        
+        for j in range(P):
+            buffer[i] = w[ix,j]
+            i = i+1
+    
+    @staticmethod
+    @_jit(nopython=True,cache=True)
+    def _set_buffer_stg4(ix,P,buffer,dU,dV,dA,ph,Bf,EF,res,scr):
+        i = 0
+        for j in range(P):
+            buffer[i  ] = dU [ix,j]
+            buffer[i+1] = dV [ix,j]
+            buffer[i+2] = dA [ix,j]
+            buffer[i+3] = ph [ix,j]
+            buffer[i+4] = Bf [ix,j]
+            buffer[i+5] = EF [ix,j]
+            buffer[i+6] = res[ix,j]
+            buffer[i+7] = scr[ix,j]
+            i = i+8
+    
     def save(self,filename):
         Particles._check_filename(filename)
         
@@ -165,29 +314,55 @@ class Particles:
         fp.write( b'SsaPtcl1' )
         _np.array( (self.n_ptcl,self.n_proj,self.n_refs), dtype=_np.uint32 ).tofile(fp)
         
+        R = self.ali_eu.shape[0]
+        P = self.prj_eu.shape[1]        
+        buffer = _np.zeros(10+8*R+7*P+8*P,dtype=_np.float32)
+        
         for ix in range(self.n_ptcl):
-            _np.array( (self.ptcl_id[ix],self.tomo_id[ix],self.tomo_cix[ix]), dtype=_np.uint32 ).tofile(fp)
-            self.position[ix,:].tofile(fp)
-            _np.array( (self.ref_cix[ix],self.half_id[ix]), dtype=_np.uint32  ).tofile(fp)
-            _np.array( (self.extra_1[ix],self.extra_2[ix]), dtype=_np.float32 ).tofile(fp)
             
-            # 3D Alignment
-            self.ali_eu[:,ix,:].flatten().tofile(fp)
-            self.ali_t [:,ix,:].flatten().tofile(fp)
-            self.ali_cc[:,ix]  .flatten().tofile(fp)
-            self.ali_w [:,ix]  .flatten().tofile(fp)
+            Particles._set_buffer_stg1(ix,buffer,
+                                         self.ptcl_id,self.tomo_id,self.tomo_cix,
+                                         self.position,self.ref_cix,self.half_id,
+                                         self.extra_1,self.extra_2)
             
-            # 2D Alignment
-            self.prj_eu[ix,:,:].flatten().tofile(fp)
-            self.prj_t [ix,:,:].flatten().tofile(fp)
-            self.prj_cc[ix,:]  .flatten().tofile(fp)
-            self.prj_w [ix,:]  .flatten().tofile(fp)
+            # 3D alignment
+            Particles._set_buffer_stg2(ix,R,buffer[10:],
+                                         self.ali_eu,self.ali_t,
+                                         self.ali_cc,self.ali_w)
+            
+            # 2D alignment
+            Particles._set_buffer_stg3(ix,P,buffer[(10+8*R):],
+                                         self.prj_eu,self.prj_t,
+                                         self.prj_cc,self.prj_w)
             
             # Defocus
-            defocus = _np.stack((self.def_U   [ix,:], self.def_V   [ix,:], self.def_ang[ix,:],
-                                 self.def_phas[ix,:], self.def_Bfct[ix,:], self.def_ExFl[ix,:],
-                                 self.def_mres[ix,:], self.def_scor[ix,:])).transpose()
-            defocus.flatten().tofile(fp)
+            Particles._set_buffer_stg4(ix,P,buffer[(10+8*R+7*P):],
+                                         self.def_U   ,self.def_V   ,self.def_ang,
+                                         self.def_phas,self.def_Bfct,self.def_ExFl,
+                                         self.def_mres,self.def_scor)
+            
+            #_np.array( (self.ptcl_id[ix],self.tomo_id[ix],self.tomo_cix[ix]), dtype=_np.uint32 ).tofile(fp)
+            #self.position[ix,:].tofile(fp)
+            #_np.array( (self.ref_cix[ix],self.half_id[ix]), dtype=_np.uint32  ).tofile(fp)
+            #_np.array( (self.extra_1[ix],self.extra_2[ix]), dtype=_np.float32 ).tofile(fp)
+            
+            # 3D Alignment
+            #self.ali_eu[:,ix,:].flatten().tofile(fp)
+            #self.ali_t [:,ix,:].flatten().tofile(fp)
+            #self.ali_cc[:,ix]  .flatten().tofile(fp)
+            #self.ali_w [:,ix]  .flatten().tofile(fp)
+            
+            # 2D Alignment
+            #self.prj_eu[ix,:,:].flatten().tofile(fp)
+            #self.prj_t [ix,:,:].flatten().tofile(fp)
+            #self.prj_cc[ix,:]  .flatten().tofile(fp)
+            #self.prj_w [ix,:]  .flatten().tofile(fp)
+            
+            # Defocus
+            #defocus = _np.stack((self.def_U   [ix,:], self.def_V   [ix,:], self.def_ang[ix,:],
+            #                     self.def_phas[ix,:], self.def_Bfct[ix,:], self.def_ExFl[ix,:],
+            #                     self.def_mres[ix,:], self.def_scor[ix,:])).transpose()
+            buffer.tofile(fp)
         fp.close()
     
     def __getitem__(self,idx):
@@ -293,7 +468,6 @@ class Particles:
             dV[i] = dV_in[i] + z_coef*dZ
 
     def update_defocus(self,tomos_info,ref_id=0,z_sign=-1):
-        flag = True
         
         # Calculate tilt rotation matrix
         R_arr = _np.zeros((tomos_info.n_tomos,tomos_info.n_projs,3,3),dtype=_np.float32)
