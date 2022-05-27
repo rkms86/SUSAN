@@ -385,6 +385,7 @@ class Particles:
             tid = _np.concatenate( (tid,_np.repeat(tomograms.tomo_id[i],pos.shape[0])),dtype=_np.uint32 )
         
         ptcls = Particles(n_ptcl=pts.shape[0],n_proj=tomograms.n_projs,n_refs=1)
+        ptcls.ptcl_id[:]    = _np.arange(1,pts.shape[0]+1,dtype=_np.uint32)
         ptcls.position[:,:] = pts
         ptcls.tomo_cix[:]   = tcx
         ptcls.tomo_id [:]   = tid
@@ -415,9 +416,11 @@ class Particles:
             tid = _np.concatenate( (tid,_np.repeat(tomograms.tomo_id[i],pos.shape[0])),dtype=_np.uint32 )
         
         ptcls = Particles(n_ptcl=pts.shape[0],n_proj=tomograms.n_projs,n_refs=1)
+        ptcls.ptcl_id[:]    = _np.arange(1,pts.shape[0]+1,dtype=_np.uint32)
         ptcls.position[:,:] = pts
         ptcls.tomo_cix[:]   = tcx
         ptcls.tomo_id [:]   = tid
+        ptcls.halfsets_even_odd()
         ptcls.update_defocus(tomograms)
         return ptcls
 
