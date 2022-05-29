@@ -563,6 +563,7 @@ class Particles:
         ptcls.position[:,:] = pts
         ptcls.tomo_cix[:]   = tcx
         ptcls.tomo_id [:]   = tid
+        ptcls.ali_w[:] 	    = 1
         ptcls.update_defocus(tomograms)
         return ptcls
     
@@ -594,6 +595,7 @@ class Particles:
         ptcls.position[:,:] = pts
         ptcls.tomo_cix[:]   = tcx
         ptcls.tomo_id [:]   = tid
+        ptcls.ali_w[:]      = 1
         ptcls.halfsets_even_odd()
         ptcls.update_defocus(tomograms)
         return ptcls
