@@ -212,20 +212,32 @@ class Manager:
         # Select particles for reconstruction
         for i in range(ptcls_in.n_refs):
             idx = (ptcls_in.ref_cix == i).flatten()
-            hid = ptcls_in.half_id[idx].flatten()
-            ccc = ptcls_in.ali_cc [i,idx].flatten()
+            if _np.any( idx ):
+                hid = ptcls_in.half_id[idx].flatten()
+                ccc = ptcls_in.ali_cc [i,idx].flatten()
+
+                n_rf = hid.shape[0]
+                n_h1 = (hid==1).sum()
+                n_h2 = (hid==2).sum()
+                
+                if n_h1 > 0:
+                    th1 = _np.quantile(ccc[ hid==1 ], 1-self.cc_threshold)
+                    hid[ (hid==1) & (ccc<th1) ] = 0
+
+                if n_h2 > 0:
+                    th2 = _np.quantile(ccc[ hid==2 ], 1-self.cc_threshold)
+                    hid[ (hid==2) & (ccc<th2) ] = 0
             
-            th1 = _np.quantile(ccc[ hid==1 ], 1-self.cc_threshold)
-            th2 = _np.quantile(ccc[ hid==2 ], 1-self.cc_threshold)            
+                ptcls_in.half_id[idx] = hid
             
-            hid[ _np.logical_and(hid==1,ccc<th1) ] = 0
-            hid[ _np.logical_and(hid==2,ccc<th2) ] = 0
-            
-            ptcls_in.half_id[idx] = hid
-            
-            print('    Class %2d: %7d particles.' % (i+1,(hid>0).sum()) )
-            print('      Half 1: %7d particles.'  % ( (hid==1).sum()  ) )
-            print('      Half 2: %7d particles.'  % ( (hid==2).sum()  ) )
+                print('    Class %2d: %7d particles [%7d].' % (i+1,n_rf,(hid >0).sum()) )
+                print('      Half 1: %7d particles [%7d].'  % (    n_h1,(hid==1).sum()) )
+                print('      Half 2: %7d particles [%7d].'  % (    n_h2,(hid==2).sum()) )
+            else:
+                print('    Class %2d: %7d particles.' % (i+1,0) )
+                print('      Half 1: %7d particles.'  % ( 0 ) )
+                print('      Half 2: %7d particles.'  % ( 0 ) )
+
             
         ptcls_out = ptcls_in[ (ptcls_in.half_id>0).flatten() ]
         ptcls_out.save(cur.ptcl_temp)

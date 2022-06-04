@@ -121,7 +121,10 @@ def fsc_analyse(fsc,apix=1.0,thres=0.143):
         fpix = fpix[0,0]
     else:
         fpix = fsc.size-1
-    res  = (2*(fsc.size-1)*apix)/fpix
+    if fpix == 0:
+        res = 0
+    else:
+        res  = (2*(fsc.size-1)*apix)/fpix
     rslt = datatypes.fsc_info(fpix,res)
     return rslt
 
