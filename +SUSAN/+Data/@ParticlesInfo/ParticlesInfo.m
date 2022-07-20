@@ -386,13 +386,17 @@ methods
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    function update_defocus(obj,tomos_list)
+    function update_defocus(obj,tomos_list,z_wgt)
     % UPDATE_DEFOCUS updates the defocus information of each particle.
     %   UPDATE_DEFOCUS(TOMOS_LIST) updates the defocus information of the
     %   particles from TOMOS_LIST and enables all projections.
     %
     %   See also SUSAN.Data.ParticlesInfo.
     
+        if( nargin < 3)
+            z_wgt = -1
+        end
+        
         if( ~isa(tomos_list,'SUSAN.Data.TomosInfo') )
             error('Second argument must be a SUSAN.Data.TomosInfo object.');
         end
@@ -400,7 +404,7 @@ methods
         tomo_ix     = obj.tomo_cix + 1;
         obj.prj_w   = tomos_list.proj_weight(:,:,tomo_ix);
         cur_pos     = obj.position+obj.ali_t(:,:,1);
-        obj.defocus = ParticlesInfo_defocus_per_ptcl(obj.tomo_cix,cur_pos,tomos_list.proj_eZYZ,tomos_list.defocus,single(-1));
+        obj.defocus = ParticlesInfo_defocus_per_ptcl(obj.tomo_cix,cur_pos,tomos_list.proj_eZYZ,tomos_list.defocus,single(z_wgt));
         
     end
     
