@@ -38,7 +38,7 @@ def read(filename):
     elif mrc_mode == 6:
         in_type = _np.uint16
     elif mrc_mode == 12:
-        in_type = np.float16
+        in_type = _np.float16
     else:
         raise ValueError
 
@@ -64,7 +64,7 @@ def get_info(filename):
     elif mrc_mode == 6:
         in_type = _np.uint16
     elif mrc_mode == 12:
-        in_type = np.float16
+        in_type = _np.float16
     else:
         raise ValueError
 
@@ -98,6 +98,10 @@ def write(data,filename,apix=1):
     hdr[53] =      17476 # 0x00004444 little-endian
     f = open(filename,'w')
     hdr.tofile(f)
-    data.tofile(f)
+    if data.dtype == 'float64':
+        tmp = _np.float32(data)
+        tmp.tofile(f)
+    else:
+        data.tofile(f)
     f.close()
 

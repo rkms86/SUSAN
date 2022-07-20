@@ -35,10 +35,13 @@ from numba import jit
 from os.path import splitext as split_ext
 import susan.utils.datatypes as datatypes
 
-def denoise_l0(data,l0_lambda,rho=1):
+def denoise_l0(data,l0_lambda,rho=1,max_clip=-1):
     rho  = max(min(rho,1),0)
     th   = np.quantile(data,l0_lambda)
     rslt = np.minimum(data-th,0)
+    if max_clip > 0:
+        th   = np.quantile(rslt,max_clip)
+        rslt = np.maximum(rslt,th)
     if rho < 1:
         rslt = rho*rslt + (1-rho)*data
     return rslt
