@@ -50,7 +50,7 @@ class Manager:
         if box_size is None:
             fp = open(prj_name+"/info.prjtxt","r")
             self.prj_name = _prsr.read(fp,'name')
-            self.box_size = int(_prsr.read(fp,'name'))
+            self.box_size = int(_prsr.read(fp,'box_size'))
             fp.close()
         else:
             if not _file_exists(prj_name):
