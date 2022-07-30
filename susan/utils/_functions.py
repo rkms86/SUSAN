@@ -20,6 +20,7 @@ __all__ = ['fsc_get',
            'fsc_analyse',
            'denoise_l0',
            'bandpass',
+           'apply_FOM',
            'euZYZ_rotm',
            'rotm_euZYZ',
            'is_extension',
@@ -45,29 +46,52 @@ def denoise_l0(data,l0_lambda,rho=1,max_clip=-1):
     if rho < 1:
         rslt = rho*rslt + (1-rho)*data
     return rslt
-    
-def bandpass(v,bp):
-    bp = np.array(bp,dtype=np.float32)
-    if bp.size == 1:
-        bp = np.array((0,bp,1),dtype=np.float32)
-    elif bp.size == 2:
-        bp = np.array((bp[0],bp[1],1),dtype=np.float32)
-    if bp[2] < 1:
-        bp[2] = 1
-    v_f = np.fft.rfftn(v)
-    dim = np.array(v.shape,dtype=np.int32)//2
-    x,y,z = np.meshgrid(np.arange(-dim[0],dim[0]),np.arange(-dim[1],dim[1]),np.arange(0,dim[2]+1))
-    rad = np.sqrt( x**2 + y**2 + z**2 )
-    l_p = 1-(rad-bp[1])/bp[2]
-    np.clip(l_p,0,1,out=l_p)
-    if bp[0] > 0:
-        h_p = (rad-bp[1]-bp[2])/bp[2]
-        np.clip(h_p,0,1,out=h_p)
-        l_p = l_p*h_p
-    l_p = np.fft.fftshift(l_p,axes=(0,1))
-    v_f = v_f*l_p
-    rslt = np.fft.irfftn(v_f)
+
+@jit(nopython=True,cache=True)
+def _core_apply_fourier_rad_wgt(v_fou,wgt):
+    c_z = v_fou.shape[0]/2
+    c_y = v_fou.shape[1]/2
+    for z in range(v_fou.shape[0]):
+        Z = (z-c_z)**2
+        for y in range(v_fou.shape[1]):
+            Y = (y-c_y)**2
+            for x in range(v_fou.shape[2]):
+                X = x**2
+                r = int(np.sqrt(X+Y+Z))
+                r = min(r,wgt.shape[0]-1)
+                v_fou[z,y,x] = wgt[r]*v_fou[z,y,x]
+
+def _apply_fourier_rad_wgt(v,wgt):
+    v_f = np.fft.fftshift(np.fft.rfftn(v),axes=(0,1))
+    _core_apply_fourier_rad_wgt(v_f,wgt)
+    rslt = np.fft.irfftn(np.fft.ifftshift(v_f,axes=(0,1)))
+    rslt = np.float32(rslt)
     return rslt
+
+def _gen_bandpass_wgt(box_size,lowpass,highpass=0,rolloff=1):
+    t = np.arange(box_size//2+1)
+    wgt = np.ones(t.shape,np.float32)
+    
+    rolloff = max(rolloff,1)
+    if lowpass > 0:
+        x = (t-lowpass)/rolloff
+        x = np.pi*x.clip(0,1)
+        m = 0.5*np.cos(x)+0.5
+        wgt = wgt*m
+    if highpass > 0:
+        x = (highpass-t)/rolloff
+        x = np.pi*x.clip(0,1)
+        m = 0.5*np.cos(x)+0.5
+        wgt = wgt*m
+    return wgt
+
+def bandpass(v,lowpass,highpass=0,rolloff=1):
+    bp  = _gen_bandpass_wgt(v.shape[1],lowpass,highpass,rolloff)
+    return _apply_fourier_rad_wgt(v,bp)
+
+def apply_FOM(v,fsc_array):
+    wgt = 2*fsc_array/(fsc_array+1)
+    return _apply_fourier_rad_wgt(v,wgt)
 
 @jit(nopython=True,cache=True)
 def _fsc_get_core(n,d1,d2):
