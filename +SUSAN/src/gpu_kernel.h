@@ -91,13 +91,17 @@ __device__ void get_xyR_unit(float&x,float&y,float&R,const float in_x,const floa
 }
 
 __device__ float get_bp_wgt(const float min_R,const float max_R,const float rolloff,const float R) {
-	/// w_max = 1./(1+exp(2*(n-(HP+X/2))/sqrt(X)));
-	/// w_min = 1./(1+exp(2*((LP-X/2)-n)/sqrt(X)));
-	float w_min = 2*(min_R - R)/max(rolloff,0.0001);
-	float w_max = 2*(R - max_R)/max(rolloff,0.0001);
-	w_min = 1 + exp(w_min);
-	w_max = 1 + exp(w_max);
-	return 1/(w_min*w_max);
+    float roll_w = max(rolloff,1.0);
+    float ang,wgt_lp,wgt_hp;
+    ang = (R-max_R)/roll_w;
+    ang = M_PI*min(max(ang,0.0),1.0);
+    wgt_lp = 0.5*cosf(ang) + 0.5;
+    
+    ang = (min_R-R)/roll_w;
+    ang = M_PI*min(max(ang,0.0),1.0);
+    wgt_hp = 0.5*cosf(ang) + 0.5;
+    
+	return wgt_lp*wgt_hp;
 }
 
 /// HOST FUNCTIONS:
@@ -877,7 +881,7 @@ __global__ void apply_bandpass_fourier(float2*p_w,const float3 bandpass,const in
         float R = l2_distance(ss_idx.x,ss_idx.y - N/2);
         float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
 
-        if( bp > 0.05 ) {
+        if( bp > 0.025 ) {
             val = p_w[ idx ];
             val.x *= bp;
             val.y *= bp;
