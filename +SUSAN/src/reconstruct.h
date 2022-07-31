@@ -765,7 +765,7 @@ protected:
 		cudaMemcpy((void*)vol,(const void*)p_vol.ptr,sizeof(float)*N*N*N,cudaMemcpyDeviceToHost);
 		float avg,std;
 		Math::get_avg_std(avg,std,vol,N*N*N);
-                if( !Math::normalize(vol,N*N*N,avg,std,1.0) ) {
+        if( !Math::normalize(vol,N*N*N,avg,std,1.0) ) {
 			Math::randn(vol,N*N*N);
 			printf("(Empty, filling with noise)");
 		}

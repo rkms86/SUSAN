@@ -286,52 +286,58 @@ float sum_vec(const float*ptr,const uint32 length) {
 }
 
 void get_avg_std(float&avg,float&std,const float*ptr,const uint32 length) {
+	/// One pass estimation of AVG and STD
 	
     uint32 i;
-    
+    avg = 0;
     std = 0;
+    float numel = (float)length;
     
-    avg = sum_vec(ptr,length);
-    avg = avg/length;
-
     if( should_use_avx2(length) ) {
 
         float*ptr_w = (float*)ptr;
-        float std_arr[8];
-
+        float tmp_arr[8];
+        float inv_numel = 1.0/numel;
+        
         __asm__ __volatile__(
-            "vbroadcastss (%0), %%ymm1\n\t"
-            "vxorps %%ymm3, %%ymm3, %%ymm3\n\t"
-            :: "r"(&avg) :"memory");
+            "vbroadcastss (%0), %%ymm4\n\t"
+            "vxorps %%ymm0, %%ymm0, %%ymm0\n\t"
+            "vxorps %%ymm1, %%ymm1, %%ymm1\n\t"
+            :: "r"(&inv_numel) :"memory");
 
-        for(i=0;i<length;i+=8) {
-
+        for(int i=0;i<length;i+=8) {
             __asm__ __volatile__(
-                "vsubps (%0), %%ymm1, %%ymm0 \n\t"
-                "vmulps %%ymm0, %%ymm0, %%ymm2 \n\t"
-                "vaddps %%ymm2, %%ymm3, %%ymm3 \n\t"
+                "vmovups (%0), %%ymm2 \n\t"
+                "vaddps %%ymm2, %%ymm0, %%ymm0 \n\t"
+                "vmulps %%ymm2, %%ymm2, %%ymm3 \n\t"
+                "vaddps %%ymm3, %%ymm1, %%ymm1 \n\t"
                 :: "r"(ptr_w) :"memory");
-
             ptr_w += 8;
         }
 
         __asm__ __volatile__(
+            "vdpps $0xF1, %%ymm0, %%ymm4, %%ymm2 \n\t"
+            "vdpps $0xF2, %%ymm1, %%ymm4, %%ymm3 \n\t"
+            "vaddps %%ymm2, %%ymm3, %%ymm3 \n\t"
             "vmovups %%ymm3, (%0) \n\t"
-            :: "r"(std_arr) :"memory");
+            :: "r"(tmp_arr):"memory");
 
-        for(i=0;i<8;i++) {
-            std += std_arr[i];
-        }
+        avg = tmp_arr[0]+tmp_arr[4];
+        std = tmp_arr[1]+tmp_arr[5] - avg*avg;
+        std = sqrtf(std);
 
     }
     else {
         for(i=0;i<length;i++) {
-            float tmp = ptr[i] - avg;
+            float tmp = ptr[i];
+            avg += tmp;
             std += (tmp*tmp);
         }
+        avg = avg/numel;
+        std = std/numel;
+        std = std - (avg*avg);
+        std = sqrtf(std);
     }
-    
-    std = sqrt( std/(length) );
 }
 
 void zero_mean(float*ptr,const uint32 length, const float avg) {
