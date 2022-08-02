@@ -340,28 +340,6 @@ class Particles:
                                          self.def_U   ,self.def_V   ,self.def_ang,
                                          self.def_phas,self.def_Bfct,self.def_ExFl,
                                          self.def_mres,self.def_scor)
-            
-            #_np.array( (self.ptcl_id[ix],self.tomo_id[ix],self.tomo_cix[ix]), dtype=_np.uint32 ).tofile(fp)
-            #self.position[ix,:].tofile(fp)
-            #_np.array( (self.ref_cix[ix],self.half_id[ix]), dtype=_np.uint32  ).tofile(fp)
-            #_np.array( (self.extra_1[ix],self.extra_2[ix]), dtype=_np.float32 ).tofile(fp)
-            
-            # 3D Alignment
-            #self.ali_eu[:,ix,:].flatten().tofile(fp)
-            #self.ali_t [:,ix,:].flatten().tofile(fp)
-            #self.ali_cc[:,ix]  .flatten().tofile(fp)
-            #self.ali_w [:,ix]  .flatten().tofile(fp)
-            
-            # 2D Alignment
-            #self.prj_eu[ix,:,:].flatten().tofile(fp)
-            #self.prj_t [ix,:,:].flatten().tofile(fp)
-            #self.prj_cc[ix,:]  .flatten().tofile(fp)
-            #self.prj_w [ix,:]  .flatten().tofile(fp)
-            
-            # Defocus
-            #defocus = _np.stack((self.def_U   [ix,:], self.def_V   [ix,:], self.def_ang[ix,:],
-            #                     self.def_phas[ix,:], self.def_Bfct[ix,:], self.def_ExFl[ix,:],
-            #                     self.def_mres[ix,:], self.def_scor[ix,:])).transpose()
             buffer.tofile(fp)
         fp.close()
     
@@ -599,6 +577,55 @@ class Particles:
         ptcls.halfsets_even_odd()
         ptcls.update_defocus(tomograms)
         return ptcls
+
+    @staticmethod
+    def _validate_import_args(position,ptcls_id,tomos_id):
+        if position.ndim != 2 or position.shape[1] != 3:
+            raise ValueError('Position must be a N-by-3 2D matrix')
+        N = position.shape[0]
+        if ptcls_id.shape[0] != N:
+            raise ValueError('Number of entries in ptcls_id do not match position')
+        if tomos_id.shape[0] != N:
+            raise ValueError('Number of entries in tomos_id do not match position')
+        return N
+        
+    @staticmethod
+    def _calc_tomo_cix(tomo_cix,tomograms,tomos_id):
+        LUT = {}
+        for tid in range(tomograms.n_tomos):
+            LUT[ int(tomograms.tomo_id[tid]) ] = tid
+        for i in range(tomos_id.shape[0]):
+            tomo_cix[i] = LUT[int(tomos_id[i])]
+    
+    @staticmethod
+    def _calc_position(p_out,p_in,tomograms,tomos_cix,apix):
+        for i in range(p_in.shape[0]):
+            pos = p_in[i,:] - tomograms.tomo_size[tomos_cix[i]]/2
+            p_out[i,:] = apix*pos
+            
+    @staticmethod
+    def import_data(tomograms,position,ptcls_id,tomos_id):
+        apix = Particles._validate_tomogram(tomograms)
+        N = Particles._validate_import_args(position,ptcls_id,tomos_id)
+        ptcls = Particles(n_ptcl=N,n_proj=tomograms.n_projs,n_refs=1)
+        ptcls.ptcl_id[:]    = ptcls_id
+        ptcls.tomo_id [:]   = tomos_id
+        ptcls.ali_w[:]      = 1
+        Particles._calc_tomo_cix(ptcls.tomo_cix,tomograms,tomos_id)
+        Particles._calc_position(ptcls.position,position,tomograms,ptcls.tomo_cix,apix)
+        ptcls.halfsets_even_odd()
+        ptcls.update_defocus(tomograms)
+        return ptcls
+    
+    def export_positions(self,tomograms,ref_cix=0):
+        apix = Particles._validate_tomogram(tomograms)
+        pos = _np.zeros_like(self.pos(ref_cix))
+        for i in range(pos.shape[0]):
+            tmp = self.position[ref_cix,i,:]/apix
+            pos[i,:] = tmp + tomograms.tomo_size[self.tomos_cix[i]]/2
+        return pos
+
+
 
 
 

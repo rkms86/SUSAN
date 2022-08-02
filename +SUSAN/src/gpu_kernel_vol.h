@@ -126,7 +126,7 @@ __global__ void insert_stk(double2*p_acc,double*p_wgt,
         float R = sqrt( pt.x*pt.x + pt.y*pt.y + pt.z*pt.z );
         float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
 
-        if( bp > 0.05 ) {
+        if( bp > 0.025 ) {
 
             bool should_add = false;
             double  wgt = 0;
