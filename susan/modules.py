@@ -59,7 +59,7 @@ class Aligner:
         self.inplane.span = i_r
         self.inplane.step = i_s
         
-    def set_offset_search(self,off_range,off_step,off_type='ellipsoid'):
+    def set_offset_search(self,off_range,off_step=1,off_type='ellipsoid'):
         if not off_type in ['ellipsoid','cylinider']:
             raise ValueError('Invalid offset type. Only "ellipsoid" or "cylinder" are valid')
         
