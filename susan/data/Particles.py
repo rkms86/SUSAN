@@ -604,7 +604,7 @@ class Particles:
             p_out[i,:] = apix*pos
             
     @staticmethod
-    def import_data(tomograms,position,ptcls_id,tomos_id):
+    def import_data(tomograms,position,ptcls_id,tomos_id,randomize_angles=False):
         apix = Particles._validate_tomogram(tomograms)
         N = Particles._validate_import_args(position,ptcls_id,tomos_id)
         ptcls = Particles(n_ptcl=N,n_proj=tomograms.n_projs,n_refs=1)
@@ -614,7 +614,10 @@ class Particles:
         Particles._calc_tomo_cix(ptcls.tomo_cix,tomograms,tomos_id)
         Particles._calc_position(ptcls.position,position,tomograms,ptcls.tomo_cix,apix)
         ptcls.halfsets_even_odd()
+        ptcls.sort()
         ptcls.update_defocus(tomograms)
+        if randomize_angles:
+            ptcls.ali_eu[:,:,:] = _np.random.uniform(0,_np.pi,ptcls.ali_eu.shape)
         return ptcls
     
     def export_positions(self,tomograms,ref_cix=0):
