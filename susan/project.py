@@ -182,7 +182,7 @@ class Manager:
         if self.mpi.arg > 1:
             self.aligner.mpi.cmd = self.mpi.cmd
             self.aligner.mpi.arg = self.mpi.arg
-            self.aligner.align_mpi(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size,self.mpi_nodes)
+            self.aligner.align_mpi(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size)
         else:
             self.aligner.align(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size)
         elapsed = _ssa_utils.time_now()-start_time
@@ -249,7 +249,7 @@ class Manager:
         if self.mpi.arg > 1:
             self.averager.mpi.cmd = self.mpi.cmd
             self.averager.mpi.arg = self.mpi.arg
-            self.averager.reconstruct_mpi(cur.ite_dir+'map',self.tomogram_file,cur.ptcl_temp,self.box_size,self.mpi_nodes)
+            self.averager.reconstruct_mpi(cur.ite_dir+'map',self.tomogram_file,cur.ptcl_temp,self.box_size)
         else:
             self.averager.reconstruct(cur.ite_dir+'map',self.tomogram_file,cur.ptcl_temp,self.box_size)
         elapsed = _ssa_utils.time_now()-start_time
