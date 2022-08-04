@@ -176,15 +176,12 @@ class Manager:
         self.aligner.threads_per_gpu   = self.threads_per_gpu
         self.aligner.dimensionality    = ite_type
         
-        self.aligner.mpi.cmd = self.mpi.cmd
-        self.aligner.mpi.arg = self.mpi.arg
-        
         print( '  [%dD Alignment] Start:' % ite_type )
         
         start_time = _ssa_utils.time_now()
         if self.mpi.arg > 1:
-            self.aligner.mpi_params.cmd = self.mpi.cmd
-            self.aligner.mpi_params.arg = self.mpi.arg
+            self.aligner.mpi.cmd = self.mpi.cmd
+            self.aligner.mpi.arg = self.mpi.arg
             self.aligner.align_mpi(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size,self.mpi_nodes)
         else:
             self.aligner.align(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size)
@@ -250,8 +247,8 @@ class Manager:
         print( '  [Reconstruct Maps] Start:' )
         start_time = _ssa_utils.time_now()
         if self.mpi.arg > 1:
-            self.averager.mpi_params.cmd = self.mpi.cmd
-            self.averager.mpi_params.arg = self.mpi.arg
+            self.averager.mpi.cmd = self.mpi.cmd
+            self.averager.mpi.arg = self.mpi.arg
             self.averager.reconstruct_mpi(cur.ite_dir+'map',self.tomogram_file,cur.ptcl_temp,self.box_size,self.mpi_nodes)
         else:
             self.averager.reconstruct(cur.ite_dir+'map',self.tomogram_file,cur.ptcl_temp,self.box_size)
