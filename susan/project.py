@@ -175,6 +175,7 @@ class Manager:
         self.aligner.list_gpus_ids     = self.list_gpus_ids
         self.aligner.threads_per_gpu   = self.threads_per_gpu
         self.aligner.dimensionality    = ite_type
+        self.aligner.verbosity         = self.verbosity
         
         print( '  [%dD Alignment] Start:' % ite_type )
         
@@ -243,6 +244,7 @@ class Manager:
     def exec_averaging(self,cur,prv):
         self.averager.list_gpus_ids     = self.list_gpus_ids
         self.averager.threads_per_gpu   = self.threads_per_gpu
+        self.averager.verbosity         = self.verbosity
         
         print( '  [Reconstruct Maps] Start:' )
         start_time = _ssa_utils.time_now()

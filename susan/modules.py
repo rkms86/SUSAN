@@ -145,7 +145,7 @@ class Aligner:
             raise NameError('Error executing the alignment: ' + cmd)
     
     def align_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = self.mpi_params.cmd % self.mpi_params.arg
+        cmd = self.mpi.cmd % self.mpi.arg
         cmd = cmd + _bin_path() + 'susan_aligner_mpi'
         cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = _os.system(cmd)
@@ -214,7 +214,7 @@ class Averager:
             raise NameError('Error executing the reconstruction: ' + cmd)
     
     def reconstruct_mpi(self,out_pfx,tomos_file,ptcls_in,box_size):
-        cmd = self.mpi_params.cmd % self.mpi_params.arg
+        cmd = self.mpi.cmd % self.mpi.arg
         cmd = cmd + _bin_path() + 'susan_reconstruct_mpi'
         cmd = cmd + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
         rslt = _os.system(cmd)
