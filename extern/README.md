@@ -1,4 +1,4 @@
-If not provided by the system, add and install the Eigen library:
+If not provided by the system, download and install the Eigen library:
 ```
 git clone https://gitlab.com/libeigen/eigen.git eigen
 cd eigen
