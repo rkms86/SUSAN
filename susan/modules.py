@@ -17,14 +17,7 @@
 ###########################################################################
 
 import os as _os
-from importlib.util import find_spec as _find_spec
-from os.path import dirname as _dir_name
 import susan.utils.datatypes as _dt
-
-def _bin_path():
-    tmp = _find_spec('susan')
-    rslt = _dir_name(tmp.origin)
-    return rslt+'/../+SUSAN/bin/'
 
 def _get_gpu_str(list_gpus_ids):
     gpu_str = ','.join( str(num) for num in  list_gpus_ids )
@@ -138,16 +131,13 @@ class Aligner:
         return args
     
     def align(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = _bin_path() + 'susan_aligner'
-        cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
+        cmd = 'susan_aligner ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)
     
     def align_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = self.mpi.cmd % self.mpi.arg
-        cmd = cmd + _bin_path() + 'susan_aligner_mpi'
-        cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
+        cmd = self.mpi.gen_cmd() + ' susan_aligner_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)
@@ -207,16 +197,13 @@ class Averager:
         return args
     
     def reconstruct(self,out_pfx,tomos_file,ptcls_in,box_size):
-        cmd = _bin_path() + 'susan_reconstruct'
-        cmd = cmd + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
+        cmd = 'susan_reconstruct ' + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the reconstruction: ' + cmd)
     
     def reconstruct_mpi(self,out_pfx,tomos_file,ptcls_in,box_size):
-        cmd = self.mpi.cmd % self.mpi.arg
-        cmd = cmd + _bin_path() + 'susan_reconstruct_mpi'
-        cmd = cmd + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
+        cmd = self.mpi.gen_cmd() + ' susan_reconstruct_mpi' + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the reconstruction: ' + cmd)
@@ -275,8 +262,7 @@ class CtfEstimator:
         return args
     
     def estimate(self,out_dir,tomos_file,ptcls_in,box_size):
-        cmd = _bin_path() + 'susan_estimate_ctf'
-        cmd = cmd + self.get_args(out_dir,tomos_file,ptcls_in,box_size)
+        cmd = 'susan_estimate_ctf ' + self.get_args(out_dir,tomos_file,ptcls_in,box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the CTF estimation: ' + cmd)
@@ -334,8 +320,7 @@ class CtfRefiner:
         return args
     
     def refine(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = _bin_path() + 'susan_refine_ctf'
-        cmd = cmd + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
+        cmd = 'susan_refine_ctf ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)

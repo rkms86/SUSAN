@@ -35,5 +35,31 @@ def read(filename):
 	else:
 		raise ValueError('Unsupported file.')
 
+def _check_susan_bin_in_path(bin_name='susan_aligner'):
+    from shutil import which
+    return which(bin_name) is not None
+
+def _add_susan_bin_to_path(bin_name='susan_aligner'):
+    from os.path import dirname,abspath,exists
+    import os
+    base_dir   = dirname(abspath(__file__))
+    bin_dir    = abspath(base_dir + '/../bin')
+    bin_file   = bin_dir+'/'+bin_name
+    build_dir  = abspath(base_dir + '/../build')
+    build_file = build_dir+'/'+bin_name
+    if exists(bin_file):
+        os.environ['PATH'] += ':'+bin_dir
+    elif exists(build_file):
+        os.environ['PATH'] += ':'+build_dir
+    else:
+        message  = 'Add the SUSAN binaries to the PATH or to one of the following folders:\n'
+        message += ' - ' + bin_dir + '\n'
+        message += ' - ' + build_dir
+        raise ImportError(message)
+
+if not _check_susan_bin_in_path():
+    _add_susan_bin_to_path()
+
 __all__ = []
-__all__.extend(['data','io','utils','modules','project','read'])
+__all__.extend(['read'])
+#__all__.extend(['data','io','utils','modules','project','read'])

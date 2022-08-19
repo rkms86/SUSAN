@@ -394,7 +394,7 @@ methods
     %   See also SUSAN.Data.ParticlesInfo.
     
         if( nargin < 3)
-            z_wgt = -1
+            z_wgt = -1;
         end
         
         if( ~isa(tomos_list,'SUSAN.Data.TomosInfo') )

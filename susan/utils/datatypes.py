@@ -56,15 +56,30 @@ class range_params:
     min_val: int
     max_val: int
 
-@_dc
 class mpi_params:
     cmd: str
     arg: int
+    
+    def __init__(self,cmd=None,arg=None):
+        self.cmd = cmd
+        self.arg = arg
+    
+    def gen_cmd(self):
+        if self.cmd is None or not self.cmd:
+            return ""
+        if self.arg is None or not self.arg:
+                return self.cmd
+        return self.cmd%self.arg + ' '
  
 @_dc
 class inversion_params:
     ite: int
     std: float
+ 
+
+ 
+ 
+ 
  
  
  
