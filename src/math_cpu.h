@@ -23,6 +23,7 @@
 
 #if __CUDACC_VER_MAJOR__ == 11
     #pragma nv_diag_suppress 20011
+    #pragma nv_diag_suppress 20012
     #pragma nv_diag_suppress 20014
     #pragma nv_diag_suppress 20236
     #pragma diag_suppress 3123
