@@ -624,7 +624,8 @@ class Particles:
         apix = Particles._validate_tomogram(tomograms)
         pos = _np.zeros_like(self.pos(ref_cix))
         for i in range(pos.shape[0]):
-            tmp = self.position[ref_cix,i,:]/apix
+            tmp = self.position[i,:] + self.ali_t[ref_cix,i,:]
+            tmp = tmp/apix
             pos[i,:] = tmp + tomograms.tomo_size[self.tomos_cix[i]]/2
         return pos
 
