@@ -52,6 +52,16 @@ make -j
 **Note:** The `cmake` procedure detects the availabilty of `OpenMPI` and `Matlab` and compiles their functionalities accordingly.
 
 ### `Python` setup
+Besides the standard libraries, the `SUSAN` module for `Python` has only two dependencies: [`NumPy`](https://numpy.org/) and [`Numba`](https://numba.pydata.org/). Install them if needed:
+- Using [`conda`](https://conda.io) (or equivalent):
+```
+conda install numpy numba
+```
+- Using [`pip`](https://pypi.org/)
+```
+pip install numpy numba
+```
+
 `LOCAL_SUSAN_PATH` must be added to path first and then the `susan` module can be imported. On the `Python` command line, or on a `Python` script:
 ```
 import sys
