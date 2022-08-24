@@ -358,8 +358,11 @@ protected:
                             max_cc  = cc;
                             max_R   = R_tmp;
                         }
-                        if( use_sigma )
-                            ali_data.aggregate_avg_std(running_avg,running_std,running_cnt,ali_data.c_cc);
+                        if( use_sigma ) {
+                            running_avg += cc;
+                            running_std += (cc*cc);
+                            running_cnt += 1;
+                        }
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
@@ -371,8 +374,8 @@ protected:
             running_std = running_std/running_cnt;
             running_std = running_std - (running_avg*running_avg);
             running_std = sqrtf(running_std);
-            cc = (cc - running_avg) / running_std;
-            cc = fmax(cc,0.0);
+            max_cc = (max_cc - running_avg) / running_std;
+            max_cc = fmax(max_cc,0.0);
         }
         update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
     }
