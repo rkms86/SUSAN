@@ -40,6 +40,7 @@
 #include "io.h"
 #include "ref_ali.h"
 #include "ctf_refiner_args.h"
+#include "progress.h"
 
 typedef enum {
     CTF_REF=1
@@ -156,7 +157,7 @@ protected:
 
         AliSubstack ss_data(M,N,max_K,P,stream);
 
-        uint32 off_type = ArgsAli::OffsetType_t::CIRCLE;
+        uint32 off_type = CIRCLE;
         float4 off_par = {0,0,0,1};
 
         AliData ali_data(MP,NP,max_K,off_par,off_type,stream);
@@ -262,10 +263,10 @@ protected:
     void add_data(AliSubstack&ss_data,CtfRefBuffer*ptr,RadialAverager&rad_avgr,GPU::Stream&stream) {
 
         switch( pad_type ) {
-            case ArgsAli::PaddingType_t::PAD_ZERO:
+            case PAD_ZERO:
                 ss_data.pad_zero(stream);
                 break;
-            case ArgsAli::PaddingType_t::PAD_GAUSSIAN:
+            case PAD_GAUSSIAN:
                 ss_data.pad_normal(ptr->g_pad,ptr->K,stream);
                 break;
             default:
@@ -273,22 +274,6 @@ protected:
         }
 
         ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
-
-        //static bool flag = true;
-        //if( flag ) {
-        //    flag = false;
-        //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        /*if( ptr->ptcl.ptcl_id() == 1 ) {
-            stream.sync();
-            float*tmp = new float[NP*NP*ptr->K];
-            GPU::download_async(tmp,ss_data.ss_padded.ptr,NP*NP*ptr->K,stream.strm);
-            stream.sync();
-            char filename[SUSAN_FILENAME_LENGTH];
-            sprintf(filename,"data_%02d.mrc",ptr->r_ix);
-            Mrc::write(tmp,NP,NP,ptr->K,filename);
-            delete [] tmp;
-        }*/
-
         rad_avgr.preset_FRC(ss_data.ss_fourier,ptr->K,stream);
     }
 
@@ -307,19 +292,6 @@ protected:
 
         Math::set(Rot,R_eye);
         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
-
-        /*if( ptr->ptcl.ptcl_id() == 1 ) {
-            ali_data.project(vol.ref,bandpass,ptr->K,stream);
-            //ali_data.multiply(ctf_wgt,ptr->K,stream);
-            ali_data.invert_fourier(ptr->K,stream);
-            float *tmp = new float[NP*NP*ptr->K];
-            GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
-            stream.sync();
-            char fn[SUSAN_FILENAME_LENGTH];
-            sprintf(fn,"proj_3D_%d_%d.mrc",ptr->class_ix,ptr->r_ix);
-            Mrc::write(tmp,NP,NP,ptr->K,fn);
-            delete [] tmp;
-        }*/
 
         ali_data.project(vol.ref,bandpass,ptr->K,stream);
         ctf_ref.load_buf(ali_data.prj_c,ptr->K,stream);
@@ -637,13 +609,12 @@ public:
     int NP;
     int MP;
 
-    Math::Timing timer;
-
-    char progress_buffer[68];
-    char progress_clear [69];
+    ProgressReporter progress;
 
     CtfRefinerPool(ArgsCtfRef::Info*info,References*in_p_refs,int in_max_K,int num_ptcls,StackReader&stkrdr,int in_num_threads)
-     : PoolCoordinator(stkrdr,in_num_threads), w_cmd(2*in_num_threads+1)
+     : PoolCoordinator(stkrdr,in_num_threads),
+       w_cmd(2*in_num_threads+1),
+       progress("    Refining particles CTF",num_ptcls)
     {
         workers  = new CtfRefRdrWorker[in_num_threads];
         p_info   = info;
@@ -654,18 +625,6 @@ public:
         P = info->pad_size;
         NP = N+P;
         MP = (NP/2)+1;
-
-        memset(progress_buffer,' ',66);
-        memset(progress_clear,'\b',66);
-        progress_buffer[66] = 0;
-        progress_buffer[67] = 0;
-        if( SUSAN_CARRIER_RETURN == '\r' ) {
-            progress_clear [66] = SUSAN_CARRIER_RETURN;
-        }
-        else {
-            progress_clear [65] = 0;
-        }
-        progress_clear [67] = 0;
 
         load_references(in_p_refs);
     }
@@ -731,67 +690,20 @@ protected:
     }
 
     virtual void progress_start() {
-        timer.tic();
-        sprintf(progress_buffer,"        Refining particles: Buffering...");
-        int n = strlen(progress_buffer);
-        progress_buffer[n]  = ' ';
-        progress_buffer[65] = 0;
-        printf(progress_buffer);
-        fflush(stdout);
+        progress.start();
     }
 
     virtual void show_progress(const int ptcls_in_tomo) {
         int cur_progress=0;
         while( (cur_progress=count_progress()) < ptcls_in_tomo ) {
-            memset(progress_buffer,' ',66);
-            if( cur_progress > 0 ) {
-                int progress = count_accumul();
-                float progress_percent = 100*(float)progress/float(n_ptcls);
-                sprintf(progress_buffer,"        Refining particles: %6.2f%%%%",progress_percent);
-                int n = strlen(progress_buffer);
-                add_etc(progress_buffer+n,progress,n_ptcls);
-            }
-            else {
-                sprintf(progress_buffer,"        Refining particles: Buffering...");
-                int n = strlen(progress_buffer);
-                progress_buffer[n]  = ' ';
-                progress_buffer[65] = 0;
-            }
-            printf(progress_clear);
-            fflush(stdout);
-            printf(progress_buffer);
-            fflush(stdout);
-            sleep(1);
+            int total_progress = count_accumul();
+            progress.update(total_progress,cur_progress==0);
+            sleep(2);
         }
     }
 
     virtual void show_done() {
-        memset(progress_buffer,' ',66);
-        sprintf(progress_buffer,"        Refining particles: 100.00%%%%");
-        int n = strlen(progress_buffer);
-        progress_buffer[n] = ' ';
-        printf(progress_clear);
-        printf(progress_buffer);
-        printf("\n");
-        fflush(stdout);
-    }
-
-    void add_etc(char*buffer,int progress,int total) {
-
-        int days,hours,mins,secs;
-
-        timer.get_etc(days,hours,mins,secs,progress,total);
-
-        if( days > 0 ) {
-            sprintf(buffer," (ETC: %dd %02d:%02d:%02d)",days,hours,mins,secs);
-            int n = strlen(buffer);
-            buffer[n] = ' ';
-        }
-        else {
-            sprintf(buffer," (ETC: %02d:%02d:%02d)",hours,mins,secs);
-            int n = strlen(buffer);
-            buffer[n] = ' ';
-        }
+        progress.finish();
     }
 
 };

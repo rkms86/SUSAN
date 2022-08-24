@@ -308,7 +308,7 @@ protected:
 		sprintf(filename,"%s/Tomo%03d",p_info->out_dir,tomo.tomo_id);
 		IO::create_dir(filename);
 		
-		printf("        Processing: tomo %d with %d particles: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,0);
+        printf("        Tomo %3d [%4d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,0);
 		fflush(stdout);
 		
 		w_cmd.presend_sync();
@@ -322,7 +322,7 @@ protected:
 			fflush(stdout);
 			sleep(1);
 		}
-		printf("\b\b\b\b\b\b\b100.00%%\n"); fflush(stdout);
+        printf("\b\b\b\b\b\b\b100.00%%."); fflush(stdout);
 		
 		w_cmd.presend_sync();
 		clear_workers();

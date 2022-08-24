@@ -28,6 +28,7 @@
 #include "tomogram.h"
 #include "reconstruct_args.h"
 #include "mpi_iface.h"
+#include "progress.h"
 
 class RecPoolMpi : public RecPool {
 
@@ -71,39 +72,20 @@ protected:
     void show_progress(const int ptcls_in_tomo) {
 
         while( (count_progress()) < ptcls_in_tomo ) {
-
             unsigned int local_progress = count_accumul();
             mpi_progress->put( mpi_iface->node_id, local_progress );
 
             if( mpi_iface->is_main_node() ) {
                 unsigned int total_progress = count_progress_mpi();
-                if( total_progress > 0 ) {
-                    memset(progress_buffer,' ',66);
-                    float progress_percent = 100*(float)total_progress/float(n_ptcls);
-                    sprintf(progress_buffer,"        Filling fourier space: %6.2f%%%%",progress_percent);
-                    int n = strlen(progress_buffer);
-                    add_etc(progress_buffer+n,total_progress,n_ptcls);
-                    printf(progress_clear);
-                    fflush(stdout);
-                    printf(progress_buffer);
-                    fflush(stdout);
-                }
+                progress.update(total_progress,false);
             }
-
-            sleep(2);
+            sleep(3);
         } /// while
     }
 
     void show_done() {
         if( mpi_iface->is_main_node() ) {
-            memset(progress_buffer,' ',66);
-            sprintf(progress_buffer,"        Filling fourier space: 100.00%%%%");
-            int n = strlen(progress_buffer);
-            progress_buffer[n] = ' ';
-            printf(progress_clear);
-            printf(progress_buffer);
-            printf("\n");
-            fflush(stdout);
+            progress.finish();
         }
     }
 

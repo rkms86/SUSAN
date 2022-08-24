@@ -155,9 +155,9 @@ protected:
     }
 
     void create_pts() {
-        if( p_info->off_type == ArgsRefsAli::OffsetType_t::ELLIPSOID )
+        if( p_info->off_type == ELLIPSOID )
             c_pts = PointsProvider::ellipsoid(n_pts,p_info->off_x,p_info->off_y,p_info->off_z,p_info->off_s);
-        if( p_info->off_type == ArgsRefsAli::OffsetType_t::CYLINDER )
+        if( p_info->off_type == CYLINDER )
             c_pts = PointsProvider::cylinder(n_pts,p_info->off_x,p_info->off_y,p_info->off_z,p_info->off_s);
 
         c_cc = new float[n_pts];

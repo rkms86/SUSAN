@@ -55,6 +55,7 @@ properties
     padding         uint32  = 32;
     drift           logical = false;
     halfsets        logical = false;
+    cc_sigma        logical = false;
 end
     
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -392,6 +393,12 @@ methods
         cmd = [cmd ' -rolloff_f '  sprintf('%f',obj.bandpass.rolloff)];
         cmd = [cmd ' -p_symmetry ' obj.symmetry];
         
+        if( obj.cc_sigma > 0 )
+            cmd = [cmd ' -use_sigma 1'];
+        else
+            cmd = [cmd ' -use_sigma 0'];
+        end
+
         if( obj.halfsets > 0 )
             cmd = [cmd ' -ali_halves 1'];
         else

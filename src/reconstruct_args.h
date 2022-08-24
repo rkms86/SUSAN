@@ -24,30 +24,12 @@
 #include <pthread.h>
 #include <getopt.h>
 #include "datatypes.h"
+#include "arg_parser.h"
+#include "io.h"
 #include "gpu.h"
-
 #include "angles_symmetry.h"
 
 namespace ArgsRec {
-
-typedef enum {
-	NO_NORM=0,
-	ZERO_MEAN,
-	ZERO_MEAN_W_STD,
-	ZERO_MEAN_1_STD
-} NormalizationType_t;
-
-typedef enum {
-	PAD_ZERO=0,
-	PAD_GAUSSIAN
-} PaddingType_t;
-
-typedef enum {
-	NO_INV=0,
-	PHASE_FLIP,
-	WIENER_INV,
-	WIENER_INV_SSNR
-} InversionType_t;
 
 typedef struct {
 	int    n_gpu;
@@ -76,106 +58,6 @@ typedef struct {
     int verbosity;
 } Info;
 
-uint32 get_pad_type(const char*arg) {
-	uint32 rslt = PAD_ZERO;
-	bool all_ok = false;
-	
-	if( strcmp(arg,"zero") == 0 ) {
-		rslt = PAD_ZERO;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"noise") == 0 ) {
-		rslt = PAD_GAUSSIAN;
-		all_ok = true;
-	}
-	
-	if( !all_ok ) {
-		fprintf(stderr,"Invalid padding type %s. Options are: zero or noise. Defaulting to zero.\n",arg);
-	}
-	
-	return rslt;
-}
-
-uint32 get_norm_type(const char*arg) {
-	uint32 rslt = NO_NORM;
-	bool all_ok = false;
-	
-	if( strcmp(arg,"none") == 0 ) {
-		rslt = PAD_ZERO;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"zero_mean") == 0 ) {
-		rslt = ZERO_MEAN;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"zero_mean_proj_weight") == 0 ) {
-		rslt = ZERO_MEAN_W_STD;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"zero_mean_one_std") == 0 ) {
-		rslt = ZERO_MEAN_1_STD;
-		all_ok = true;
-	}
-	
-	if( !all_ok ) {
-		fprintf(stderr,"Invalid normalization type %s. Options are: none, zero_mean, zero_mean_proj_weight and zero_mean_one_std. Defaulting to none.\n",arg);
-	}
-	
-	return rslt;
-}
-
-uint32 get_ctf_type(const char*arg) {
-	uint32 rslt = WIENER_INV;
-	bool all_ok = false;
-	
-	if( strcmp(arg,"none") == 0 ) {
-		rslt = NO_INV;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"phase_flip") == 0 ) {
-		rslt = PHASE_FLIP;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"wiener") == 0 ) {
-		rslt = WIENER_INV;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"wiener_ssnr") == 0 ) {
-		rslt = WIENER_INV_SSNR;
-		all_ok = true;
-	}
-	
-	if( !all_ok ) {
-		fprintf(stderr,"Invalid ctf correction type %s. Options are: none, phase_flip, wiener and wiener_ssnr. Defaulting to wiener.\n",arg);
-	}
-	
-	return rslt;
-}
-
-void set_symmetry(Info&info,const char*arg) {
-	
-	uint32 num_angs;
-	M33f*p_angs;
-	
-	p_angs = AnglesSymmetry::get_rotation_list(num_angs,arg);
-
-	if( num_angs == 0  ) {
-		strcpy(info.sym,"c1");
-		fprintf(stderr,"Invalid symmetry option %s. Supported: c1, c2, cXXX... Defaulting to c1.\n",arg);
-	}
-	else {
-		strcpy(info.sym,arg);
-		delete [] p_angs;
-	}
-}
-
 bool validate(const Info&info) {
 	bool rslt = true;
 	if( info.fpix_min >= info.fpix_max ) {
@@ -194,25 +76,14 @@ bool validate(const Info&info) {
 		fprintf(stderr,"Output pfx missing.\n");
 		rslt = false;
 	}
-	if( info.n_gpu < 1 ) {
-		fprintf(stderr,"At least 1 GPU must be requested.\n");
-		rslt = false;
-	}
-	else {
-		int available_gpus = GPU::count_devices();
-		if(available_gpus==0) {
-			fprintf(stderr,"Not available GPUs on the system.\n");
-			rslt = false;
-		}
-		else {
-			for(int i=0;i<info.n_gpu;i++) {
-				if( info.p_gpu[i] >= available_gpus ) {
-					fprintf(stderr,"Requesting unavalable GPU with ID %d.\n",info.p_gpu[i]);
-					rslt = false;
-				}
-			}
-		}
-	}
+    if( !AnglesSymmetry::check_available_symmetry(info.sym) ) {
+        fprintf(stderr,"Invalid symmetry value: %s.\n",info.sym);
+        rslt = false;
+    }
+    if( !GPU::check_gpu_id_list(info.n_gpu,info.p_gpu) ) {
+        fprintf(stderr,"Error with CUDA devices.\n");
+        rslt = false;
+    }
 	return rslt;
 };
 
@@ -226,7 +97,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.fpix_roll  = 4;
     info.pad_size   = 0;
     info.pad_type   = PAD_ZERO;
-    info.ctf_type   = WIENER_INV_SSNR;
+    info.ctf_type   = INV_WIENER;
     info.norm_type  = NO_NORM;
     info.w_inv_ite  = 10;
     info.w_inv_std  = 0.75;
@@ -285,9 +156,6 @@ bool parse_args(Info&info,int ac,char** av) {
         {0, 0, 0, 0}
     };
     
-    single *tmp_single;
-    uint32 *tmp_uint32;
-    float  tmp;
     while( (c=getopt_long_only(ac, av, "", long_options, 0)) >= 0 ) {
         switch(c) {
 			case TOMOS_FILE:
@@ -300,50 +168,34 @@ bool parse_args(Info&info,int ac,char** av) {
 				strcpy(info.ptcls_in,optarg);
 				break;
 			case BOX_SIZE:
-				info.box_size = atoi(optarg);
-				tmp = (float)(info.box_size);
-				info.box_size = (int)(2.0*roundf(tmp/2)); // Force box to be multiple of 2.
+                info.box_size = ArgParser::get_even_number(optarg);
 				break;
 			case N_THREADS:
 				info.n_threads = atoi(optarg);
 				break;
 			case GPU_LIST:
-				info.n_gpu = IO::parse_uint32_strlist(tmp_uint32, optarg);
-				if( info.n_gpu > SUSAN_MAX_N_GPU ) {
-					fprintf(stderr,"Requesting %d GPUs. Maximum is %d\n",info.n_gpu,SUSAN_MAX_N_GPU);
-					exit(1);
-				}
-				memcpy(info.p_gpu,tmp_uint32,info.n_gpu*sizeof(uint32));
-				delete [] tmp_uint32;
+                info.n_gpu = ArgParser::get_list_integers(info.p_gpu,optarg);
 				break;
 			case PAD_SIZE:
-				info.pad_size = atoi(optarg);
-				tmp = (float)(info.pad_size);
-				info.pad_size = (int)(2.0*roundf(tmp/2)); // Force pad to be multiple of 2.
-				break;
+                info.pad_size = ArgParser::get_even_number(optarg);
+                break;
 			case PAD_TYPE:
-				info.pad_type = get_pad_type(optarg);
+                info.pad_type = ArgParser::get_pad_type(optarg);
 				break;
 			case NORM_TYPE:
-				info.norm_type = get_norm_type(optarg);
+                info.norm_type = ArgParser::get_norm_type(optarg);
 				break;
 			case CTF_TYPE:
-				info.ctf_type = get_ctf_type(optarg);
+                info.ctf_type = ArgParser::get_inv_ctf_type(optarg);
 				break;
 			case BANDPASS:
-				IO::parse_single_strlist(tmp_single, optarg);
-				info.fpix_min = tmp_single[0];
-				info.fpix_max = tmp_single[1];
-				delete [] tmp_single;
-				break;
+                ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);
+                break;
 			case ROLLOFF_F:
 				info.fpix_roll = atof(optarg);
 				break;
 			case SSNR:
-				IO::parse_single_strlist(tmp_single, optarg);
-				info.ssnr_F = tmp_single[0];
-				info.ssnr_S = tmp_single[1];
-				delete [] tmp_single;
+                ArgParser::get_single_pair(info.ssnr_F,info.ssnr_S,optarg);
 				break;
 			case W_INV_ITE:
 				info.w_inv_ite = atoi(optarg);
@@ -352,10 +204,10 @@ bool parse_args(Info&info,int ac,char** av) {
 				info.w_inv_std = atof(optarg);
 				break;
 			case SYMMETRY:
-				set_symmetry(info,optarg);
+                strcpy(info.sym,optarg);
 				break;
 			case REC_HALVES:
-				info.rec_halves = (atoi(optarg)>0);
+                info.rec_halves = ArgParser::get_bool(optarg);
 				break;
             case VERBOSITY:
                 info.verbosity = atoi(optarg);
@@ -416,13 +268,13 @@ void print_full(const Info&info,FILE*fp) {
 			fprintf(fp,"\t\tPadding policy: Fill with gaussian noise.\n");
 	}
 	
-    if( info.ctf_type == NO_INV )
+    if( info.ctf_type == INV_NO_INV )
 		fprintf(fp,"\t\tCTF correction policy: Disabled.\n");
-	if( info.ctf_type == PHASE_FLIP )
+    if( info.ctf_type == INV_PHASE_FLIP )
 		fprintf(fp,"\t\tCTF correction policy: Phase-flip.\n");
-	if( info.ctf_type == WIENER_INV )
+    if( info.ctf_type == INV_WIENER )
 		fprintf(fp,"\t\tCTF correction policy: Wiener inversion.\n");
-	if( info.ctf_type == WIENER_INV_SSNR )
+    if( info.ctf_type == INV_WIENER_SSNR )
 		fprintf(fp,"\t\tCTF correction policy: Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
 	
 	fprintf(fp,"\t\tInversion of the sampled fourier space using %d iterations and a gaussian filter with std of %f.\n",info.w_inv_ite,info.w_inv_std);
@@ -450,8 +302,8 @@ void print_minimal(const Info&info,FILE*fp) {
     }
     fprintf(fp,"\n");
 
-    fprintf(fp,"    - Input files: %s | %s\n",info.ptcls_in,info.tomos_in);
-    fprintf(fp,"    - Output prefix: %s\n",info.out_pfx);
+    fprintf(fp,"    - [ %s | %s ]",info.ptcls_in,info.tomos_in);
+    fprintf(fp," -> [ Prefix: %s ]\n",info.out_pfx);
     
     if( info.n_gpu > 1 ) {
         fprintf(fp,"    - %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
@@ -464,17 +316,17 @@ void print_minimal(const Info&info,FILE*fp) {
     }
     
     if( info.n_threads > 1 ) {
-        fprintf(fp,"and %d threads.\n",info.n_threads);
+        fprintf(fp," %d threads.\n",info.n_threads);
     }
     else{
-        fprintf(fp,"and 1 thread.\n");
+        fprintf(fp," 1 thread.\n");
     }
 	
-	fprintf(fp,"    - Bandpass: [%.1f - %.1f] ",info.fpix_min,info.fpix_max);
+    fprintf(fp,"    - Bandpass: [%.1f - %.1f]",info.fpix_min,info.fpix_max);
     if( info.fpix_roll > 0 )
-        fprintf(fp," (roll off: %.2f).\n",info.fpix_roll);
-    else
-        fprintf(fp,".\n");
+        fprintf(fp," (Smooth decay: %.2f)",info.fpix_roll);
+
+    fprintf(fp,". %s Symmetry.\n",info.sym);
 
     fprintf(fp,"    - ");
     if( info.pad_size > 0 ) {
@@ -484,25 +336,24 @@ void print_minimal(const Info&info,FILE*fp) {
             fprintf(fp,"Random padding. ");
     }
 
-    if( info.ctf_type == NO_INV )
-        fprintf(fp,"No CTF. ");
-    if( info.ctf_type == PHASE_FLIP )
-        fprintf(fp,"Phase-flip. ");
-    if( info.ctf_type == WIENER_INV )
+    if( info.ctf_type == INV_NO_INV )
+        fprintf(fp,"No CTF inversion. ");
+    if( info.ctf_type == INV_PHASE_FLIP )
+        fprintf(fp,"Phase-flip correction. ");
+    if( info.ctf_type == INV_WIENER )
         fprintf(fp,"Wiener Inversion. ");
-    if( info.ctf_type == WIENER_INV_SSNR )
-        fprintf(fp,"Wiener SSNR: S=%.2f F=%.2f. ",info.ssnr_S,info.ssnr_F);
+    if( info.ctf_type == INV_WIENER_SSNR )
+        fprintf(fp,"Wiener SSNR (S=%.2f F=%.2f). ",info.ssnr_S,info.ssnr_F);
     
     if( info.norm_type == NO_NORM )
         fprintf(fp,"No Normalization.\n");
     if( info.norm_type == ZERO_MEAN )
-        fprintf(fp,"Normalized to Mean=0.\n");
+        fprintf(fp,"Normalization (Mean=0).\n");
     if( info.norm_type == ZERO_MEAN_1_STD )
-        fprintf(fp,"Normalized to Mean=0, Std=1.\n");
+        fprintf(fp,"Normalization (Mean=0, Std=1).\n");
     if( info.norm_type == ZERO_MEAN_W_STD )
-        fprintf(fp,"Normalized to Mean=0, Std=PRJ_W.\n");
+        fprintf(fp,"Normalization (Mean=0, Std=PRJ_W).\n");
 
-    fprintf(fp,"    - %s Symmetry. Inversion: Ite=%d Std=%f\n",info.sym,info.w_inv_ite,info.w_inv_std);
 }
 
 void print(const Info&info,FILE*fp=stdout) {

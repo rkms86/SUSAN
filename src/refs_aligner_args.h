@@ -29,14 +29,9 @@
 #include "math_cpu.h"
 #include "points_provider.h"
 #include "reference.h"
+#include "arg_parser.h"
 
 namespace ArgsRefsAli {
-
-typedef enum {
-    ELLIPSOID,
-    CYLINDER,
-    CIRCLE,
-} OffsetType_t;
 
 typedef struct {
     uint32 gpu_ix;
@@ -61,27 +56,6 @@ typedef struct {
     char   ptcls_out[SUSAN_FILENAME_LENGTH];
     char   ptcls_in [SUSAN_FILENAME_LENGTH];
 } Info;
-
-uint32 get_offset_type(const char*arg) {
-    uint32 rslt = ELLIPSOID;
-    bool all_ok = false;
-
-    if( strcmp(arg,"ellipsoid") == 0 ) {
-        rslt = ELLIPSOID;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"cylinder") == 0 ) {
-        rslt = CYLINDER;
-        all_ok = true;
-    }
-
-    if( !all_ok ) {
-        fprintf(stderr,"Invalid offset type %s. Options are: ellipsoid and cylinder. Defaulting to ellipsoid.\n",arg);
-    }
-
-    return rslt;
-}
 
 bool validate(const Info&info) {
     bool rslt = true;
@@ -115,7 +89,7 @@ bool validate(const Info&info) {
     }
     else {
         if( info.gpu_ix >= available_gpus ) {
-            fprintf(stderr,"Requesting unavalable GPU with ID %d.\n",info.gpu_ix);
+            fprintf(stderr,"Requesting unavailable GPU ID %d.\n",info.gpu_ix);
             rslt = false;
         }
     }
@@ -181,8 +155,6 @@ bool parse_args(Info&info,int ac,char** av) {
         {0, 0, 0, 0}
     };
     
-    single *tmp_single;
-    uint32 *tmp_uint32;
     while( (c=getopt_long_only(ac, av, "", long_options, 0)) >= 0 ) {
         switch(c) {
             case PTCLS_OUT:
@@ -195,48 +167,31 @@ bool parse_args(Info&info,int ac,char** av) {
                 strcpy(info.refs_file,optarg);
                 break;
             case BOX_SIZE:
-                info.box_size = Math::make_even_up((float)atoi(optarg));
+                info.box_size = ArgParser::get_even_number(optarg);
                 break;
             case GPU_ID:
                 info.gpu_ix = atoi(optarg);
                 break;
             case BANDPASS:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.fpix_min = tmp_single[0];
-                info.fpix_max = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);
                 break;
             case ROLLOFF_F:
                 info.fpix_roll = atof(optarg);
                 break;
             case CONE:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.cone_range = tmp_single[0];
-                info.cone_step  = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.cone_range,info.cone_step,optarg);
                 break;
             case INPLANE:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.inplane_range = tmp_single[0];
-                info.inplane_step  = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.inplane_range,info.inplane_step,optarg);
                 break;
             case REFINE:
-                IO::parse_uint32_strlist(tmp_uint32, optarg);
-                info.refine_factor  = tmp_uint32[0];
-                info.refine_level = tmp_uint32[1];
-                delete [] tmp_uint32;
+                ArgParser::get_uint32_pair(info.refine_factor,info.refine_level,optarg);
                 break;
             case OFF_TYPE:
-                info.off_type = get_offset_type(optarg);
+                info.off_type = ArgParser::get_offset_type(optarg);
                 break;
             case OFF_PARAM:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.off_x = tmp_single[0];
-                info.off_y = tmp_single[1];
-                info.off_z = tmp_single[2];
-                info.off_s = tmp_single[3];
-                delete [] tmp_single;
+                ArgParser::get_single_quad(info.off_x,info.off_y,info.off_z,info.off_s,optarg);
                 break;
             case PIX_SIZE:
                 info.pix_size = atof(optarg);

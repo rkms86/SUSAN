@@ -30,27 +30,42 @@
 #include "datatypes.h"
 #include "math_cpu.h"
 
-using namespace Eigen;
+//using namespace Eigen;
 using namespace Math;
 
 class AnglesSymmetry {
 
 public:
+    static bool check_available_symmetry(const char*sym_str) {
+        bool rslt = false;
+
+        rslt |= (strcmp(sym_str,"cone_flip") == 0);
+        rslt |= (strcmp(sym_str,"y_180") == 0);
+        rslt |= (strcmp(sym_str,"cbo") == 0);
+        rslt |= (strcmp(sym_str,"CBO") == 0);
+        rslt |= (strcmp(sym_str,"c1") == 0);
+        rslt |= (strcmp(sym_str,"none") == 0);
+        rslt |= ( (sym_str[0] == 'c') && (atoi(sym_str+1)>0) );
+        rslt |= ( (sym_str[0] == 'C') && (atoi(sym_str+1)>0) );
+
+        return rslt;
+    }
+
     static M33f*get_rotation_list(uint32 &N, const char*sym_str) {
         N = 0;
-        if( strcmp(sym_str,"cone_flip") == 0 || strcmp(sym_str,"y_180") == 0 ) {
+        if( (strcmp(sym_str,"cone_flip") == 0) || (strcmp(sym_str,"y_180") == 0) ) {
             N = 2;
             return cone_flip();
         }
-        else if( strcmp(sym_str,"cbo") == 0 ) {
+        else if( (strcmp(sym_str,"cbo") == 0) || (strcmp(sym_str,"CBO") == 0) ) {
             N = 24;
             return cuboctahedral();
         }
-        else if( strcmp(sym_str,"c1") == 0 || strcmp(sym_str,"none") == 0 ) {
+        else if( (strcmp(sym_str,"c1") == 0) || (strcmp(sym_str,"none") == 0) ) {
             N = 1;
             return none();
         }
-        else if( sym_str[0] == 'c' ) {
+        else if( (sym_str[0] == 'c') || (sym_str[0] == 'C') ) {
             N = atoi(sym_str+1);
             return Cn(N);
         }

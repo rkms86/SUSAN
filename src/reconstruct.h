@@ -30,14 +30,11 @@
 #include "tomogram.h"
 #include "stack_reader.h"
 #include "gpu.h"
-#include "gpu_kernel.h"
-#include "gpu_kernel_ctf.h"
 #include "substack_crop.h"
 #include "mrc.h"
-#include "io.h"
-#include "points_provider.h"
 #include "rec_acc.h"
 #include "reconstruct_args.h"
+#include "progress.h"
 
 typedef enum {
     REC_EXEC=1
@@ -148,22 +145,22 @@ protected:
     }
 	
     void add_data(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
-        if( pad_type == ArgsRec::PaddingType_t::PAD_ZERO )
+        if( pad_type == PAD_ZERO )
             ss_data.pad_zero(stream);
-        if( pad_type == ArgsRec::PaddingType_t::PAD_GAUSSIAN )
+        if( pad_type == PAD_GAUSSIAN )
             ss_data.pad_normal(ptr->g_pad,ptr->K,stream);
 
         ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
     }
 
     void correct_ctf(RecSubstack&ss_data,RecBuffer*ptr,GPU::Stream&stream) {
-        if( ctf_type == ArgsRec::InversionType_t::NO_INV )
+        if( ctf_type == INV_NO_INV )
             ss_data.set_no_ctf(bandpass,ptr->K,stream);
-        if( ctf_type == ArgsRec::InversionType_t::PHASE_FLIP )
+        if( ctf_type == INV_PHASE_FLIP )
             ss_data.set_phase_flip(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
-        if( ctf_type == ArgsRec::InversionType_t::WIENER_INV )
+        if( ctf_type == INV_WIENER )
             ss_data.set_wiener(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
-        if( ctf_type == ArgsRec::InversionType_t::WIENER_INV_SSNR )
+        if( ctf_type == INV_WIENER_SSNR )
             ss_data.set_wiener_ssnr(ptr->ctf_vals,ptr->g_def,bandpass,ssnr,ptr->K,stream);
 
     }
@@ -434,20 +431,20 @@ protected:
                         ptr->c_ali.ptr[k].w = 0;
                     }
                     else {
-                        if( p_info->norm_type == ArgsRec::NormalizationType_t::NO_NORM ) {
+                        if( p_info->norm_type == NO_NORM ) {
                             ptr->c_pad.ptr[k].x = avg;
                             ptr->c_pad.ptr[k].y = std;
                         }
                         else {
                             Math::normalize(ss_ptr,N*N,avg,std);
                             ptr->c_pad.ptr[k].x = 0;
-                            if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN ) {
+                            if( p_info->norm_type == ZERO_MEAN ) {
                                 ptr->c_pad.ptr[k].y = std;
                             }
-                            if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN_1_STD ) {
+                            if( p_info->norm_type == ZERO_MEAN_1_STD ) {
                                 ptr->c_pad.ptr[k].y = 1;
                             }
-                            if( p_info->norm_type == ArgsRec::NormalizationType_t::ZERO_MEAN_W_STD ) {
+                            if( p_info->norm_type == ZERO_MEAN_W_STD ) {
                                 ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
                             }
                             ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
@@ -497,14 +494,14 @@ public:
 	int n_ptcls;
 	int NP;
 	int MP;
-	
-	Math::Timing timer;
-	
-	char progress_buffer[68];
-	char progress_clear [69];
+
+    ProgressReporter progress;
 	
 	RecPool(ArgsRec::Info*info,int n_refs,int in_max_K,int num_ptcls,StackReader&stkrdr,int in_num_threads)
-	 : PoolCoordinator(stkrdr,in_num_threads), w_cmd(2*in_num_threads+1) {
+     : PoolCoordinator(stkrdr,in_num_threads),
+       w_cmd(2*in_num_threads+1),
+       progress("    Filling fourier space",num_ptcls)
+    {
 		workers  = new RecRdrWorker[in_num_threads];
 		p_info   = info;
 		max_K    = in_max_K;
@@ -517,17 +514,6 @@ public:
 		MP = (NP/2)+1;
 		if( info->rec_halves )
             R = 2*R;
-		memset(progress_buffer,' ',66);
-        memset(progress_clear,'\b',66);
-		progress_buffer[66] = 0;
-		progress_buffer[67] = 0;
-                if( SUSAN_CARRIER_RETURN == '\r' ) {
-                    progress_clear [66] = SUSAN_CARRIER_RETURN;
-                }
-                else {
-                    progress_clear [65] = 0;
-                }
-		progress_clear [67] = 0;
 
 	}
 	
@@ -587,68 +573,21 @@ protected:
 	}
 
     virtual void progress_start() {
-		timer.tic();
-		sprintf(progress_buffer,"        Filling fourier space: Buffering...");
-		int n = strlen(progress_buffer);
-		progress_buffer[n]  = ' ';
-        progress_buffer[65] = 0;
-		printf(progress_buffer);
-		fflush(stdout);
+        progress.start();
 	}
 
     virtual void show_progress(const int ptcls_in_tomo) {
 		int cur_progress=0;
 		while( (cur_progress=count_progress()) < ptcls_in_tomo ) {
-            memset(progress_buffer,' ',66);
-            if( cur_progress > 0 ) {
-                int progress = count_accumul();
-                float progress_percent = 100*(float)progress/float(n_ptcls);
-                sprintf(progress_buffer,"        Filling fourier space: %6.2f%%%%",progress_percent);
-                int n = strlen(progress_buffer);
-                add_etc(progress_buffer+n,progress,n_ptcls);
-            }
-			else {
-				sprintf(progress_buffer,"        Filling fourier space: Buffering...");
-				int n = strlen(progress_buffer);
-				progress_buffer[n]  = ' ';
-                                progress_buffer[65] = 0;
-			}
-			printf(progress_clear);
-			fflush(stdout);
-			printf(progress_buffer);
-			fflush(stdout);
-			sleep(1);
+            int total_progress = count_accumul();
+            progress.update(total_progress,cur_progress==0);
+            sleep(2);
 		}
 	}
 	
-        virtual void show_done() {
-		memset(progress_buffer,' ',66);
-		sprintf(progress_buffer,"        Filling fourier space: 100.00%%%%");
-		int n = strlen(progress_buffer);
-		progress_buffer[n] = ' ';
-		printf(progress_clear);
-		printf(progress_buffer);
-		printf("\n");
-		fflush(stdout);
-	}
-
-	void add_etc(char*buffer,int progress,int total) {
-		
-		int days,hours,mins,secs;
-		
-		timer.get_etc(days,hours,mins,secs,progress,total);
-		
-		if( days > 0 ) {
-			sprintf(buffer," (ETC: %dd %02d:%02d:%02d)",days,hours,mins,secs);
-			int n = strlen(buffer);
-			buffer[n] = ' ';
-		}
-		else {
-			sprintf(buffer," (ETC: %02d:%02d:%02d)",hours,mins,secs);
-			int n = strlen(buffer);
-			buffer[n] = ' ';
-		}
-	}
+    virtual void show_done() {
+        progress.finish();
+    }
 
 	void gather_results() {
 		int l = NP*NP*MP;
@@ -660,7 +599,7 @@ protected:
                 }
 	}
 	
-        virtual void reconstruct_results() {
+    virtual void reconstruct_results() {
 		GPU::set_device( p_info->p_gpu[0] );
 		
 		GPU::GArrDouble  p_wgt;
@@ -745,20 +684,20 @@ protected:
 		cudaMemcpy((void*)p_wgt.ptr,(const void*)c_wgt,sizeof(double )*MP*NP*NP,cudaMemcpyHostToDevice);
 	}
 
-        void reconstruct_sym(GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
-            RecSym sym(MP,NP,p_info->sym);
-            sym.apply_sym(p_acc,p_wgt);
-        }
+    void reconstruct_sym(GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
+        RecSym sym(MP,NP,p_info->sym);
+        sym.apply_sym(p_acc,p_wgt);
+    }
 
-        void reconstruct_invert(GPU::GArrDouble&p_wgt) {
-            RecInvWgt inv_wgt(NP,MP,p_info->w_inv_ite,p_info->w_inv_std);
-            inv_wgt.invert(p_wgt);
-        }
-	
-        void reconstruct_core(GPU::GArrSingle&p_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
-            RecInvVol inv_vol(N,P);
-            inv_vol.apply_inv_wgt(p_acc,p_wgt);
-            inv_vol.invert_and_extract(p_vol);
+    void reconstruct_invert(GPU::GArrDouble&p_wgt) {
+        RecInvWgt inv_wgt(NP,MP,p_info->w_inv_ite,p_info->w_inv_std);
+        inv_wgt.invert(p_wgt);
+    }
+
+    void reconstruct_core(GPU::GArrSingle&p_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
+        RecInvVol inv_vol(N,P);
+        inv_vol.apply_inv_wgt(p_acc,p_wgt);
+        inv_vol.invert_and_extract(p_vol);
 	}
 	
 	void reconstruct_download(float*vol,GPU::GArrSingle&p_vol) {

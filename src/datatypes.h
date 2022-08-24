@@ -1,6 +1,6 @@
 /*
  * This file is part of the Substack Analysis (SUSAN) framework.
- * Copyright (c) 2018-2021 Ricardo Miguel Sanchez Loayza.
+ * Copyright (c) 2018-2022 Ricardo Miguel Sanchez Loayza.
  * Max Planck Institute of Biophysics
  * Department of Structural Biology - Kudryashev Group.
  * 
@@ -18,8 +18,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef DATATYPES_H
-#define DATATYPES_H
+#pragma once
 
 #include <cstdio>
 #include <cstdlib>
@@ -38,7 +37,7 @@ typedef float    single;
 #define SUSAN_FILENAME_LENGTH 1024
 #define SUSAN_CHUNK_SIZE (1024*1024)
 #define SUSAN_FLOAT_TOL 5e-8
-#define SUSAN_MAX_N_GPU 16
+#define SUSAN_MAX_N_GPU 24
 #define SUSAN_CUDA_THREADS 1024
 #define SUSAN_CUDA_WARP 32
 
@@ -124,7 +123,38 @@ typedef enum {
     READY = 1
 } Status_t;
 
+typedef enum {
+    NO_NORM=0,
+    ZERO_MEAN,
+    ZERO_MEAN_W_STD,
+    ZERO_MEAN_1_STD
+} NormalizationType_t;
 
-#endif
+typedef enum {
+    PAD_ZERO=0,
+    PAD_GAUSSIAN
+} PaddingType_t;
+
+typedef enum {
+    ALI_NO_INV=0,
+    ALI_ON_REFERENCE,
+    ALI_ON_SUBSTACK,
+    ALI_ON_SUBSTACK_SSNR,
+    ALI_CUMULATIVE_FSC
+} CtfAlignmentType_t;
+
+typedef enum {
+    INV_NO_INV=0,
+    INV_PHASE_FLIP,
+    INV_WIENER,
+    INV_WIENER_SSNR
+} CtfInversionType_t;
+
+typedef enum {
+    ELLIPSOID,
+    CYLINDER,
+    CIRCLE,
+} OffsetType_t;
+
 
 

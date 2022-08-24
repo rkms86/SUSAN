@@ -99,6 +99,30 @@ void reset() {
     }
 }
 
+bool check_gpu_id_list(const int n_gpu,const uint32 p_gpu[]) {
+    bool rslt = true;
+    if( n_gpu > 0 ) {
+        int available_gpus = count_devices();
+        if(available_gpus>0) {
+            for(int i=0;i<n_gpu;i++) {
+                if( p_gpu[i] >= available_gpus ) {
+                    fprintf(stderr,"Requesting unavailable GPU ID %d.\n",p_gpu[i]);
+                    rslt = false;
+                }
+            }
+        }
+        else {
+            fprintf(stderr,"Not available GPUs on the system.\n");
+            rslt = false;
+        }
+    }
+    else {
+        fprintf(stderr,"At least 1 GPU must be requested.\n");
+        rslt = false;
+    }
+    return rslt;
+}
+
 class Stream {
 public:
     cudaStream_t strm;

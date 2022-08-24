@@ -22,21 +22,18 @@
 #define REF_ALI_H
 
 #include "datatypes.h"
-#include "particles.h"
-#include "tomogram.h"
-#include "stack_reader.h"
 #include "gpu.h"
 #include "gpu_fft.h"
 #include "gpu_rand.h"
 #include "gpu_kernel.h"
 #include "gpu_kernel_ctf.h"
 #include "gpu_kernel_vol.h"
-#include "substack_crop.h"
-#include "mrc.h"
-#include "io.h"
+//#include "substack_crop.h"
+//#include "mrc.h"
+//#include "io.h"
 #include "points_provider.h"
-#include "angles_symmetry.h"
-#include "aligner_args.h"
+//#include "angles_symmetry.h"
+//#include "aligner_args.h"
 #include <iostream>
 
 class RadialAverager {
@@ -238,14 +235,14 @@ public:
         ifft2.alloc(M,N,max_K);
         ifft2.set_stream(stream.strm);
 
-        if( off_type == ArgsAli::OffsetType_t::ELLIPSOID )
+        if( off_type == ELLIPSOID )
             c_pts = PointsProvider::ellipsoid(n_pts,off_params.x,off_params.y,off_params.z,off_params.w);
-        if( off_type == ArgsAli::OffsetType_t::CYLINDER )
+        if( off_type == CYLINDER )
             c_pts = PointsProvider::cylinder(n_pts,off_params.x,off_params.y,off_params.z,off_params.w);
-        if( off_type == ArgsAli::OffsetType_t::CIRCLE )
+        if( off_type == CIRCLE )
             c_pts = PointsProvider::circle(n_pts,off_params.x,off_params.y);
 
-        if( off_type == ArgsAli::OffsetType_t::CIRCLE ) {
+        if( off_type == CIRCLE ) {
             c_cc = new float[n_pts*max_K];
             g_cc.alloc(n_pts*max_K);
         }
@@ -370,13 +367,22 @@ public:
     }
 
     void get_max_cc(float&max_cc,int&max_idx,const float*p_data) {
-        max_cc = -9999999999999;
         max_idx = 0;
+        max_cc = p_data[max_idx];
         for(int i=0;i<n_pts;i++) {
             if( max_cc < p_data[i] ) {
                 max_cc = p_data[i];
                 max_idx = i;
             }
+        }
+    }
+
+    void aggregate_avg_std(float&avg,float&std,float&count,const float*p_data) {
+        count += n_pts;
+        for(int i=0;i<n_pts;i++) {
+            float tmp = p_data[i];
+            avg += tmp;
+            std += (tmp*tmp);
         }
     }
 };

@@ -25,17 +25,10 @@
 #include <getopt.h>
 #include "datatypes.h"
 #include "gpu.h"
-#include "angles_provider.h"
-#include "math_cpu.h"
-#include "points_provider.h"
+#include "arg_parser.h"
 #include "reference.h"
 
 namespace ArgsCtfRef {
-
-typedef enum {
-    PAD_ZERO=0,
-    PAD_GAUSSIAN
-} PaddingType_t;
 
 typedef struct {
     int    n_gpu;
@@ -58,28 +51,9 @@ typedef struct {
     char   ptcls_out[SUSAN_FILENAME_LENGTH];
     char   ptcls_in [SUSAN_FILENAME_LENGTH];
     char   tomo_file[SUSAN_FILENAME_LENGTH];
+
+    int verbosity;
 } Info;
-
-uint32 get_pad_type(const char*arg) {
-    uint32 rslt = PAD_ZERO;
-    bool all_ok = false;
-
-    if( strcmp(arg,"zero") == 0 ) {
-        rslt = PAD_ZERO;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"noise") == 0 ) {
-        rslt = PAD_GAUSSIAN;
-        all_ok = true;
-    }
-
-    if( !all_ok ) {
-        fprintf(stderr,"Invalid padding type %s. Options are: zero or noise. Defaulting to zero.\n",arg);
-    }
-
-    return rslt;
-}
 
 bool validate(const Info&info) {
     bool rslt = true;
@@ -112,24 +86,9 @@ bool validate(const Info&info) {
         fprintf(stderr,"Particles output is missing.\n");
         rslt = false;
     }
-    if( info.n_gpu < 1 ) {
-        fprintf(stderr,"At least 1 GPU must be requested.\n");
+    if( !GPU::check_gpu_id_list(info.n_gpu,info.p_gpu) ) {
+        fprintf(stderr,"Error with CUDA devices.\n");
         rslt = false;
-    }
-    else {
-        int available_gpus = GPU::count_devices();
-        if(available_gpus==0) {
-            fprintf(stderr,"Not available GPUs on the system.\n");
-            rslt = false;
-        }
-        else {
-            for(int i=0;i<info.n_gpu;i++) {
-                if( info.p_gpu[i] >= available_gpus ) {
-                    fprintf(stderr,"Requesting unavalable GPU with ID %d.\n",info.p_gpu[i]);
-                    rslt = false;
-                }
-            }
-        }
     }
 
     return rslt;
@@ -149,6 +108,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.def_step   = 100;
     info.ang_range  = 20;
     info.ang_step   = 5;
+    info.verbosity     = 0;
     info.est_dose   = false;
     info.use_halves = false;
 
@@ -174,6 +134,7 @@ bool parse_args(Info&info,int ac,char** av) {
         USE_HALVES,
         DEF_SEARCH,
         ANG_SEARCH,
+        VERBOSITY,
         EST_DOSE
     };
 
@@ -194,11 +155,10 @@ bool parse_args(Info&info,int ac,char** av) {
         {"ang_search", 1, 0, ANG_SEARCH},
         {"est_dose",   1, 0, EST_DOSE  },
         {"use_halves", 1, 0, USE_HALVES},
+        {"verbosity",   1, 0, VERBOSITY },
         {0, 0, 0, 0}
     };
     
-    single *tmp_single;
-    uint32 *tmp_uint32;
     while( (c=getopt_long_only(ac, av, "", long_options, 0)) >= 0 ) {
         switch(c) {
             case TOMOS_FILE:
@@ -214,52 +174,40 @@ bool parse_args(Info&info,int ac,char** av) {
                 strcpy(info.refs_file,optarg);
                 break;
             case BOX_SIZE:
-                info.box_size = Math::make_even_up((float)atoi(optarg));
+                info.box_size = ArgParser::get_even_number(optarg);
                 break;
             case N_THREADS:
                 info.n_threads = atoi(optarg);
                 break;
             case GPU_LIST:
-                info.n_gpu = IO::parse_uint32_strlist(tmp_uint32, optarg);
-                if( info.n_gpu > SUSAN_MAX_N_GPU ) {
-                    fprintf(stderr,"Requesting %d GPUs. Maximum is %d\n",info.n_gpu,SUSAN_MAX_N_GPU);
-                    exit(1);
-                }
-                memcpy(info.p_gpu,tmp_uint32,info.n_gpu*sizeof(uint32));
-                delete [] tmp_uint32;
+                info.n_gpu = ArgParser::get_list_integers(info.p_gpu,optarg);
                 break;
             case PAD_SIZE:
-                info.pad_size = Math::make_even_up((float)atoi(optarg));
+                info.pad_size = ArgParser::get_even_number(optarg);
                 break;
             case PAD_TYPE:
-                info.pad_type = get_pad_type(optarg);
+                info.pad_type = ArgParser::get_pad_type(optarg);
                 break;
             case BANDPASS:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.fpix_min = tmp_single[0];
-                info.fpix_max = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);
                 break;
             case ROLLOFF_F:
                 info.fpix_roll = atof(optarg);
                 break;
             case DEF_SEARCH:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.def_range = tmp_single[0];
-                info.def_step  = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.def_range,info.def_step,optarg);
                 break;
             case ANG_SEARCH:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.ang_range = tmp_single[0];
-                info.ang_step  = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.ang_range,info.ang_step,optarg);
                 break;
             case EST_DOSE:
-                info.est_dose = (atoi(optarg)>0);
+                info.est_dose = ArgParser::get_bool(optarg);
                 break;
             case USE_HALVES:
-                info.use_halves = (atoi(optarg)>0);
+                info.use_halves = ArgParser::get_bool(optarg);
+                break;
+            case VERBOSITY:
+                info.verbosity = atoi(optarg);
                 break;
             default:
                 printf("Unknown parameter %d\n",c);
@@ -271,62 +219,113 @@ bool parse_args(Info&info,int ac,char** av) {
     return validate(info);
 }
 
-void print(const Info&info,FILE*fp=stdout) {
-    fprintf(stdout,"\tCTF Refiner");
+void print_full(const Info&info,FILE*fp=stdout) {
+    fprintf(fp,"\tCTF Refiner");
     if( info.use_halves )
-        fprintf(stdout," (independent half-sets)");
-    fprintf(stdout,":\n");
+        fprintf(fp," (independent half-sets)");
+    fprintf(fp,":\n");
 
-    fprintf(stdout,"\t\tParticles in:   %s.\n",info.ptcls_in);
-    fprintf(stdout,"\t\tTomograms file: %s.\n",info.tomo_file);
-    fprintf(stdout,"\t\tReference file: %s.\n",info.refs_file);
-    fprintf(stdout,"\t\tParticles out:  %s.\n",info.ptcls_out);
+    fprintf(fp,"\t\tParticles in:   %s.\n",info.ptcls_in);
+    fprintf(fp,"\t\tTomograms file: %s.\n",info.tomo_file);
+    fprintf(fp,"\t\tReference file: %s.\n",info.refs_file);
+    fprintf(fp,"\t\tParticles out:  %s.\n",info.ptcls_out);
 
-    fprintf(stdout,"\t\tVolume size: %dx%dx%d",info.box_size,info.box_size,info.box_size);
+    fprintf(fp,"\t\tVolume size: %dx%dx%d",info.box_size,info.box_size,info.box_size);
     if( info.pad_size > 0 ) {
-        fprintf(stdout,", with padding of %d voxels",info.pad_size);
+        fprintf(fp,", with padding of %d voxels",info.pad_size);
     }
-    fprintf(stdout,".\n");
+    fprintf(fp,".\n");
     
     if( info.n_gpu > 1 ) {
-        fprintf(stdout,"\t\tUsing %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
+        fprintf(fp,"\t\tUsing %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
         for(int i=1;i<info.n_gpu;i++)
             fprintf(stdout,",%d",info.p_gpu[i]);
-        fprintf(stdout,"), ");
+        fprintf(fp,"), ");
     }
     else {
-        fprintf(stdout,"\t\tUsing 1 GPU (GPU id: %d), ",info.p_gpu[0]);
+        fprintf(fp,"\t\tUsing 1 GPU (GPU id: %d), ",info.p_gpu[0]);
     }
     
     if( info.n_threads > 1 ) {
-        fprintf(stdout,"and %d threads.\n",info.n_threads);
+        fprintf(fp,"and %d threads.\n",info.n_threads);
     }
     else{
-        fprintf(stdout,"and 1 thread.\n");
+        fprintf(fp,"and 1 thread.\n");
     }
 
-    fprintf(stdout,"\t\tBandpass: [%.1f - %.1f] fourier pixels",info.fpix_min,info.fpix_max);
+    fprintf(fp,"\t\tBandpass: [%.1f - %.1f] fourier pixels",info.fpix_min,info.fpix_max);
     if( info.fpix_roll > 0 )
-        fprintf(stdout," with a roll off of %.2f.\n",info.fpix_roll);
+        fprintf(fp," with a roll off of %.2f.\n",info.fpix_roll);
     else
-        fprintf(stdout,".\n");
+        fprintf(fp,".\n");
 
     if( info.pad_size > 0 ) {
         if( info.pad_type == PAD_ZERO )
-            fprintf(stdout,"\t\tPadding policy: Fill with zeros.\n");
+            fprintf(fp,"\t\tPadding policy: Fill with zeros.\n");
         if( info.pad_type == PAD_GAUSSIAN )
-            fprintf(stdout,"\t\tPadding policy: Fill with gaussian noise.\n");
+            fprintf(fp,"\t\tPadding policy: Fill with gaussian noise.\n");
     }
 
-    fprintf(stdout,"\t\tDefocus search range: %.2f.\n",info.def_range);
-    fprintf(stdout,"\t\tDefocus search step: %.2f.\n",info.def_step);
-    fprintf(stdout,"\t\tDefocus angle range: %.2f.\n",info.ang_range);
-    fprintf(stdout,"\t\tDefocus angle step: %.2f.\n",info.ang_step);
+    fprintf(fp,"\t\tDefocus search range: %.2f.\n",info.def_range);
+    fprintf(fp,"\t\tDefocus search step: %.2f.\n",info.def_step);
+    fprintf(fp,"\t\tDefocus angle range: %.2f.\n",info.ang_range);
+    fprintf(fp,"\t\tDefocus angle step: %.2f.\n",info.ang_step);
 
     if( info.est_dose )
-        fprintf(stdout,"\t\tWith dose weighting estimation.\n");
+        fprintf(fp,"\t\tWith dose weighting estimation.\n");
     else
-        fprintf(stdout,"\t\tWithout dose weighting estimation.\n");
+        fprintf(fp,"\t\tWithout dose weighting estimation.\n");
+}
+
+void print_minimal(const Info&info,FILE*fp=stdout) {
+    fprintf(fp,"  CTF Refiner. Box size: %d",info.box_size);
+    if( info.pad_size > 0 ) {
+        fprintf(fp," + %d (pad)",info.pad_size);
+    }
+    fprintf(fp,"\n");
+
+    fprintf(fp,"    - Input files: %s | %s\n",info.tomo_file,info.refs_file);
+    fprintf(fp,"    - Particles In/Out: %s | %s\n",info.ptcls_in,info.ptcls_out);
+
+    if( info.n_gpu > 1 ) {
+        fprintf(fp,"    - %d GPUs (GPU ids: %d",info.n_gpu,info.p_gpu[0]);
+        for(int i=1;i<info.n_gpu;i++)
+            fprintf(fp,",%d",info.p_gpu[i]);
+        fprintf(fp,"), ");
+    }
+    else {
+        fprintf(fp,"    - 1 GPU (GPU id: %d), ",info.p_gpu[0]);
+    }
+
+    if( info.n_threads > 1 ) {
+        fprintf(fp,"and %d threads.\n",info.n_threads);
+    }
+    else{
+        fprintf(fp,"and 1 thread.\n");
+    }
+
+    fprintf(fp,"    - Bandpass: [%.1f - %.1f] ",info.fpix_min,info.fpix_max);
+    if( info.fpix_roll > 0 )
+        fprintf(fp," (Smooth decay: %.2f).",info.fpix_roll);
+    else
+        fprintf(fp,".");
+
+    if( info.pad_size > 0 ) {
+        if( info.pad_type == PAD_ZERO )
+            fprintf(fp," Zero padding.\n");
+        if( info.pad_type == PAD_GAUSSIAN )
+            fprintf(fp," Random padding.\n");
+    }
+
+    fprintf(fp,"    - Defocus search: %.3f,%.3f. ",info.def_range,info.def_step);
+    fprintf(fp,"tDefocus angle %.3f,%.3f.\n",info.ang_range,info.ang_step);
+}
+
+void print(const Info&info,FILE*fp=stdout) {
+    if( info.verbosity > 0 )
+        print_full(info,fp);
+    else
+        print_minimal(info,fp);
 }
 
 }

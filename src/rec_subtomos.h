@@ -314,20 +314,20 @@ protected:
                         ptr.c_ali.ptr[k].w = 0;
                     }
                     else {
-                        if( p_info->norm_type == ArgsRecSubtomo::NormalizationType_t::NO_NORM ) {
+                        if( p_info->norm_type == NO_NORM ) {
                             ptr.c_pad.ptr[k].x = avg;
                             ptr.c_pad.ptr[k].y = std;
                         }
                         else {
                             Math::normalize(ss_ptr,N*N,avg,std);
                             ptr.c_pad.ptr[k].x = 0;
-                            if( p_info->norm_type == ArgsRecSubtomo::NormalizationType_t::ZERO_MEAN ) {
+                            if( p_info->norm_type == ZERO_MEAN ) {
                                 ptr.c_pad.ptr[k].y = std;
                             }
-                            if( p_info->norm_type == ArgsRecSubtomo::NormalizationType_t::ZERO_MEAN_1_STD ) {
+                            if( p_info->norm_type == ZERO_MEAN_1_STD ) {
                                 ptr.c_pad.ptr[k].y = 1;
                             }
-                            if( p_info->norm_type == ArgsRecSubtomo::NormalizationType_t::ZERO_MEAN_W_STD ) {
+                            if( p_info->norm_type == ZERO_MEAN_W_STD ) {
                                 ptr.c_pad.ptr[k].y = ptr.ptcl.prj_w[k];
                             }
                             ptr.ptcl.prj_w[k] = ptr.c_pad.ptr[k].y;
@@ -362,9 +362,9 @@ protected:
 	}
 
 	void add_data(RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
-                if( pad_type == ArgsRecSubtomo::PaddingType_t::PAD_ZERO )
+                if( pad_type == PAD_ZERO )
 			ss_data.pad_zero(stream);
-                if( pad_type == ArgsRecSubtomo::PaddingType_t::PAD_GAUSSIAN )
+                if( pad_type == PAD_GAUSSIAN )
 			ss_data.pad_normal(ptr.g_pad,ptr.K,stream);
 		
                 ss_data.add_data(ptr.g_stk,ptr.g_ali,ptr.K,stream);
@@ -372,13 +372,13 @@ protected:
 	}
 	
 	void correct_ctf(RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
-                if( ctf_type == ArgsRecSubtomo::InversionType_t::NO_INV )
+                if( ctf_type == INV_NO_INV )
 			ss_data.set_no_ctf(bandpass,ptr.K,stream);
-                if( ctf_type == ArgsRecSubtomo::InversionType_t::PHASE_FLIP )
+                if( ctf_type == INV_PHASE_FLIP )
 			ss_data.set_phase_flip(ptr.ctf_vals,ptr.g_def,bandpass,ptr.K,stream);
-                if( ctf_type == ArgsRecSubtomo::InversionType_t::WIENER_INV )
+                if( ctf_type == INV_WIENER )
 			ss_data.set_wiener(ptr.ctf_vals,ptr.g_def,bandpass,ptr.K,stream);
-                if( ctf_type == ArgsRecSubtomo::InversionType_t::WIENER_INV_SSNR )
+                if( ctf_type == INV_WIENER_SSNR )
 			ss_data.set_wiener_ssnr(ptr.ctf_vals,ptr.g_def,bandpass,ssnr,ptr.K,stream);
 			
 	}

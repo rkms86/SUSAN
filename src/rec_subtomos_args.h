@@ -25,27 +25,10 @@
 #include <getopt.h>
 #include "datatypes.h"
 #include "gpu.h"
+#include "io.h"
+#include "arg_parser.h"
 
 namespace ArgsRecSubtomo {
-
-typedef enum {
-	NO_NORM=0,
-	ZERO_MEAN,
-	ZERO_MEAN_W_STD,
-	ZERO_MEAN_1_STD
-} NormalizationType_t;
-
-typedef enum {
-	PAD_ZERO=0,
-	PAD_GAUSSIAN
-} PaddingType_t;
-
-typedef enum {
-	NO_INV=0,
-	PHASE_FLIP,
-	WIENER_INV,
-	WIENER_INV_SSNR
-} InversionType_t;
 
 typedef struct {
 	int    n_gpu;
@@ -70,89 +53,6 @@ typedef struct {
 	char   tomos_in[SUSAN_FILENAME_LENGTH];
 } Info;
 
-uint32 get_pad_type(const char*arg) {
-	uint32 rslt = PAD_ZERO;
-	bool all_ok = false;
-	
-	if( strcmp(arg,"zero") == 0 ) {
-		rslt = PAD_ZERO;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"noise") == 0 ) {
-		rslt = PAD_GAUSSIAN;
-		all_ok = true;
-	}
-	
-	if( !all_ok ) {
-		fprintf(stderr,"Invalid padding type %s. Options are: zero or noise. Defaulting to zero.\n",arg);
-	}
-	
-	return rslt;
-}
-
-uint32 get_norm_type(const char*arg) {
-	uint32 rslt = NO_NORM;
-	bool all_ok = false;
-	
-	if( strcmp(arg,"none") == 0 ) {
-		rslt = PAD_ZERO;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"zero_mean") == 0 ) {
-		rslt = ZERO_MEAN;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"zero_mean_proj_weight") == 0 ) {
-		rslt = ZERO_MEAN_W_STD;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"zero_mean_one_std") == 0 ) {
-		rslt = ZERO_MEAN_1_STD;
-		all_ok = true;
-	}
-	
-	if( !all_ok ) {
-		fprintf(stderr,"Invalid normalization type %s. Options are: none, zero_mean, zero_mean_proj_weight and zero_mean_one_std. Defaulting to none.\n",arg);
-	}
-	
-	return rslt;
-}
-
-uint32 get_ctf_type(const char*arg) {
-	uint32 rslt = WIENER_INV;
-	bool all_ok = false;
-	
-	if( strcmp(arg,"none") == 0 ) {
-		rslt = NO_INV;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"phase_flip") == 0 ) {
-		rslt = PHASE_FLIP;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"wiener") == 0 ) {
-		rslt = WIENER_INV;
-		all_ok = true;
-	}
-	
-	if( strcmp(arg,"wiener_ssnr") == 0 ) {
-		rslt = WIENER_INV_SSNR;
-		all_ok = true;
-	}
-	
-	if( !all_ok ) {
-		fprintf(stderr,"Invalid ctf correction type %s. Options are: none, phase_flip, wiener and wiener_ssnr. Defaulting to wiener.\n",arg);
-	}
-	
-	return rslt;
-}
-
 bool validate(const Info&info) {
 	bool rslt = true;
 	if( !IO::exists(info.ptcls_in) ) {
@@ -166,26 +66,11 @@ bool validate(const Info&info) {
 	if( strlen(info.out_dir) == 0 ) {
 		fprintf(stderr,"Output folder missing.\n");
 		rslt = false;
-	}
-	if( info.n_gpu < 1 ) {
-		fprintf(stderr,"At least 1 GPU must be requested.\n");
-		rslt = false;
-	}
-	else {
-		int available_gpus = GPU::count_devices();
-		if(available_gpus==0) {
-			fprintf(stderr,"Not available GPUs on the system.\n");
-			rslt = false;
-		}
-		else {
-			for(int i=0;i<info.n_gpu;i++) {
-				if( info.p_gpu[i] >= available_gpus ) {
-					fprintf(stderr,"Requesting unavalable GPU with ID %d.\n",info.p_gpu[i]);
-					rslt = false;
-				}
-			}
-		}
-	}
+    }
+    if( !GPU::check_gpu_id_list(info.n_gpu,info.p_gpu) ) {
+        fprintf(stderr,"Error with CUDA devices.\n");
+        rslt = false;
+    }
 	return rslt;
 };
 
@@ -199,8 +84,8 @@ bool parse_args(Info&info,int ac,char** av) {
 	info.fpix_roll  = 4;
 	info.pad_size   = 0;
 	info.pad_type   = PAD_ZERO;
-	info.ctf_type   = WIENER_INV_SSNR;
-	info.norm_type  = NO_NORM;
+    info.ctf_type   = INV_WIENER;
+    info.norm_type  = NO_NORM;
 	info.w_inv_ite  = 10;
 	info.w_inv_std  = 0.75;
 	info.use_ali    = false;
@@ -250,9 +135,6 @@ bool parse_args(Info&info,int ac,char** av) {
         {0, 0, 0, 0}
     };
     
-    single *tmp_single;
-    uint32 *tmp_uint32;
-    float  tmp;
     while( (c=getopt_long_only(ac, av, "", long_options, 0)) >= 0 ) {
         switch(c) {
 			case TOMOS_FILE:
@@ -264,44 +146,30 @@ bool parse_args(Info&info,int ac,char** av) {
 			case PTCLS_FILE:
 				strcpy(info.ptcls_in,optarg);
 				break;
-			case BOX_SIZE:
-				info.box_size = atoi(optarg);
-				tmp = (float)(info.box_size);
-				info.box_size = (int)(2.0*roundf(tmp/2)); // Force box to be multiple of 2.
-				info.fpix_max = (float)(info.box_size/2);
+            case BOX_SIZE:
+                info.box_size = ArgParser::get_even_number(optarg);
 				break;
 			case N_THREADS:
 				info.n_threads = atoi(optarg);
 				break;
 			case GPU_LIST:
-				info.n_gpu = IO::parse_uint32_strlist(tmp_uint32, optarg);
-				if( info.n_gpu > SUSAN_MAX_N_GPU ) {
-					fprintf(stderr,"Requesting %d GPUs. Maximum is %d\n",info.n_gpu,SUSAN_MAX_N_GPU);
-					exit(1);
-				}
-				memcpy(info.p_gpu,tmp_uint32,info.n_gpu*sizeof(uint32));
-				delete [] tmp_uint32;
+                info.n_gpu = ArgParser::get_list_integers(info.p_gpu,optarg);
 				break;
 			case PAD_SIZE:
-				info.pad_size = atoi(optarg);
-				tmp = (float)(info.pad_size);
-				info.pad_size = (int)(2.0*roundf(tmp/2)); // Force pad to be multiple of 2.
+                info.pad_size = ArgParser::get_even_number(optarg);
 				break;
 			case PAD_TYPE:
-				info.pad_type = get_pad_type(optarg);
+                info.pad_type = ArgParser::get_pad_type(optarg);
 				break;
 			case NORM_TYPE:
-				info.norm_type = get_norm_type(optarg);
+                info.norm_type = ArgParser::get_norm_type(optarg);
 				break;
 			case CTF_TYPE:
-				info.ctf_type = get_ctf_type(optarg);
+                info.ctf_type = ArgParser::get_inv_ctf_type(optarg);
 				break;
 			case SSNR:
-				IO::parse_single_strlist(tmp_single, optarg);
-				info.ssnr_F = tmp_single[0];
-				info.ssnr_S = tmp_single[1];
-				delete [] tmp_single;
-				break;
+                ArgParser::get_single_pair(info.ssnr_F,info.ssnr_S,optarg);
+                break;
 			case W_INV_ITE:
 				info.w_inv_ite = atoi(optarg);
 				break;
@@ -309,7 +177,7 @@ bool parse_args(Info&info,int ac,char** av) {
 				info.w_inv_std = atof(optarg);
 				break;
 			case USE_ALI:
-				info.use_ali = atoi(optarg)>0;
+                info.use_ali = ArgParser::get_bool(optarg);
 				break;
 			default:
 				printf("Unknown parameter %d\n",c);
@@ -366,13 +234,13 @@ void print(const Info&info,FILE*fp=stdout) {
 			fprintf(stdout,"\t\tPadding policy: Fill with gaussian noise.\n");
 	}
 	
-    if( info.ctf_type == NO_INV )
+    if( info.ctf_type == INV_NO_INV )
 		fprintf(stdout,"\t\tCTF correction policy: Disabled.\n");
-	if( info.ctf_type == PHASE_FLIP )
+    if( info.ctf_type == INV_PHASE_FLIP )
 		fprintf(stdout,"\t\tCTF correction policy: Phase-flip.\n");
-	if( info.ctf_type == WIENER_INV )
+    if( info.ctf_type == INV_WIENER )
 		fprintf(stdout,"\t\tCTF correction policy: Wiener inversion.\n");
-	if( info.ctf_type == WIENER_INV_SSNR )
+    if( info.ctf_type == INV_WIENER_SSNR )
 		fprintf(stdout,"\t\tCTF correction policy: Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
 	
 	fprintf(stdout,"\t\tInversion of the sampled fourier space using %d iterations and a gaussian filter with std of %f.\n",info.w_inv_ite,info.w_inv_std);

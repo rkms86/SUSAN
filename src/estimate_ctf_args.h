@@ -25,6 +25,7 @@
 #include <getopt.h>
 #include "datatypes.h"
 #include "gpu.h"
+#include "arg_parser.h"
 
 namespace ArgsCTF {
 
@@ -71,26 +72,12 @@ bool validate(const Info&info) {
 	if( !IO::exist_dir(info.out_dir) ) {
 		fprintf(stderr,"Output folder %s cannot be created.\n",info.out_dir);
 		rslt = false;
-	}
-	if( info.n_gpu < 1 ) {
-		fprintf(stderr,"At least 1 GPU must be requested.\n");
-		rslt = false;
-	}
-	else {
-		int available_gpus = GPU::count_devices();
-		if(available_gpus==0) {
-			fprintf(stderr,"Not available GPUs on the system.\n");
-			rslt = false;
-		}
-		else {
-			for(int i=0;i<info.n_gpu;i++) {
-				if( info.p_gpu[i] >= available_gpus ) {
-					fprintf(stderr,"Requesting unavalable GPU with ID %d.\n",info.p_gpu[i]);
-					rslt = false;
-				}
-			}
-		}
-	}
+    }
+    if( !GPU::check_gpu_id_list(info.n_gpu,info.p_gpu) ) {
+        fprintf(stderr,"Error with CUDA devices.\n");
+        rslt = false;
+    }
+
 	return rslt;
 };
 
@@ -99,7 +86,7 @@ bool parse_args(Info&info,int ac,char** av) {
 	info.n_threads = 1;
 	info.box_size  = 512;
 	info.binning   = 0;
-        info.res_thres = 0.5;
+    info.res_thres = 0.5;
 	info.res_min   = 0;
 	info.res_max   = 0;
 	info.def_min   = 0;
@@ -152,9 +139,6 @@ bool parse_args(Info&info,int ac,char** av) {
         {0, 0, 0, 0}
     };
     
-    single *tmp_single;
-    uint32 *tmp_uint32;
-    float  tmp;
     while( (c=getopt_long_only(ac, av, "", long_options, 0)) >= 0 ) {
         switch(c) {
             case TOMOS_IN:
@@ -167,9 +151,9 @@ bool parse_args(Info&info,int ac,char** av) {
                 strcpy(info.ptcls_in,optarg);
                 break;
             case BOX_SIZE:
-                info.box_size = atoi(optarg);
-                tmp = (float)(info.box_size);
-                info.box_size = (int)(4.0*roundf(tmp/4)); // Force box to be multiple of 4.
+                info.box_size  = atoi(optarg);
+                info.box_size += (info.box_size & 0x01); // Force box to be multiple of 4.
+                info.box_size += (info.box_size & 0x02);
                 break;
             case N_THREADS:
                 info.n_threads = atoi(optarg);
@@ -181,34 +165,19 @@ bool parse_args(Info&info,int ac,char** av) {
                 info.binning = atoi(optarg);
                 break;
             case GPU_LIST:
-                info.n_gpu = IO::parse_uint32_strlist(tmp_uint32, optarg);
-                if( info.n_gpu > SUSAN_MAX_N_GPU ) {
-                    fprintf(stderr,"Requesting %d GPUs. Maximum is %d\n",info.n_gpu,SUSAN_MAX_N_GPU);
-                    exit(1);
-                }
-                memcpy(info.p_gpu,tmp_uint32,info.n_gpu*sizeof(uint32));
-                delete [] tmp_uint32;
+                info.n_gpu = ArgParser::get_list_integers(info.p_gpu,optarg);
                 break;
             case RES_RANGE:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.res_min = tmp_single[0];
-                info.res_max = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.res_min,info.res_max,optarg);
                 break;
             case RES_THRES:
                 info.res_thres = atof(optarg);
                 break;
             case DEF_RANGE:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.def_min = tmp_single[0];
-                info.def_max = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.def_min,info.def_max,optarg);
                 break;
             case REFINE:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.ref_range = tmp_single[0];
-                info.ref_step  = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.ref_range,info.ref_step,optarg);
                 break;
             case BFAC_MAX:
                 info.bfac_max = atof(optarg);

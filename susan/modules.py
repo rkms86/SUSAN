@@ -34,6 +34,7 @@ class Aligner:
         self.extra_padding     = 0
         self.allow_drift       = True
         self.halfsets_independ = False
+        self.use_cc_sigma      = False
         self.cone              = _dt.search_params(0,1)
         self.inplane           = _dt.search_params(0,1)
         self.refine            = _dt.refine_params(0,1)
@@ -121,6 +122,7 @@ class Aligner:
         args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
         args = args + ' -p_symmetry '      + self.pseudo_symmetry
         args = args + ' -ali_halves %d'    % self.halfsets_independ
+        args = args + ' -use_sigma %d'     % self.use_cc_sigma
         args = args + ' -cone %f,%f'       % (self.cone.span,self.cone.step)
         args = args + ' -inplane %f,%f'    % (self.inplane.span,self.inplane.step)
         args = args + ' -refine %d,%d'     % (self.refine.factor,self.refine.levels)

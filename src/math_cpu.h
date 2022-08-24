@@ -616,8 +616,8 @@ public:
 		gettimeofday(&current_time, NULL);
 		return current_time.tv_sec - starting_time.tv_sec;
 	}
-	
-	void get_etc(int&days,int&hours,int&mins,int&secs,const int processed,const int total) {
+
+    void get_etc(int&days,int&hours,int&mins,int&secs,const int processed,const int total) {
 		if( processed > 0 ) {
 			if( total == processed ) {
 				days =0;
@@ -626,7 +626,7 @@ public:
 				secs =0;
 			}
 			else {
-				float scale = (float)(total-processed)/(float)(processed);
+                float scale = (float)(total-processed)/(float)(processed);
 				float total_secs = scale*(float)toc();
 				days = (int)floor(total_secs/(86400.0));
 				total_secs = total_secs - 86400.0*days;

@@ -23,22 +23,22 @@
 #include <unistd.h>
 
 #include "io.h"
-#include "aligner.h"
-#include "particles.h"
 #include "tomogram.h"
+#include "particles.h"
 #include "reference.h"
-#include "aligner_args.h"
+#include "ctf_refiner.h"
+#include "ctf_refiner_args.h"
 #include "mpi_iface.h"
 #include "progress.h"
 
-class AliPoolMpi : public AliPool {
+class CtfRefinerPoolMpi : public CtfRefinerPool {
 
 public:
     MpiInterface*mpi_iface;
     MpiProgress *mpi_progress;
 
-    AliPoolMpi(ArgsAli::Info*info,References*in_p_refs,int in_max_K,int num_ptcls,StackReader&stkrdr,int in_num_threads)
-        : AliPool(info,in_p_refs,in_max_K,num_ptcls,stkrdr,in_num_threads)
+    CtfRefinerPoolMpi(ArgsCtfRef::Info*info,References*in_p_refs,int in_max_K,int num_ptcls,StackReader&stkrdr,int in_num_threads)
+        : CtfRefinerPool(info,in_p_refs,in_max_K,num_ptcls,stkrdr,in_num_threads)
     {
     }
 
@@ -66,7 +66,7 @@ protected:
 
     void progress_start() {
         if( mpi_iface->is_main_node() ) {
-            AliPool::progress_start();
+            CtfRefinerPool::progress_start();
         }
     }
 
@@ -91,7 +91,7 @@ protected:
     }
 };
 
-void print_data_info(Particles*ptcls,Tomograms&tomos,ArgsAli::Info&info) {
+void print_data_info(Particles*ptcls,Tomograms&tomos,ArgsCtfRef::Info&info) {
     if(info.verbosity>0) {
         printf("\t\tAvailable particles:  %d.\n",ptcls->n_ptcl);
         printf("\t\tNumber of classes:    %d.\n",ptcls->n_refs);
@@ -106,12 +106,12 @@ void print_data_info(Particles*ptcls,Tomograms&tomos,ArgsAli::Info&info) {
 int main(int ac, char** av) {
 
     MpiInterface mpi_iface;
-    ArgsAli::Info info;
+    ArgsCtfRef::Info info;
 
-    if( ArgsAli::parse_args(info,ac,av) ) {
+    if( ArgsCtfRef::parse_args(info,ac,av) ) {
 
         if( mpi_iface.is_main_node() ) {
-            ArgsAli::print(info);
+            ArgsCtfRef::print(info);
             mpi_iface.print_info(info.verbosity);
         }
 
@@ -144,7 +144,7 @@ int main(int ac, char** av) {
         }
 
         StackReader stkrdr(ptcls,&tomos,&barrier);
-        AliPoolMpi pool(&info,&refs,tomos.num_proj,ptcls->n_ptcl,stkrdr,info.n_threads);
+        CtfRefinerPoolMpi pool(&info,&refs,tomos.num_proj,ptcls->n_ptcl,stkrdr,info.n_threads);
         pool.set_mpi(&mpi_iface,&mpi_progress,ptcls_io);
 
         stkrdr.start();

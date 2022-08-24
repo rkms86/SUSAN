@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <getopt.h>
 #include "datatypes.h"
+#include "arg_parser.h"
 #include "gpu.h"
 #include "angles_provider.h"
 #include "math_cpu.h"
@@ -31,34 +32,6 @@
 #include "reference.h"
 
 namespace ArgsAli {
-
-typedef enum {
-    NO_NORM=0,
-    ZERO_MEAN,
-    ZERO_MEAN_W_STD,
-    ZERO_MEAN_1_STD
-} NormalizationType_t;
-
-typedef enum {
-    PAD_ZERO=0,
-    PAD_GAUSSIAN
-} PaddingType_t;
-
-typedef enum {
-    NO_INV=0,
-    ON_REFERENCE,
-    ON_SUBSTACK,
-    ON_SUBSTACK_SSNR,
-    ON_SUBSTACK_WHITENING,
-    ON_SUBSTACK_PHASE,
-    CUMULATIVE_FSC
-} CtfCorrectionType_t;
-
-typedef enum {
-    ELLIPSOID,
-    CYLINDER,
-    CIRCLE,
-} OffsetType_t;
 
 typedef struct {
     int    n_gpu;
@@ -77,6 +50,7 @@ typedef struct {
     float  ssnr_S;
     bool   ali_halves;
     bool   drift;
+    bool   use_sigma;
     float  cone_range;
     float  cone_step;
     float  inplane_range;
@@ -98,142 +72,6 @@ typedef struct {
     
     int verbosity;
 } Info;
-
-uint32 get_pad_type(const char*arg) {
-    uint32 rslt = PAD_ZERO;
-    bool all_ok = false;
-
-    if( strcmp(arg,"zero") == 0 ) {
-        rslt = PAD_ZERO;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"noise") == 0 ) {
-        rslt = PAD_GAUSSIAN;
-        all_ok = true;
-    }
-
-    if( !all_ok ) {
-        fprintf(stderr,"Invalid padding type %s. Options are: zero or noise. Defaulting to zero.\n",arg);
-    }
-
-    return rslt;
-}
-
-uint32 get_norm_type(const char*arg) {
-    uint32 rslt = NO_NORM;
-    bool all_ok = false;
-
-    if( strcmp(arg,"none") == 0 ) {
-        rslt = PAD_ZERO;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"zero_mean") == 0 ) {
-        rslt = ZERO_MEAN;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"zero_mean_proj_weight") == 0 ) {
-        rslt = ZERO_MEAN_W_STD;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"zero_mean_one_std") == 0 ) {
-        rslt = ZERO_MEAN_1_STD;
-        all_ok = true;
-    }
-
-    if( !all_ok ) {
-        fprintf(stderr,"Invalid normalization type %s. Options are: none, zero_mean, zero_mean_proj_weight and zero_mean_one_std. Defaulting to none.\n",arg);
-    }
-
-    return rslt;
-}
-
-uint32 get_ctf_type(const char*arg) {
-    uint32 rslt = ON_REFERENCE;
-    bool all_ok = false;
-
-    if( strcmp(arg,"none") == 0 ) {
-        rslt = NO_INV;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"on_reference") == 0 ) {
-        rslt = ON_REFERENCE;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"on_substack") == 0 ) {
-        rslt = ON_SUBSTACK;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"wiener_ssnr") == 0 ) {
-        rslt = ON_SUBSTACK_SSNR;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"wiener_white") == 0 ) {
-        rslt = ON_SUBSTACK_WHITENING;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"wiener_phase") == 0 ) {
-        rslt = ON_SUBSTACK_PHASE;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"cfsc") == 0 ) {
-        rslt = CUMULATIVE_FSC;
-        all_ok = true;
-    }
-
-    if( !all_ok ) {
-        fprintf(stderr,"Invalid ctf correction type %s. Options are: none, on_reference, on_substack, wiener_ssnr and wiener_white. Defaulting to on_reference.\n",arg);
-    }
-
-    return rslt;
-}
-
-void set_symmetry(Info&info,const char*arg) {
-
-    uint32 num_angs;
-    M33f*p_angs;
-
-    p_angs = AnglesSymmetry::get_rotation_list(num_angs,arg);
-
-    if( num_angs == 0  ) {
-        strcpy(info.pseudo_sym,"c1");
-        fprintf(stderr,"Invalid symmetry option %s. Supported: c1, c2, cXXX... Defaulting to c1.\n",arg);
-    }
-    else {
-        strcpy(info.pseudo_sym,arg);
-        delete [] p_angs;
-    }
-}
-
-uint32 get_offset_type(const char*arg) {
-    uint32 rslt = ELLIPSOID;
-    bool all_ok = false;
-
-    if( strcmp(arg,"ellipsoid") == 0 ) {
-        rslt = ELLIPSOID;
-        all_ok = true;
-    }
-
-    if( strcmp(arg,"cylinder") == 0 ) {
-        rslt = CYLINDER;
-        all_ok = true;
-    }
-
-    if( !all_ok ) {
-        fprintf(stderr,"Invalid offset type %s. Options are: ellipsoid and cylinder. Defaulting to ellipsoid.\n",arg);
-    }
-
-    return rslt;
-}
 
 bool validate(const Info&info) {
     bool rslt = true;
@@ -270,26 +108,14 @@ bool validate(const Info&info) {
         fprintf(stderr,"Particles output is missing.\n");
         rslt = false;
     }
-    if( info.n_gpu < 1 ) {
-        fprintf(stderr,"At least 1 GPU must be requested.\n");
+    if( !AnglesSymmetry::check_available_symmetry(info.pseudo_sym) ) {
+        fprintf(stderr,"Invalid symmetry value: %s.\n",info.pseudo_sym);
         rslt = false;
     }
-    else {
-        int available_gpus = GPU::count_devices();
-        if(available_gpus==0) {
-            fprintf(stderr,"Not available GPUs on the system.\n");
-            rslt = false;
-        }
-        else {
-            for(int i=0;i<info.n_gpu;i++) {
-                if( info.p_gpu[i] >= available_gpus ) {
-                    fprintf(stderr,"Requesting unavalable GPU with ID %d.\n",info.p_gpu[i]);
-                    rslt = false;
-                }
-            }
-        }
+    if( !GPU::check_gpu_id_list(info.n_gpu,info.p_gpu) ) {
+        fprintf(stderr,"Error with CUDA devices.\n");
+        rslt = false;
     }
-
     return rslt;
 }
 
@@ -303,12 +129,13 @@ bool parse_args(Info&info,int ac,char** av) {
     info.fpix_roll     = 4;
     info.pad_size      = 0;
     info.pad_type      = PAD_ZERO;
-    info.ctf_type      = ON_REFERENCE;
+    info.ctf_type      = ALI_ON_REFERENCE;
     info.norm_type     = NO_NORM;
     info.type          = 3;
     info.ssnr_F        = 0;
     info.ssnr_S        = 1;
     info.ali_halves    = false;
+    info.use_sigma     = false;
     info.drift         = true;
     info.cone_range    = 0;
     info.cone_step     = 1;
@@ -354,6 +181,7 @@ bool parse_args(Info&info,int ac,char** av) {
         OFF_TYPE,
         OFF_PARAM,
         VERBOSITY,
+        USE_SIGMA,
         TYPE
     };
 
@@ -381,13 +209,12 @@ bool parse_args(Info&info,int ac,char** av) {
         {"refine",      1, 0, REFINE    },
         {"off_type",    1, 0, OFF_TYPE  },
         {"off_params",  1, 0, OFF_PARAM },
+        {"use_sigma",   1, 0, USE_SIGMA },
         {"verbosity",   1, 0, VERBOSITY },
         {"type",        1, 0, TYPE },
         {0, 0, 0, 0}
     };
     
-    single *tmp_single;
-    uint32 *tmp_uint32;
     while( (c=getopt_long_only(ac, av, "", long_options, 0)) >= 0 ) {
         switch(c) {
             case TOMOS_FILE:
@@ -403,84 +230,61 @@ bool parse_args(Info&info,int ac,char** av) {
                 strcpy(info.refs_file,optarg);
                 break;
             case BOX_SIZE:
-                info.box_size = Math::make_even_up((float)atoi(optarg));
+                info.box_size = ArgParser::get_even_number(optarg);
                 break;
             case N_THREADS:
                 info.n_threads = atoi(optarg);
                 break;
             case GPU_LIST:
-                info.n_gpu = IO::parse_uint32_strlist(tmp_uint32, optarg);
-                if( info.n_gpu > SUSAN_MAX_N_GPU ) {
-                    fprintf(stderr,"Requesting %d GPUs. Maximum is %d\n",info.n_gpu,SUSAN_MAX_N_GPU);
-                    exit(1);
-                }
-                memcpy(info.p_gpu,tmp_uint32,info.n_gpu*sizeof(uint32));
-                delete [] tmp_uint32;
+                info.n_gpu = ArgParser::get_list_integers(info.p_gpu,optarg);
                 break;
             case PAD_SIZE:
-                info.pad_size = Math::make_even_up((float)atoi(optarg));
+                info.pad_size = ArgParser::get_even_number(optarg);
                 break;
             case PAD_TYPE:
-                info.pad_type = get_pad_type(optarg);
+                info.pad_type = ArgParser::get_pad_type(optarg);
                 break;
             case NORM_TYPE:
-                info.norm_type = get_norm_type(optarg);
+                info.norm_type = ArgParser::get_norm_type(optarg);
                 break;
             case CTF_TYPE:
-                info.ctf_type = get_ctf_type(optarg);
+                info.ctf_type = ArgParser::get_ali_ctf_type(optarg);
                 break;
             case BANDPASS:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.fpix_min = tmp_single[0];
-                info.fpix_max = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);
                 break;
             case ROLLOFF_F:
                 info.fpix_roll = atof(optarg);
                 break;
             case SSNR:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.ssnr_F = tmp_single[0];
-                info.ssnr_S = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.ssnr_F,info.ssnr_S,optarg);
                 break;
             case SYMMETRY:
-                set_symmetry(info,optarg);
+                strcpy(info.pseudo_sym,optarg);
                 break;
             case ALI_HALVES:
-                info.ali_halves = (atoi(optarg)>0);
+                info.ali_halves = ArgParser::get_bool(optarg);
+                break;
+            case USE_SIGMA:
+                info.use_sigma = ArgParser::get_bool(optarg);
                 break;
             case DRIFT:
-                info.drift = (atoi(optarg)>0);
+                info.drift = ArgParser::get_bool(optarg);
                 break;
             case CONE:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.cone_range = tmp_single[0];
-                info.cone_step  = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.cone_range,info.cone_step,optarg);
                 break;
             case INPLANE:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.inplane_range = tmp_single[0];
-                info.inplane_step  = tmp_single[1];
-                delete [] tmp_single;
+                ArgParser::get_single_pair(info.inplane_range,info.inplane_step,optarg);
                 break;
             case REFINE:
-                IO::parse_uint32_strlist(tmp_uint32, optarg);
-                info.refine_factor  = tmp_uint32[0];
-                info.refine_level = tmp_uint32[1];
-                delete [] tmp_uint32;
+                ArgParser::get_uint32_pair(info.refine_factor,info.refine_level,optarg);
                 break;
             case OFF_TYPE:
-                info.off_type = get_offset_type(optarg);
+                info.off_type = ArgParser::get_offset_type(optarg);
                 break;
             case OFF_PARAM:
-                IO::parse_single_strlist(tmp_single, optarg);
-                info.off_x = tmp_single[0];
-                info.off_y = tmp_single[1];
-                info.off_z = tmp_single[2];
-                info.off_s = tmp_single[3];
-                delete [] tmp_single;
+                ArgParser::get_single_quad(info.off_x,info.off_y,info.off_z,info.off_s,optarg);
                 break;
             case VERBOSITY:
                 info.verbosity = atoi(optarg);
@@ -503,7 +307,7 @@ bool parse_args(Info&info,int ac,char** av) {
     return validate(info);
 }
 
-void print_angles(const Info&info,FILE*fp) {
+void print_angles(const Info&info,FILE*fp,bool show_full=false) {
 	
     AnglesProvider angles;
     angles.cone_range    = info.cone_range;
@@ -518,6 +322,7 @@ void print_angles(const Info&info,FILE*fp) {
     int count_level=0;
     int lvl = 0;
 
+    if( !show_full ) fprintf(fp,"Angles:");
     for( angles.levels_init(); angles.levels_available(); angles.levels_next(), lvl++ ) {
         count_level=0;
         for( angles.sym_init(); angles.sym_available(); angles.sym_next() ) {
@@ -527,41 +332,19 @@ void print_angles(const Info&info,FILE*fp) {
                 } /// inplane
             } /// cone
         } /// symmetry
-        fprintf(fp,"\t\tAngles in refinement level %2d: %7d.\n",lvl,count_level);
+
+        if( show_full )
+            fprintf(fp,"\t\tAngles in refinement level %2d: %7d.\n",lvl,count_level);
+        else {
+            if( lvl > 0 ) fprintf(fp," |");
+            fprintf(fp," %d",count_level);
+        }
         count_total += count_level;
     } /// level
-    fprintf(fp,"\t\tTotal angles: %d.\n",count_total);
-}
-
-void print_angles_minimal(const Info&info,FILE*fp) {
-	
-    AnglesProvider angles;
-    angles.cone_range    = info.cone_range;
-    angles.cone_step     = info.cone_step;
-    angles.inplane_range = info.inplane_range;
-    angles.inplane_step  = info.inplane_step;
-    angles.refine_level  = info.refine_level;
-    angles.refine_factor = info.refine_factor;
-    angles.set_symmetry(info.pseudo_sym);
-
-    int count_total=0;
-    int count_level=0;
-    int lvl = 0;
-
-    fprintf(stdout,"    - Angles");
-    for( angles.levels_init(); angles.levels_available(); angles.levels_next(), lvl++ ) {
-        count_level=0;
-        for( angles.sym_init(); angles.sym_available(); angles.sym_next() ) {
-            for( angles.cone_init(); angles.cone_available(); angles.cone_next() ) {
-                for( angles.inplane_init(); angles.inplane_available(); angles.inplane_next() ) {
-                    count_level++;
-                } /// inplane
-            } /// cone
-        } /// symmetry
-        fprintf(fp," | %d",count_level);
-        count_total += count_level;
-    } /// level
-    fprintf(fp," [%d].\n",count_total);
+    if( show_full )
+        fprintf(fp,"\t\tTotal angles: %d.\n",count_total);
+    else
+        fprintf(fp," [Total: %d].\n",count_total);
 }
 
 void print_full(const Info&info,FILE*fp) {
@@ -611,20 +394,16 @@ void print_full(const Info&info,FILE*fp) {
             fprintf(fp,"\t\tPadding policy: Fill with gaussian noise.\n");
     }
 
-    if( info.ctf_type == NO_INV )
+    if( info.ctf_type == ALI_NO_INV )
         fprintf(fp,"\t\tCTF correction policy: Disabled.\n");
-    if( info.ctf_type == ON_REFERENCE )
+    if( info.ctf_type == ALI_ON_REFERENCE )
         fprintf(fp,"\t\tCTF correction policy: On reference.\n");
-    if( info.ctf_type == ON_SUBSTACK )
+    if( info.ctf_type == ALI_ON_SUBSTACK )
         fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion.\n");
-    if( info.ctf_type == ON_SUBSTACK_SSNR )
+    if( info.ctf_type == ALI_ON_SUBSTACK_SSNR )
         fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
-    if( info.ctf_type == ON_SUBSTACK_WHITENING )
-        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with whitening filter (experimental).\n");
-    if( info.ctf_type == ON_SUBSTACK_PHASE )
-        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with phase cross-correlation (experimental).\n");
-    if( info.ctf_type == CUMULATIVE_FSC )
-        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with cumulative FSC (experimental).\n");
+    if( info.ctf_type == ALI_CUMULATIVE_FSC )
+        fprintf(fp,"\t\tCTF correction policy: On reference - using cumulative FSC (experimental).\n");
 
     if( info.norm_type == NO_NORM )
         fprintf(fp,"\t\tSubstack normalization policy: Disabled.\n");
@@ -635,11 +414,13 @@ void print_full(const Info&info,FILE*fp) {
     if( info.norm_type == ZERO_MEAN_W_STD )
         fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std according to projection weight.\n");
 
+    if( info.use_sigma )
+        fprintf(fp,"\t\tMeasuring: max( (cc_max - cc_mean) / cc_std , 0 ).\n");
     fprintf(fp,"\t\tPseudo-symmetry search: %s.\n",info.pseudo_sym);
     fprintf(fp,"\t\tCone search:    Range=%.3f, Step=%.3f.\n",info.cone_range,info.cone_step);
     fprintf(fp,"\t\tInplane search: Range=%.3f, Step=%.3f.\n",info.inplane_range,info.inplane_step);
     fprintf(fp,"\t\tAngle refinement: Levels=%d, Factor=%d.\n",info.refine_level,info.refine_factor);
-    print_angles(info,fp);
+    print_angles(info,fp,info.verbosity>0);
 	
     uint32_t total_points=0;
     if( info.off_type == ELLIPSOID ) {
@@ -695,7 +476,7 @@ void print_minimal(const Info&info,FILE*fp) {
 
     fprintf(fp,"    - Bandpass: [%.1f - %.1f] ",info.fpix_min,info.fpix_max);
     if( info.fpix_roll > 0 )
-        fprintf(fp," (roll off: %.2f).\n",info.fpix_roll);
+        fprintf(fp," (Smooth decay: %.2f).\n",info.fpix_roll);
     else
         fprintf(fp,".\n");
 
@@ -707,20 +488,16 @@ void print_minimal(const Info&info,FILE*fp) {
             fprintf(fp,"Random padding. ");
     }
 
-    if( info.ctf_type == NO_INV )
-        fprintf(fp,"No CTF. ");
-    if( info.ctf_type == ON_REFERENCE )
-        fprintf(fp,"On reference CTF. ");
-    if( info.ctf_type == ON_SUBSTACK )
-        fprintf(fp,"On Substack (Wiener). ");
-    if( info.ctf_type == ON_SUBSTACK_SSNR )
-        fprintf(fp,"On Substack (Wiener SSNR: S=%.2f F=%.2f). ",info.ssnr_S,info.ssnr_F);
-    if( info.ctf_type == ON_SUBSTACK_WHITENING )
-        fprintf(fp,"On Substack (Wiener Whitening). ");
-    if( info.ctf_type == ON_SUBSTACK_PHASE )
-        fprintf(fp,"On Substack (Phase-Correlation). ");
-    if( info.ctf_type == CUMULATIVE_FSC )
-        fprintf(fp,"On Substack (CFSC). ");
+    if( info.ctf_type == ALI_NO_INV )
+        fprintf(fp,"No CTF correction. ");
+    if( info.ctf_type == ALI_ON_REFERENCE )
+        fprintf(fp,"CTF on Reference. ");
+    if( info.ctf_type == ALI_ON_SUBSTACK )
+        fprintf(fp,"CTF on Substack (Wiener). ");
+    if( info.ctf_type == ALI_ON_SUBSTACK_SSNR )
+        fprintf(fp,"CTF on Substack (Wiener SSNR: S=%.2f F=%.2f). ",info.ssnr_S,info.ssnr_F);
+    if( info.ctf_type == ALI_CUMULATIVE_FSC )
+        fprintf(fp,"CTF on Reference (CFSC). ");
 
     if( info.norm_type == NO_NORM )
         fprintf(fp,"No Normalization.\n");
@@ -731,12 +508,15 @@ void print_minimal(const Info&info,FILE*fp) {
     if( info.norm_type == ZERO_MEAN_W_STD )
         fprintf(fp,"Normalized to Mean=0, Std=PRJ_W.\n");
 
-    fprintf(fp,"    - Angular search: Sym=%s | ",info.pseudo_sym);
+    if( info.use_sigma )
+        fprintf(fp,"    - Measuring: max( (cc_max - cc_mean) / cc_std , 0 ).\n");
+
+    fprintf(fp,"    - Angular search: [ %s | ",info.pseudo_sym);
     
-    fprintf(fp,"Cone=%.3f,%.3f | ",info.cone_range,info.cone_step);
-    fprintf(fp,"Inplace=%.3f,%.3f | ",info.inplane_range,info.inplane_step);
-    fprintf(fp,"Refinement: %d|%d.\n",info.refine_level,info.refine_factor);
-    print_angles_minimal(info,fp);
+    fprintf(fp,"%.3f,%.3f | ",info.cone_range,info.cone_step);
+    fprintf(fp,"%.3f,%.3f | ",info.inplane_range,info.inplane_step);
+    fprintf(fp,"%d|%d ]: ",info.refine_level,info.refine_factor);
+    print_angles(info,fp,info.verbosity>0);
 	
     uint32_t total_points=0;
     if( info.off_type == ELLIPSOID ) {

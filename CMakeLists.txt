@@ -25,7 +25,7 @@ endforeach()
 # Conditionally build if MPI is found
 find_package(MPI)
 if( MPI_FOUND )
-	set(target_list reconstruct_mpi aligner_mpi)
+	set(target_list reconstruct_mpi aligner_mpi ctf_refiner_mpi)
 	foreach(target IN LISTS target_list)
 		set(bin susan_${target})
 		add_executable(${bin} src/${target}.cu)

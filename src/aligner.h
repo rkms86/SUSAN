@@ -32,16 +32,11 @@
 #include "ref_maps.h"
 #include "stack_reader.h"
 #include "gpu.h"
-#include "gpu_kernel.h"
-#include "gpu_rand.h"
-#include "gpu_kernel_ctf.h"
 #include "substack_crop.h"
-#include "mrc.h"
-#include "io.h"
-#include "points_provider.h"
 #include "angles_provider.h"
 #include "ref_ali.h"
 #include "aligner_args.h"
+#include "progress.h"
 
 typedef enum {
 	ALI_3D=1,
@@ -94,6 +89,7 @@ public:
     int ctf_type;
     int max_K;
     bool ali_halves;
+    bool use_sigma;
     float3  bandpass;
     float2  ssnr; /// x=F; y=S;
     DoubleBufferHandler *p_buffer;
@@ -268,30 +264,15 @@ protected:
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,ptr->K);
         GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_wgt.ptr,ptr->ctf_vals,ptr->g_def.ptr,ss);
-
-        //static bool flag = true;
-        //if( flag ) {
-        //    flag = false;
-        //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        /*if( ptr->ptcl.ptcl_id() == 6 ) {
-            stream.sync();
-            float*tmp = new float[MP*NP*ptr->K];
-            GPU::download_async(tmp,ctf_wgt.ptr,MP*NP*ptr->K,stream.strm);
-            stream.sync();
-            char fn[SUSAN_FILENAME_LENGTH];
-            sprintf(fn,"ctf_%d.mrc",ptr->r_ix);
-            Mrc::write(tmp,MP,NP,ptr->K,fn);
-            delete [] tmp;
-        }*/
     }
 	
     void add_data(AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,RadialAverager&rad_avgr,GPU::Stream&stream) {
 
         switch( pad_type ) {
-            case ArgsAli::PaddingType_t::PAD_ZERO:
+            case PAD_ZERO:
                 ss_data.pad_zero(stream);
                 break;
-            case ArgsAli::PaddingType_t::PAD_GAUSSIAN:
+            case PAD_GAUSSIAN:
                 ss_data.pad_normal(ptr->g_pad,ptr->K,stream);
                 break;
             default:
@@ -300,30 +281,14 @@ protected:
 
         ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
 
-        //static bool flag = true;
-        //if( flag ) {
-        //    flag = false;
-        //if( ptr->ptcl.ptcl_id() == 2122 ) {
-        /*if( ptr->ptcl.ptcl_id() == 1 ) {
-            stream.sync();
-            float*tmp = new float[NP*NP*ptr->K];
-            GPU::download_async(tmp,ss_data.ss_padded.ptr,NP*NP*ptr->K,stream.strm);
-            stream.sync();
-            char filename[1000];
-            sprintf(filename,"data_%02d.mrc",ptr->r_ix);
-            Mrc::write(tmp,NP,NP,ptr->K,filename);
-            delete [] tmp;
-        }*/
-
         switch( ctf_type ) {
-            case ArgsAli::CtfCorrectionType_t::ON_SUBSTACK:
-            case ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING:
+            case ALI_ON_SUBSTACK:
                 ss_data.correct_wiener(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
                 break;
-            case ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_SSNR:
+            case ALI_ON_SUBSTACK_SSNR:
                 ss_data.correct_wiener_ssnr(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ssnr,ptr->K,stream);
                 break;
-            case ArgsAli::CtfCorrectionType_t::CUMULATIVE_FSC:
+            case ALI_CUMULATIVE_FSC:
                 rad_avgr.preset_FRC(ss_data.ss_fourier,ptr->K,stream);
                 break;
             default:
@@ -347,7 +312,9 @@ protected:
         M33f max_R,R_ite,R_tmp;
         M33f R_lvl = Eigen::MatrixXf::Identity(3,3);
 
-        //int counter = 0;
+        single running_avg = 0;
+        single running_std = 0;
+        single running_cnt = 0;
 
         for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
             for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
@@ -358,44 +325,23 @@ protected:
                         R_tmp = R_ite*R_lvl;
                         Math::set(Rot,R_tmp);
                         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
-
-                        /*if( ptr->ptcl.ptcl_id() == 6 ) {
-                            ali_data.project(vol.ref,bandpass,ptr->K,stream);
-                            ali_data.multiply(ctf_wgt,ptr->K,stream);
-                            ali_data.invert_fourier(ptr->K,stream);
-                            float *tmp = new float[NP*NP*ptr->K];
-                            GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
-                            stream.sync();
-                            char fn[SUSAN_FILENAME_LENGTH];
-                            sprintf(fn,"proj_3D_%d_%d.mrc",ptr->class_ix,ptr->r_ix);
-                            Mrc::write(tmp,NP,NP,ptr->K,fn);
-                            delete [] tmp;
-                        }*/
-
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE )
+                        if( ctf_type == ALI_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::CUMULATIVE_FSC ) {
+                        if( ctf_type == ALI_CUMULATIVE_FSC ) {
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
                             rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
                         }
 
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
-                            ss_data.whitening_filter(ali_data.prj_c,ptr->K,stream);
-
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_PHASE ) {
-                            ss_data.norm_complex(ali_data.prj_c,ptr->K,stream);
-                        }
-
                         ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.invert_fourier(ptr->K,stream);
 
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE ||
-                            ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK )
+                        if( ctf_type == ALI_ON_REFERENCE ||
+                            ctf_type == ALI_ON_SUBSTACK )
                         {
                             ali_data.scale(N*N,ptr->K,stream);
                             ali_data.scale(N*N,ptr->K,stream);
@@ -403,18 +349,6 @@ protected:
                         else {
                             ali_data.scale(4*float(N*N)/M_PI,ptr->K,stream);
                         }
-
-
-                        /*if( ptr->ptcl.ptcl_id() == 4746 ) {
-                            float *tmp = new float[NP*NP*ptr->K];
-                            GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
-                            stream.sync();
-                            char fn[SUSAN_FILENAME_LENGTH];
-                            sprintf(fn,"cc_3D_%d_%d.mrc",ptr->class_ix,counter);
-                            Mrc::write(tmp,NP,NP,ptr->K,fn);
-                            delete [] tmp;
-                            counter++;
-                        }*/
 
                         ali_data.sparse_reconstruct(ptr->g_ali,ptr->K,stream);
                         stream.sync();
@@ -424,56 +358,22 @@ protected:
                             max_cc  = cc;
                             max_R   = R_tmp;
                         }
-
-                        //static bool flag = true;
-                        //if( ptr->ptcl.ptcl_id() == 2122 ) {
-                        //flag = false;
-                        /*if( ptr->ptcl.ptcl_id() == 3 ) {
-                            printf("cc: %f\n",max_cc);
-                            printf("t = [%f %f %f];\n",ali_data.c_pts[max_idx].x,ali_data.c_pts[max_idx].y,ali_data.c_pts[max_idx].z);
-                            printf("                                                                                      \n");
-                            FILE*fp=fopen("create_cc_rec.m","w");
-                            fprintf(fp,"cc_rec=zeros(%d,%d,%d);\n",N,N,N);
-                            for(int n=0;n<ali_data.n_pts;n++) {
-                                int xx = (int)(ali_data.c_pts[n].x) + N/2 + 1;
-                                int yy = (int)(ali_data.c_pts[n].y) + N/2 + 1;
-                                int zz = (int)(ali_data.c_pts[n].z) + N/2 + 1;
-                                fprintf(fp,"cc_rec(%3d,%3d,%3d) = %.4f;\n",xx,yy,zz,ali_data.c_cc[n]);
-                            }
-                            fclose(fp);
-                        }*/
-
+                        if( use_sigma )
+                            ali_data.aggregate_avg_std(running_avg,running_std,running_cnt,ali_data.c_cc);
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
             R_lvl = max_R;
         } // REFINE
 
-        /*if( ptr->ptcl.ptcl_id() == 1 ) {
-            V3f eu;
-            Math::Rmat_eZYZ(eu,max_R);
-            eu = eu*RAD2DEG;
-            printf("cc: %f [%d]\n",max_cc,ptr->class_ix);
-            printf("t = [%f %f %f];\n",ali_data.c_pts[max_idx].x,ali_data.c_pts[max_idx].y,ali_data.c_pts[max_idx].z);
-            printf("R = [%f %f %f];\n",eu(0),eu(1),eu(2));
-            printf("                                                                                      \n");
-            //flag = false;
-            FILE*fp=fopen("create_cc_rec.m","w");
-            fprintf(fp,"cc_rec=zeros(%d,%d,%d);\n",N,N,N);
-            for(int n=0;n<ali_data.n_pts;n++) {
-                int xx = (int)(ali_data.c_pts[n].x) + N/2 + 1;
-                int yy = (int)(ali_data.c_pts[n].y) + N/2 + 1;
-                int zz = (int)(ali_data.c_pts[n].z) + N/2 + 1;
-                fprintf(fp,"cc_rec(%3d,%3d,%3d) = %.4f;\n",xx,yy,zz,ali_data.c_cc[n]);
-            }
-            fclose(fp);
-        }*/
-
-        /*float w_total=0;
-        for(int k=0;k<ptr->K;k++) {
-            w_total += ptr->c_ali.ptr[k].w;
+        if( use_sigma ) {
+            running_avg = running_avg/running_cnt;
+            running_std = running_std/running_cnt;
+            running_std = running_std - (running_avg*running_avg);
+            running_std = sqrtf(running_std);
+            cc = (cc - running_avg) / running_std;
+            cc = fmax(cc,0.0);
         }
-        update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc/w_total,ptr->class_ix,ptr->ctf_vals.apix);*/
         update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
     }
 
@@ -492,8 +392,6 @@ protected:
         memset(max_cc,0,sizeof(single)*ptr->K);
         memset(max_idx,0,sizeof(single)*ptr->K);
 
-        //int counter = 0;
-
         for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
             for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
                 for( ang_prov.cone_init(); ang_prov.cone_available(); ang_prov.cone_next() ) {
@@ -502,46 +400,24 @@ protected:
                         ang_prov.get_current_R(R_ite);
                         Math::set(Rot,R_ite);
                         ali_data.rotate_pre(Rot,ptr->g_ali,ptr->K,stream);
-
-                        /*if( ptr->ptcl.ptcl_id() == 1 ) {
-                            ali_data.project(vol.ref,bandpass,ptr->K,stream);
-                            if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE )
-                                ali_data.multiply(ctf_wgt,ptr->K,stream);
-                            ali_data.invert_fourier(ptr->K,stream);
-                            float *tmp = new float[NP*NP*ptr->K];
-                            GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
-                            stream.sync();
-                            char fn[SUSAN_FILENAME_LENGTH];
-                            sprintf(fn,"proj_%d_%d.mrc",ptr->class_ix,ptr->r_ix);
-                            Mrc::write(tmp,NP,NP,ptr->K,fn);
-                            delete [] tmp;
-                        }*/
-
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE )
+                        if( ctf_type == ALI_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::CUMULATIVE_FSC ) {
+                        if( ctf_type == ALI_CUMULATIVE_FSC ) {
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
                             rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
                         }
 
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_WHITENING )
-                            ss_data.whitening_filter(ali_data.prj_c,ptr->K,stream);
-
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK_PHASE ) {
-                            ss_data.norm_complex(ali_data.prj_c,ptr->K,stream);
-                        }
-
                         ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.invert_fourier(ptr->K,stream);
                         stream.sync();
 
-                        if( ctf_type == ArgsAli::CtfCorrectionType_t::ON_REFERENCE ||
-                            ctf_type == ArgsAli::CtfCorrectionType_t::ON_SUBSTACK )
+                        if( ctf_type == ALI_ON_REFERENCE ||
+                            ctf_type == ALI_ON_SUBSTACK )
                         {
                             ali_data.scale(N*N,ptr->K,stream);
                             ali_data.scale(N*N,ptr->K,stream);
@@ -549,26 +425,6 @@ protected:
                         else {
                             ali_data.scale(4*float(N*N)/M_PI,ptr->K,stream);
                         }
-
-                        /*if( ptr->ptcl.ptcl_id() == 1 ) {
-                            float *tmp = new float[NP*NP*ptr->K];
-                            char fn[SUSAN_FILENAME_LENGTH];
-
-                            GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
-                            stream.sync();
-                            sprintf(fn,"cc_%d_%d.mrc",ptr->class_ix,counter);
-                            Mrc::write(tmp,NP,NP,ptr->K,fn);
-
-                            cudaMemcpyAsync( ali_data.prj_c.ptr,ss_data.ss_fourier.ptr, sizeof(float2)*NP*MP*ptr->K, cudaMemcpyDeviceToDevice, stream.strm );
-                            ali_data.invert_fourier(ptr->K,stream);
-                            GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
-                            stream.sync();
-                            sprintf(fn,"data_%d_%d.mrc",ptr->class_ix,counter);
-                            Mrc::write(tmp,NP,NP,ptr->K,fn);
-
-                            delete [] tmp;
-                            counter++;
-                        }*/
 
                         ali_data.extract_cc(ite_cc,ite_idx,ptr->K,stream);
 
@@ -579,34 +435,6 @@ protected:
                                 max_R[i]   = R_ite;
                             }
                         }
-
-                        /*if( ptr->ptcl.ptcl_id() == 12 ) {
-                            float *tmp = new float[NP*NP*ptr->K];
-                            GPU::download_async(tmp,ali_data.prj_r.ptr,NP*NP*ptr->K,stream.strm);
-                            stream.sync();
-                            Mrc::write(tmp,NP,NP,ptr->K,"cc.mrc");
-                            delete [] tmp;
-                            FILE*fp=fclose("pts.txt","*Nw");
-                            for(int i=0;i<ptr->K;i++) {
-                                fprintf(fp,"%3d: %10.4f : %6.1f,%6.1f,%6.1f\n",i+1,max_cc[i],ali_data.c_pts[max_idx[i]].x,ali_data.c_pts[max_idx[i]].y,ali_data.c_pts[max_idx[i]].z);
-                            }
-                            fclose(fp);
-                        }*/
-
-                        /*static bool flag = true;
-                        if( flag ) {
-                            flag = false;
-                            FILE*fp=fopen("create_cc_rec.m","w");
-                            fprintf(fp,"cc_rec=zeros(%d,%d,%d);\n",N,N,N);
-                            for(int n=0;n<ali_data.n_pts;n++) {
-                                int xx = (int)(ali_data.c_pts[n].x) + N/2 + 1;
-                                int yy = (int)(ali_data.c_pts[n].y) + N/2 + 1;
-                                int zz = (int)(ali_data.c_pts[n].z) + N/2 + 1;
-                                fprintf(fp,"cc_rec(%3d,%3d,%3d) = %.4f;\n",xx,yy,zz,ali_data.c_cc[n]);
-                            }
-                            fclose(fp);
-                        }*/
-
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
@@ -818,6 +646,7 @@ protected:
         gpu_worker.R          = R;
         gpu_worker.p_refs     = p_refs;
         gpu_worker.ali_halves = p_info->ali_halves;
+        gpu_worker.use_sigma  = p_info->use_sigma;
         gpu_worker.pad_type   = pad_type;
         gpu_worker.ctf_type   = p_info->ctf_type;
         gpu_worker.max_K      = max_K;
@@ -938,9 +767,6 @@ protected:
                 pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center;
 
                 /// Get subpixel shift
-                //pt_subpix(0) = pt_crop(0) - floor(pt_crop(0));
-                //pt_subpix(1) = pt_crop(1) - floor(pt_crop(1));
-                //pt_subpix(2) = 0;
                 V3f pt_tmp;
                 pt_tmp(0) = pt_crop(0) - floor(pt_crop(0));
                 pt_tmp(1) = pt_crop(1) - floor(pt_crop(1));
@@ -968,20 +794,20 @@ protected:
                         ptr->c_ali.ptr[k].w = 0;
                     }
                     else {
-                        if( p_info->norm_type == ArgsAli::NormalizationType_t::NO_NORM ) {
+                        if( p_info->norm_type == NO_NORM ) {
                             ptr->c_pad.ptr[k].x = avg;
                             ptr->c_pad.ptr[k].y = std;
                         }
                         else {
                             Math::normalize(ss_ptr,N*N,avg,std);
                             ptr->c_pad.ptr[k].x = 0;
-                            if( p_info->norm_type == ArgsAli::NormalizationType_t::ZERO_MEAN ) {
+                            if( p_info->norm_type == ::ZERO_MEAN ) {
                                 ptr->c_pad.ptr[k].y = std;
                             }
-                            if( p_info->norm_type == ArgsAli::NormalizationType_t::ZERO_MEAN_1_STD ) {
+                            if( p_info->norm_type == ZERO_MEAN_1_STD ) {
                                 ptr->c_pad.ptr[k].y = 1;
                             }
-                            if( p_info->norm_type == ArgsAli::NormalizationType_t::ZERO_MEAN_W_STD ) {
+                            if( p_info->norm_type == ZERO_MEAN_W_STD ) {
                                 ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
                             }
                         }
@@ -1031,13 +857,12 @@ public:
     int NP;
     int MP;
 
-    Math::Timing timer;
-
-    char progress_buffer[68];
-    char progress_clear [69];
+    ProgressReporter progress;
 
     AliPool(ArgsAli::Info*info,References*in_p_refs,int in_max_K,int num_ptcls,StackReader&stkrdr,int in_num_threads)
-     : PoolCoordinator(stkrdr,in_num_threads), w_cmd(2*in_num_threads+1)
+     : PoolCoordinator(stkrdr,in_num_threads),
+       w_cmd(2*in_num_threads+1),
+       progress("    Aligning particles",num_ptcls)
     {
         workers  = new AliRdrWorker[in_num_threads];
         p_info   = info;
@@ -1048,19 +873,6 @@ public:
         P = info->pad_size;
         NP = N+P;
         MP = (NP/2)+1;
-
-        memset(progress_buffer,' ',66);
-        memset(progress_clear,'\b',66);
-        progress_buffer[66] = 0;
-        progress_buffer[67] = 0;
-        if( SUSAN_CARRIER_RETURN == '\r' ) {
-            progress_clear [66] = SUSAN_CARRIER_RETURN;
-        }
-        else {
-            progress_clear [65] = 0;
-        }
-        progress_clear [67] = 0;
-
         load_references(in_p_refs);
     }
 
@@ -1128,67 +940,20 @@ protected:
     }
 
     virtual void progress_start() {
-        timer.tic();
-        sprintf(progress_buffer,"        Aligning particles: Buffering...");
-        int n = strlen(progress_buffer);
-        progress_buffer[n]  = ' ';
-        progress_buffer[65] = 0;
-        printf(progress_buffer);
-        fflush(stdout);
+        progress.start();
     }
 
     virtual void show_progress(const int ptcls_in_tomo) {
         int cur_progress=0;
         while( (cur_progress=count_progress()) < ptcls_in_tomo ) {
-            memset(progress_buffer,' ',66);
-            if( cur_progress > 0 ) {
-                int progress = count_accumul();
-                float progress_percent = 100*(float)progress/float(n_ptcls);
-                sprintf(progress_buffer,"        Aligning particles: %6.2f%%%%",progress_percent);
-                int n = strlen(progress_buffer);
-                add_etc(progress_buffer+n,progress,n_ptcls);
-            }
-            else {
-                sprintf(progress_buffer,"        Aligning particles: Buffering...");
-                int n = strlen(progress_buffer);
-                progress_buffer[n]  = ' ';
-                progress_buffer[65] = 0;
-            }
-            printf(progress_clear);
-            fflush(stdout);
-            printf(progress_buffer);
-            fflush(stdout);
-            sleep(1);
+            int total_progress = count_accumul();
+            progress.update(total_progress,cur_progress==0);
+            sleep(2);
         }
     }
 	
     virtual void show_done() {
-        memset(progress_buffer,' ',66);
-        sprintf(progress_buffer,"        Aligning particles: 100.00%%%%");
-        int n = strlen(progress_buffer);
-        progress_buffer[n] = ' ';
-        printf(progress_clear);
-        printf(progress_buffer);
-        printf("\n");
-        fflush(stdout);
-    }
-
-    void add_etc(char*buffer,int progress,int total) {
-
-        int days,hours,mins,secs;
-
-        timer.get_etc(days,hours,mins,secs,progress,total);
-
-        if( days > 0 ) {
-            sprintf(buffer," (ETC: %dd %02d:%02d:%02d)",days,hours,mins,secs);
-            int n = strlen(buffer);
-            buffer[n] = ' ';
-        }
-        else {
-            sprintf(buffer," (ETC: %02d:%02d:%02d)",hours,mins,secs);
-            int n = strlen(buffer);
-            buffer[n] = ' ';
-        }
+        progress.finish();
     }
 
 };
