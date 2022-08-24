@@ -626,7 +626,7 @@ class Particles:
         for i in range(pos.shape[0]):
             tmp = self.position[i,:] + self.ali_t[ref_cix,i,:]
             tmp = tmp/apix
-            pos[i,:] = tmp + tomograms.tomo_size[self.tomos_cix[i]]/2
+            pos[i,:] = tmp + tomograms.tomo_size[self.tomo_cix[i]]/2
         return pos
 
 
