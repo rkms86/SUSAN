@@ -49,3 +49,11 @@ if( Matlab_FOUND )
 		file(COPY "${CMAKE_CURRENT_BINARY_DIR}/${binary}" DESTINATION "${folder}/")
 	endforeach()
 endif( Matlab_FOUND )
+
+# Add target to install binaries into the Python package
+add_custom_target(prepare_python
+	COMMAND mkdir ${CMAKE_SOURCE_DIR}/susan/bin
+	COMMAND cp -v ${CMAKE_CURRENT_BINARY_DIR}/susan_* ${CMAKE_SOURCE_DIR}/susan/bin/
+)
+
+
