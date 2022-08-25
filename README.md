@@ -82,6 +82,7 @@ After executing the optional steps for the `Python` module, it can be installed 
 ```
 pip install .
 ```
+After this step, the module `susan` should be available to be imported.
 
 ### `Matlab` setup
 `LOCAL_SUSAN_PATH` must be added to path. On the `Matlab` command line, or on a `Matlab` script:
