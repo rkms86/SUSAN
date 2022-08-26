@@ -370,12 +370,19 @@ protected:
         } // REFINE
 
         if( use_sigma ) {
-            running_avg = running_avg/running_cnt;
-            running_std = running_std/running_cnt;
-            running_std = running_std - (running_avg*running_avg);
-            running_std = sqrtf(running_std);
-            max_cc = (max_cc - running_avg) / running_std;
-            max_cc = fmax(max_cc,0.0);
+            if( (running_cnt > 0) || (running_std<SUSAN_FLOAT_TOL) ) {
+                running_avg = running_avg/running_cnt;
+                running_std = running_std/running_cnt;
+                running_std = running_std - (running_avg*running_avg);
+                running_std = sqrtf(running_std);
+                max_cc = (max_cc - running_avg) / running_std;
+                max_cc = fmax(max_cc,0.0);
+            }
+            else {
+                max_cc  = 0;
+                max_idx = (ali_data.n_pts/2);
+            }
+
         }
         update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
     }
