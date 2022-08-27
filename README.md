@@ -1,6 +1,16 @@
 # SUbStack ANalysis (SUSAN): High performance Subtomogram Averaging
 **(Personal/Development version)**
 
+## Contents
+- [Description](#description)
+- [Building and setup instructions](#building-and-setup-instructions)
+  - [Dependencies](#dependencies)
+  - [Setup and compilation](#initial-setup-and-compilation)
+  - [`Python` setup](#python-setup)
+  - [`Matlab` setup](#matlab-setup)
+- [Tutorial](#tutorial)
+
+## Description
 `SUSAN` is a low-level/mid-level framework for fast Subtomogram Averaging (StA) for CryoEM. It uses *susbtacks* instead of *subtomograms* that are cropped *on-the-fly* from the aligned stacks to reduce the computational complexity and to increase the overall performace of the StA pipeline.
 
 `SUSAN` was designed to be modular, flexible and fast. It is conformed by two layers:
