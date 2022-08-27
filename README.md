@@ -8,6 +8,7 @@
   - [Setup and compilation](#initial-setup-and-compilation)
   - [`Python` setup](#python-setup)
   - [`Matlab` setup](#matlab-setup)
+- [Installing in a `conda` environment (`Python`)](#installing-susan-in-a-conda-environment-for-python)
 - [Tutorial](#tutorial)
 
 ## Description
@@ -37,47 +38,47 @@ I started the development of `SUSAN` at the [Independent Research Group (Sofja K
 We assume that `SUSAN` will be installed in the `LOCAL_SUSAN_PATH` folder (`LOCAL_SUSAN_PATH` can be `/home/user/Software/`, for example)
 1. Install the desired dependencies.
 2. Clone `SUSAN` to `LOCAL_SUSAN_PATH`:
-```
-cd LOCAL_SUSAN_PATH
-git clone https://github.com/rkms86/SUSAN
-```
+   ```
+   cd LOCAL_SUSAN_PATH
+   git clone https://github.com/rkms86/SUSAN
+   ```
    - **(Optional)** Install `Eigen`:
-```
-cd LOCAL_SUSAN_PATH/extern
-git clone https://gitlab.com/libeigen/eigen.git eigen
-cd eigen
-mkdir build
-cd build
-cmake ../ -DCMAKE_INSTALL_PREFIX=../../eigen_lib
-make install
-cd LOCAL_SUSAN_PATH
-```
+     ```
+     cd LOCAL_SUSAN_PATH/SUSAN/extern
+     git clone https://gitlab.com/libeigen/eigen.git eigen
+     cd eigen
+     mkdir build
+     cd build
+     cmake ../ -DCMAKE_INSTALL_PREFIX=../../eigen_lib
+     make install
+     cd LOCAL_SUSAN_PATH/SUSAN
+     ```
 3. Compile `SUSAN`:
-```
-mkdir bin
-cd bin
-cmake ../
-make -j
-```
-**Note:** The `cmake` procedure detects the availabilty of `OpenMPI` and `Matlab` and compiles their functionalities accordingly.
+   ```
+   mkdir bin
+   cd bin
+   cmake ../
+   make -j
+   ```
+   **Note:** The `cmake` procedure detects the availabilty of `OpenMPI` and `Matlab` and compiles their functionalities accordingly.
 
 - **(Optional)** To be able to install `SUSAN` as a `Python` package:
-```
-make prepare_python
-```
-This will install the compiled binaries in the `bin` folder of the `Python` package.
+  ```
+  make prepare_python
+  ```
+  This will install the compiled binaries in the `bin` folder of the `Python` package.
 
 ### `Python` setup
 #### Dependencies
 Besides the standard libraries, the `SUSAN` module for `Python` has only two dependencies: [`NumPy`](https://numpy.org/) and [`Numba`](https://numba.pydata.org/). Install them if needed:
 - Using [`conda`](https://conda.io) (or equivalent):
-```
-conda install numpy numba
-```
+  ```
+  conda install numpy numba
+  ```
 - Using [`pip`](https://pypi.org/)
-```
-pip install numpy numba
-```
+  ```
+  pip install numpy numba
+  ```
 
 #### Option 1: Using `susan` without installation
 `LOCAL_SUSAN_PATH` must be added to path first and then the `susan` module can be imported. On the `Python` command line, or on a `Python` script:
@@ -100,24 +101,60 @@ After this step, the module `susan` should be available to be imported.
 addpath LOCAL_SUSAN_PATH
 ```
 
+## Installing `SUSAN` in a `conda` environment (for `Python`)
+`SUSAN` can be built and installed inside a [`conda` environment](https://conda.io/projects/conda/en/latest/user-guide/concepts/environments.html):
+
+-  **(Optional)** Create a new `conda` environment:
+   ```
+   conda create -n susan_env
+   ```
+1. Activate the working environment, for this example we will use `susan_env`
+   ```
+   conda activate susan_env
+   ```
+2. Install the packages needed for building `SUSAN`
+   ```
+   conda install -c nvidia -c conda-forge git cmake make eigen c-compiler cxx-compiler cuda python numpy numba
+   ```
+-  **(Optional)** Install `openmpi`:
+   ```
+   conda install openmpi
+   ```
+2. Clone `SUSAN` to `LOCAL_SUSAN_PATH` (For example, `LOCAL_SUSAN_PATH` can be `~/Software/`), compile it and prepare it for the `Python` installation:
+   ```
+   cd LOCAL_SUSAN_PATH
+   git clone https://github.com/rkms86/SUSAN
+   mkdir SUSAN/bin
+   cd SUSAN/bin
+   cmake ../
+   make -j
+   make prepare_python
+   cd ..
+   ```
+3. Install the packages in the current environment
+   ```
+   pip install .
+   ```
+After these step the module `susan` should be available.
+
 ## Tutorial
 A tutorial is available for `Python` and `Matlab` for the `mixedCTEM` dataset from the [EMPIAR-10064](https://www.ebi.ac.uk/empiar/EMPIAR-10064/). It is assumed that the `wget` and `gunzip` commands and the `IMOD` framework are installed in the system.
 
 ### Preparing the data
 1. Download the dataset (uses `wget`):
-```
-cd LOCAL_SUSAN_PATH/tutorials/empiar_10064/data
-./download_data.sh
-```
+   ```
+   cd LOCAL_SUSAN_PATH/tutorials/empiar_10064/data
+   ./download_data.sh
+   ```
 2. Create the aligned stacks (uses `IMOD`):
-```
-./create_binned_aligned_stacks.sh
-```
+   ```
+   ./create_binned_aligned_stacks.sh
+   ```
 3. Uncompress the initial reference (uses `gunzip`):
-```
-cd LOCAL_SUSAN_PATH/tutorials/empiar_10064
-gunzip emd_3420_b4.mrc.gz
-```
+   ```
+   cd LOCAL_SUSAN_PATH/tutorials/empiar_10064
+   gunzip emd_3420_b4.mrc.gz
+   ```
 
 ### Running the Tutorial
 Depending on the system setup:
