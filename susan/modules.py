@@ -327,8 +327,9 @@ class CtfRefiner:
         if not rslt == 0:
             raise NameError('Error executing the refinement: ' + cmd)
     
-	def refine_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
+    def refine_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         cmd = self.mpi.gen_cmd() + ' susan_refine_ctf_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the refinement: ' + cmd)
+
