@@ -68,7 +68,7 @@ class Aligner:
         self.offset.step = off_step
         self.offset.kind = off_type
         
-    def validate(self):
+    def _validate(self):
         if not self.dimensionality in [2,3]:
             raise ValueError('Invalid dimensionality type. Only 3 or 3 are valid')
         
@@ -103,7 +103,7 @@ class Aligner:
                 raise ValueError('Inplane: Step cannot be larger than Range/Span')
 
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        self.validate()
+        self._validate()
         n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
         gpu_str   = _get_gpu_str(self.list_gpus_ids)
         args =        ' -tomos_file '      + tomos_file
@@ -162,7 +162,7 @@ class Averager:
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         
-    def validate(self):
+    def _validate(self):
         if not self.padding_type in ['zero','noise']:
             raise NameError('Invalid padding type. Only "zero" or "noise" are valid')
         
@@ -173,7 +173,7 @@ class Averager:
             raise NameError('Invalid ctf correction type. Only "none", "phase_flip", "wiener" ot "wiener_ssnr" are valid')
             
     def get_args(self,out_pfx,tomos_file,ptcls_in,box_size):
-        self.validate()
+        self._validate()
         if self.bandpass.lowpass <= 0:
             self.bandpass.lowpass = box_size/2-1
         n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
@@ -227,7 +227,7 @@ class CtfEstimator:
         self.verbose           = 0
         #self.verbosity         = 0
         
-    def validate(self):
+    def _validate(self):
         if not self.refine_defocus.step > 0:
             raise ValueError('The steps values must be larger than 0')
         
@@ -241,7 +241,7 @@ class CtfEstimator:
             raise ValueError('Defocus (angstroms): min is larger than max')
             
     def get_args(self,out_dir,tomos_file,ptcls_in,box_size):
-        self.validate()
+        self._validate()
         if out_dir[-1] == '/':
             out_dir = out_dir[:-1]
         n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
@@ -283,10 +283,10 @@ class CtfRefiner:
         self.estimate_dose_wgt = False
         self.defocus_angstroms = _dt.search_params(1000,100)
         self.angles            = _dt.search_params(2,1)
-        #self.mpi               = _dt.mpi_params('srun -n %d ',1)
+        self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         
-    def validate(self):
+    def _validate(self):
         if not self.padding_type in ['zero','noise']:
             raise ValueError('Invalid padding type. Only "zero" or "noise" are valid')
         
@@ -300,7 +300,7 @@ class CtfRefiner:
             raise ValueError('ANgles (degrees): Step cannot be larger than Range/Span')
 
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        self.validate()
+        self._validate()
         n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
         gpu_str   = _get_gpu_str(self.list_gpus_ids)
         args =        ' -tomos_file '      + tomos_file
@@ -325,5 +325,10 @@ class CtfRefiner:
         cmd = 'susan_refine_ctf ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
-            raise NameError('Error executing the alignment: ' + cmd)
+            raise NameError('Error executing the refinement: ' + cmd)
     
+	def refine_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
+        cmd = self.mpi.gen_cmd() + ' susan_refine_ctf_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
+        rslt = _os.system(cmd)
+        if not rslt == 0:
+            raise NameError('Error executing the refinement: ' + cmd)

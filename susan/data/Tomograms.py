@@ -26,10 +26,10 @@ class Tomograms:
     
     def __init__(self,filename=None,n_tomo=0,n_proj=0):
         if isinstance(filename, str):
-            self.load(filename) 
+            self._load(filename) 
         else:
             if n_tomo > 0 and n_proj > 0:
-                self.alloc(n_tomo,n_proj)
+                self._alloc(n_tomo,n_proj)
             else:
                 raise NameError('Invalid input')
     
@@ -47,7 +47,7 @@ class Tomograms:
     #def __repr__(self):
     #    return "Tomograms"
     
-    def alloc(self,n_tomos,n_projs):
+    def _alloc(self,n_tomos,n_projs):
         self.tomo_id    = _np.zeros( n_tomos   ,dtype=_np.uint32 )
         self.tomo_size  = _np.zeros((n_tomos,3),dtype=_np.uint32 )
         self.stack_file = []
@@ -74,13 +74,13 @@ class Tomograms:
         for i in range(n_tomos):
             self.stack_file.append('')
 
-    def load(self,filename):
+    def _load(self,filename):
         Tomograms._check_filename(filename)
         
         fp = open(filename,"rb")
         n_tomos = int(_prsr.read(fp,'num_tomos'))
         n_projs = int(_prsr.read(fp,'num_projs'))
-        self.alloc(n_tomos,n_projs)
+        self._alloc(n_tomos,n_projs)
         for i in range(n_tomos):
             self.tomo_id[i]      = _np.uint32((_prsr.read(fp,'tomo_id')))
             self.tomo_size[i,:]  = _np.fromstring(_prsr.read(fp,'tomo_size'),_np.uint32,sep=',')

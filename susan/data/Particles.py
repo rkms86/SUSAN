@@ -32,10 +32,10 @@ class Particles:
     
     def __init__(self,filename=None,n_ptcl=0,n_proj=0,n_refs=0):
         if isinstance(filename, str):
-            self.load(filename) 
+            self._load(filename) 
         else:
             if n_ptcl > 0 and n_proj > 0 and n_refs>0:
-                self.alloc(n_ptcl,n_proj,n_refs)
+                self._alloc(n_ptcl,n_proj,n_refs)
             else:
                 raise NameError('Invalid input')
 
@@ -52,7 +52,7 @@ class Particles:
         if not _is_ext(filename,'ptclsraw'):
             raise ValueError( 'Wrong file extension, do you mean ' + _force_ext(filename,'ptclsraw') + '?')
     
-    def alloc(self,n_ptcl,n_proj,n_refs):
+    def _alloc(self,n_ptcl,n_proj,n_refs):
         self.ptcl_id  = _np.zeros( n_ptcl   ,dtype=_np.uint32 )
         self.tomo_id  = _np.zeros( n_ptcl   ,dtype=_np.uint32 )
         self.tomo_cix = _np.zeros( n_ptcl   ,dtype=_np.uint32 )
@@ -216,12 +216,12 @@ class Particles:
         self.def_mres = self.def_mres[idx,:]
         self.def_scor = self.def_scor[idx,:]
 
-    def load(self,filename):
+    def _load(self,filename):
         Particles._check_filename(filename)
         
         fp = open(filename,"rb")
         n_ptcl, n_proj, n_refs = self._load_header(fp)
-        self.alloc(n_ptcl,n_proj,n_refs)
+        self._alloc(n_ptcl,n_proj,n_refs)
         bytes_per_ptcl = 4*( 10 + 8*n_refs + 7*n_proj + 8*n_proj )
         for i in range(n_ptcl):
             buffer = _np.frombuffer(fp.read(bytes_per_ptcl),_np.float32)
@@ -604,7 +604,9 @@ class Particles:
             p_out[i,:] = apix*pos
             
     @staticmethod
-    def import_data(tomograms,position,ptcls_id,tomos_id,randomize_angles=False):
+    def import_data(tomograms,position,tomos_id,ptcls_id=None,randomize_angles=False):
+        if ptcls_id is None:
+            ptcls_id = _np.arange(tomos_id.shape[0])
         apix = Particles._validate_tomogram(tomograms)
         N = Particles._validate_import_args(position,ptcls_id,tomos_id)
         ptcls = Particles(n_ptcl=N,n_proj=tomograms.n_projs,n_refs=1)
