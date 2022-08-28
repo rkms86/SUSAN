@@ -308,7 +308,7 @@ protected:
 		sprintf(filename,"%s/Tomo%03d",p_info->out_dir,tomo.tomo_id);
 		IO::create_dir(filename);
 		
-        printf("        Tomo %3d [%5d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,0);
+        printf("        Tomo %3d [%5d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,0.0);
 		fflush(stdout);
 		
 		w_cmd.presend_sync();
@@ -318,13 +318,11 @@ protected:
 		w_cmd.send_command(CtfCmd::CTF_AVG);
 		
 		while( (count=count_progress()) < ptcls.n_ptcl ) {
-			//printf("\b\b\b\b\b\b\b%6.2f%%",100*float(count)/float(ptcls.n_ptcl));
-			//fflush(stdout);
 			printf("\r        Tomo %3d [%5d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,100*float(count)/float(ptcls.n_ptcl));
 			fflush(stdout);
 			sleep(2);
 		}
-        printf("\r        Tomo %3d [%5d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,100);
+        printf("\r        Tomo %3d [%5d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,100.0);
 		fflush(stdout);
 		
 		w_cmd.presend_sync();
