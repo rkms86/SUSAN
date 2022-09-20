@@ -623,16 +623,17 @@ protected:
 	void reconstruct_maps(float*vol,GPU::GArrSingle&p_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
                 char out_file[SUSAN_FILENAME_LENGTH];
 		for(int r=0;r<R;r++) {
-			sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
-			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
-                        reconstruct_upload(workers[0].c_acc[r],workers[0].c_wgt[r],p_acc,p_wgt);
-                        reconstruct_sym(p_acc,p_wgt);
-                        reconstruct_invert(p_wgt);
-                        reconstruct_core(p_vol,p_acc,p_wgt);
-			reconstruct_download(vol,p_vol);
-                        Mrc::write(vol,N,N,N,out_file);
-                        Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
-			printf(" Done.\n");
+            sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
+            printf("        Reconstructing %s ... ",out_file); fflush(stdout);
+            reconstruct_upload(workers[0].c_acc[r],workers[0].c_wgt[r],p_acc,p_wgt);
+            reconstruct_sym(p_acc,p_wgt);
+            reconstruct_invert(p_wgt);
+            reconstruct_core(p_vol,p_acc,p_wgt);
+            reconstruct_download(vol,p_vol);
+            Mrc::write(vol,N,N,N,out_file);
+            Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
+            Mrc::set_as_volume(out_file);
+            printf(" Done.\n");
 		}
 	}
 	
@@ -641,40 +642,43 @@ protected:
                 char out_file[SUSAN_FILENAME_LENGTH];
 		for(int r=0;r<R/2;r++) {
 			
-			sprintf(out_file,"%s_class%03d_half1.mrc",p_info->out_pfx,r+1);
-			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
-			reconstruct_upload(workers[0].c_acc[2*r  ],workers[0].c_wgt[2*r  ],p_acc,p_wgt);
-                        reconstruct_sym(p_acc,p_wgt);
-                        reconstruct_invert(p_wgt);
-                        reconstruct_core(p_vol,p_acc,p_wgt);
-			reconstruct_download(vol,p_vol);
-			Mrc::write(vol,N,N,N,out_file);
-                        Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
-			printf(" Done.\n");
+            sprintf(out_file,"%s_class%03d_half1.mrc",p_info->out_pfx,r+1);
+            printf("        Reconstructing %s ... ",out_file); fflush(stdout);
+            reconstruct_upload(workers[0].c_acc[2*r  ],workers[0].c_wgt[2*r  ],p_acc,p_wgt);
+            reconstruct_sym(p_acc,p_wgt);
+            reconstruct_invert(p_wgt);
+            reconstruct_core(p_vol,p_acc,p_wgt);
+            reconstruct_download(vol,p_vol);
+            Mrc::write(vol,N,N,N,out_file);
+            Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
+            Mrc::set_as_volume(out_file);
+            printf(" Done.\n");
 			
-			sprintf(out_file,"%s_class%03d_half2.mrc",p_info->out_pfx,r+1);
-			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
-			reconstruct_upload(workers[0].c_acc[2*r+1],workers[0].c_wgt[2*r+1],p_acc,p_wgt);
-                        reconstruct_sym(p_acc,p_wgt);
-                        reconstruct_invert(p_wgt);
-                        reconstruct_core(p_vol,p_acc,p_wgt);
-			reconstruct_download(vol,p_vol);
-			Mrc::write(vol,N,N,N,out_file);
-                        Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
-			printf(" Done.\n");
+            sprintf(out_file,"%s_class%03d_half2.mrc",p_info->out_pfx,r+1);
+            printf("        Reconstructing %s ... ",out_file); fflush(stdout);
+            reconstruct_upload(workers[0].c_acc[2*r+1],workers[0].c_wgt[2*r+1],p_acc,p_wgt);
+            reconstruct_sym(p_acc,p_wgt);
+            reconstruct_invert(p_wgt);
+            reconstruct_core(p_vol,p_acc,p_wgt);
+            reconstruct_download(vol,p_vol);
+            Mrc::write(vol,N,N,N,out_file);
+            Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
+            Mrc::set_as_volume(out_file);
+            printf(" Done.\n");
 			
-			Math::sum(workers[0].c_acc[2*r],workers[0].c_acc[2*r+1],l);
-			Math::sum(workers[0].c_wgt[2*r],workers[0].c_wgt[2*r+1],l);
-			sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
-			printf("        Reconstructing %s ... ",out_file); fflush(stdout);
-			reconstruct_upload(workers[0].c_acc[2*r  ],workers[0].c_wgt[2*r  ],p_acc,p_wgt);
-                        reconstruct_sym(p_acc,p_wgt);
-                        reconstruct_invert(p_wgt);
-                        reconstruct_core(p_vol,p_acc,p_wgt);
-			reconstruct_download(vol,p_vol);
-			Mrc::write(vol,N,N,N,out_file);
-                        Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
-			printf(" Done.\n");
+            Math::sum(workers[0].c_acc[2*r],workers[0].c_acc[2*r+1],l);
+            Math::sum(workers[0].c_wgt[2*r],workers[0].c_wgt[2*r+1],l);
+            sprintf(out_file,"%s_class%03d.mrc",p_info->out_pfx,r+1);
+            printf("        Reconstructing %s ... ",out_file); fflush(stdout);
+            reconstruct_upload(workers[0].c_acc[2*r  ],workers[0].c_wgt[2*r  ],p_acc,p_wgt);
+            reconstruct_sym(p_acc,p_wgt);
+            reconstruct_invert(p_wgt);
+            reconstruct_core(p_vol,p_acc,p_wgt);
+            reconstruct_download(vol,p_vol);
+            Mrc::write(vol,N,N,N,out_file);
+            Mrc::set_apix(out_file,tomos->at(0).pix_size,N,N,N);
+            Mrc::set_as_volume(out_file);
+            printf(" Done.\n");
 			
 		}
 	}

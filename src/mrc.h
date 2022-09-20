@@ -90,6 +90,21 @@ namespace Mrc {
         fwrite(apix_arr,sizeof(float),3,fp);
         fclose(fp);
     }
+
+    void set_ispg (const char*mapname, const uint32 value) {
+        FILE*fp=fopen(mapname,"r+");
+        fseek(fp,88,SEEK_SET);
+        fwrite(&value,sizeof(uint32_t),1,fp);
+        fclose(fp);
+    }
+
+    void set_as_stack(const char*mapname) {
+        set_ispg(mapname,0);
+    }
+
+    void set_as_volume(const char*mapname) {
+        set_ispg(mapname,1);
+    }
 	
     bool is_mode_float(const char*mapname) {
         FILE*fp=fopen(mapname,"r");
