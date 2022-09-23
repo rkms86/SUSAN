@@ -70,7 +70,7 @@ def get_info(filename):
 
     return mrc_shape,pix_size,in_type
 
-def write(data,filename,apix=1,ispg=None):
+def write(data,filename,apix=1,ispg=None,fill_statistics=True):
     apix = _np.array(apix,dtype=_np.float32)
     if apix.size == 1:
         apix = _np.array((apix,apix,apix))
@@ -101,6 +101,13 @@ def write(data,filename,apix=1,ispg=None):
     hdr[27] =      20140 # MRC2014 format
     hdr[52] =  542130509 # 0x2050414B ('MAP ')
     hdr[53] =      17476 # 0x00004444 little-endian
+    
+    if fill_statistics:
+        hdr[19] = data.min().view(_np.uint32)
+        hdr[20] = data.max().view(_np.uint32)
+        hdr[21] = data.mean().view(_np.uint32)
+        hdr[54] = data.std().view(_np.uint32)
+    
     f = open(filename,'w')
     hdr.tofile(f)
     if data.dtype == 'float64':

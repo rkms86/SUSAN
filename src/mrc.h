@@ -26,6 +26,7 @@
 #include <string.h>
 #include <string>
 #include "datatypes.h"
+#include "math_cpu.h"
 
 using namespace std;
 
@@ -155,7 +156,7 @@ namespace Mrc {
         return rslt;
     }
     
-    void write(const single *data, const uint32 X, const uint32 Y, const uint32 Z, const char*mapname) {
+    void write(const single *data, const uint32 X, const uint32 Y, const uint32 Z, const char*mapname,bool fill_statistics=true) {
         FILE*fp=fopen(mapname,"wb");
         uint32 header[256];
         for(int i=0;i<256;i++) header[i] = 0;
@@ -175,6 +176,15 @@ namespace Mrc {
         header[27] = 20140;
         header[52] = 0x2050414D;
         header[53] = 0x00004444;
+        if(fill_statistics) {
+            float stats[4];
+            Math::get_min_max_avg_std(stats[0],stats[1],stats[2],stats[3],data,X*Y*Z);
+            uint32*tmp = (uint32*)stats;
+            header[19] = tmp[0];
+            header[20] = tmp[1];
+            header[21] = tmp[2];
+            header[54] = tmp[3];
+        }
         fwrite((void*)header,sizeof(uint32),256,fp);
         fwrite((void*)data,sizeof(single),X*Y*Z,fp);
         fclose(fp);

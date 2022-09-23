@@ -341,6 +341,83 @@ void get_avg_std(float&avg,float&std,const float*ptr,const uint32 length) {
     }
 }
 
+void get_min_max_avg_std(float&min,float&max,float&avg,float&std,const float*ptr,const uint32 length) {
+    /// One pass estimation of AVG and STD
+
+    uint32 i;
+    avg = 0;
+    std = 0;
+    min = 0;
+    max = 0;
+    float numel = (float)length;
+
+    if( should_use_avx2(length) ) {
+
+        float*ptr_w = (float*)ptr;
+        float tmp_min[8];
+        float tmp_max[8];
+        float tmp_arr[8];
+        float inv_numel = 1.0/numel;
+
+        __asm__ __volatile__(
+            "vbroadcastss (%0), %%ymm4\n\t"
+            "vmovups (%1), %%ymm0 \n\t"
+            "vmovups (%1), %%ymm5 \n\t"
+            "vmovups (%1), %%ymm6 \n\t"
+            "vmulps %%ymm0, %%ymm0, %%ymm1 \n\t"
+            :: "r"(&inv_numel),"r"(ptr_w) :"memory");
+        ptr_w += 8;
+
+        for(i=8;i<length;i+=8) {
+            __asm__ __volatile__(
+                "vmovups (%0), %%ymm2 \n\t"
+                "vaddps %%ymm2, %%ymm0, %%ymm0 \n\t"
+                "vmaxps %%ymm2, %%ymm5, %%ymm5 \n\t"
+                "vminps %%ymm2, %%ymm6, %%ymm6 \n\t"
+                "vmulps %%ymm2, %%ymm2, %%ymm3 \n\t"
+                "vaddps %%ymm3, %%ymm1, %%ymm1 \n\t"
+                :: "r"(ptr_w) :"memory");
+            ptr_w += 8;
+        }
+
+        __asm__ __volatile__(
+            "vdpps $0xF1, %%ymm0, %%ymm4, %%ymm2 \n\t"
+            "vdpps $0xF2, %%ymm1, %%ymm4, %%ymm3 \n\t"
+            "vaddps %%ymm2, %%ymm3, %%ymm3 \n\t"
+            "vmovups %%ymm3, (%0) \n\t"
+            "vmovups %%ymm5, (%1) \n\t"
+            "vmovups %%ymm6, (%2) \n\t"
+            :: "r"(tmp_arr),"r"(tmp_max),"r"(tmp_min):"memory");
+
+        avg = tmp_arr[0]+tmp_arr[4];
+        std = tmp_arr[1]+tmp_arr[5] - avg*avg;
+        std = sqrtf(std);
+
+        min = tmp_min[0];
+        max = tmp_max[0];
+        for(i=1;i<8;i++) {
+            min  = fmin(tmp_min[i],min);
+            max  = fmax(tmp_max[i],max);
+        }
+
+    }
+    else {
+        min = ptr[i];
+        max = ptr[i];
+        for(i=0;i<length;i++) {
+            float tmp = ptr[i];
+            avg += tmp;
+            std += (tmp*tmp);
+            min  = fmin(tmp,min);
+            max  = fmax(tmp,max);
+        }
+        avg = avg/numel;
+        std = std/numel;
+        std = std - (avg*avg);
+        std = sqrtf(std);
+    }
+}
+
 void zero_mean(float*ptr,const uint32 length, const float avg) {
     
     uint32 i;
