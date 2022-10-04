@@ -26,6 +26,7 @@
     #pragma nv_diag_suppress 20012
     #pragma nv_diag_suppress 20014
     #pragma nv_diag_suppress 20236
+    #pragma diag_suppress 20012
     #pragma diag_suppress 3123
     #pragma diag_suppress 3124
     #pragma diag_suppress 3126
