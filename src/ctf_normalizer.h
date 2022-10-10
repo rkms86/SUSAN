@@ -34,7 +34,7 @@
 #include "io.h"
 #include "points_provider.h"
 #include "svg.h"
-#include "reconstruct_args.h"
+#include "estimate_ctf_args.h"
 #include <iostream>
 
 class CtfNormalizer {
@@ -84,11 +84,20 @@ public:
 		stream.sync();
 	}
 	
-	void process(float*p_data,float2*p_pi_lambda_dZ,float apix,float bin_factor) {
+    void average(float*p_data,float bin_factor) {
+        fft2.exec(ss_fourier.ptr,p_data);
+        fftshift();
+        load_ps();
+        bin(bin_factor);
+        accumulate();
+        stream.sync();
+    }
+
+    void normal(float*p_data,float2*p_factor,float bin_factor) {
 		fft2.exec(ss_fourier.ptr,p_data);
 		fftshift();
 		load_ps();
-		normalize(p_pi_lambda_dZ,apix,bin_factor);
+        normalize(p_factor,bin_factor);
 		accumulate();
 		stream.sync();
 	}
@@ -110,14 +119,20 @@ protected:
 		GpuKernels::load_surf_abs<<<grd,blk,0,stream.strm>>>(ss_ps.surface,ss_fourier.ptr,ss_siz);
 	}
 	
-	void normalize(float2*p_pi_lambda_dZ,float apix,float bin_factor) {
+    void bin(float bin_factor) {
+        ss_acc_avg.clear(stream.strm);
+        ss_acc_std.clear(stream.strm);
+        GpuKernelsCtf::ctf_bin<<<grd,blk,0,stream.strm>>>(ss_ctf_ps.ptr,ss_ps.texture,bin_factor,ss_siz);
+        GpuKernels::get_avg_std<<<grd,blk,0,stream.strm>>>(ss_acc_std.ptr,ss_acc_avg.ptr,ss_ctf_ps.ptr,ss_siz);
+        GpuKernels::zero_avg_one_std<<<grd,blk,0,stream.strm>>>(ss_ctf_ps.ptr,ss_acc_std.ptr,ss_acc_avg.ptr,ss_siz);
+    }
+
+    void normalize(float2*p_factor,float bin_factor) {
 		ss_acc_avg.clear(stream.strm);
 		ss_acc_std.clear(stream.strm);
-		GpuKernelsCtf::ctf_normalize<<<grd,blk,0,stream.strm>>>(ss_ctf_ps.ptr,ss_ps.texture,p_pi_lambda_dZ,ss_vec_r.ptr,apix,bin_factor,ss_siz);
+        GpuKernelsCtf::ctf_normalize<<<grd,blk,0,stream.strm>>>(ss_ctf_ps.ptr,ss_ps.texture,p_factor,ss_vec_r.ptr,bin_factor,ss_siz);
 		GpuKernels::get_avg_std<<<grd,blk,0,stream.strm>>>(ss_acc_std.ptr,ss_acc_avg.ptr,ss_ctf_ps.ptr,ss_siz);
-		GpuKernels::zero_avg_one_std<<<grd,blk,0,stream.strm>>>(ss_ctf_ps.ptr,ss_acc_std.ptr,ss_acc_avg.ptr,ss_siz);
-                //GpuKernels::conv_gaussian<<<grd,blk,0,stream.strm>>>(ss_norm.ptr,ss_ctf_ps.ptr,ss_siz);
-                //GpuKernels::stk_medfilt<<<grd,blk,0,stream.strm>>>(ss_norm.ptr,ss_ctf_ps.ptr,ss_siz);
+        GpuKernels::zero_avg_one_std<<<grd,blk,0,stream.strm>>>(ss_ctf_ps.ptr,ss_acc_std.ptr,ss_acc_avg.ptr,ss_siz);
 	}
 	
 	void accumulate() {

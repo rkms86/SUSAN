@@ -42,16 +42,17 @@
 #include "ctf_linearizer.h"
 
 typedef enum {
-	CTF_AVG=1
+    CTF_AVG=1,
+    CTF_NORM=2,
 } CtfCmd;
 
 class CtfBuffer {
 	
 public:
     GPU::GHostSingle c_substack;
-    GPU::GHostFloat2 c_pi_lambda_dZ;
+    GPU::GHostFloat2 c_factor;
     GPU::GArrSingle  g_substack;
-    GPU::GArrSingle2 g_pi_lambda_dZ;
+    GPU::GArrSingle2 g_factor;
     Particle ptcl;
     float    apix;
     int      K;
@@ -59,8 +60,8 @@ public:
     CtfBuffer(int N,int max_k) {
         c_substack.alloc(N*N*max_k);
         g_substack.alloc(N*N*max_k);
-        c_pi_lambda_dZ.alloc(max_k);
-        g_pi_lambda_dZ.alloc(max_k);
+        c_factor.alloc(max_k);
+        g_factor.alloc(max_k);
         K = 0;
     }
 
@@ -94,8 +95,11 @@ protected:
 		
 		while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
 			switch(current_cmd) {
-				case CTF_AVG:
-					ctf_avg_ps(normalizer);
+                case CTF_AVG:
+                    ctf_avg_ps(normalizer);
+                    break;
+                case CTF_NORM:
+                    ctf_norm_ps(normalizer);
 					break;
 				default:
 					break;
@@ -103,21 +107,36 @@ protected:
 		}		
 	}
 	
-	void ctf_avg_ps(CtfNormalizer&gpu) {
-		p_buffer->RO_sync();
-		gpu.clear_acc();
-		while( p_buffer->RO_get_status() > DONE ) {
-			if( p_buffer->RO_get_status() == READY ) {
-				CtfBuffer*ptr = (CtfBuffer*)p_buffer->RO_get_buffer();
-				gpu.process(ptr->g_substack.ptr,ptr->g_pi_lambda_dZ.ptr,ptr->apix,binning);
-			}
-			p_buffer->RO_sync();
-		}
-		gpu.apply_wgt();
-		gpu.download(c_rslt->ptr);
-		gpu.stream.sync();
-	}
-	
+    void ctf_avg_ps(CtfNormalizer&gpu) {
+        p_buffer->RO_sync();
+        gpu.clear_acc();
+        while( p_buffer->RO_get_status() > DONE ) {
+            if( p_buffer->RO_get_status() == READY ) {
+                CtfBuffer*ptr = (CtfBuffer*)p_buffer->RO_get_buffer();
+                gpu.average(ptr->g_substack.ptr,binning);
+            }
+            p_buffer->RO_sync();
+        }
+        gpu.apply_wgt();
+        gpu.download(c_rslt->ptr);
+        gpu.stream.sync();
+    }
+
+    void ctf_norm_ps(CtfNormalizer&gpu) {
+        p_buffer->RO_sync();
+        gpu.clear_acc();
+        while( p_buffer->RO_get_status() > DONE ) {
+            if( p_buffer->RO_get_status() == READY ) {
+                CtfBuffer*ptr = (CtfBuffer*)p_buffer->RO_get_buffer();
+                gpu.normal(ptr->g_substack.ptr,ptr->g_factor.ptr,binning);
+            }
+            p_buffer->RO_sync();
+        }
+        gpu.apply_wgt();
+        gpu.download(c_rslt->ptr);
+        gpu.stream.sync();
+    }
+
 };
 
 class CtfRdrWorker : public Worker {
@@ -128,7 +147,8 @@ public:
 	ParticlesSubset *p_ptcls;
 	Tomogram        *p_tomo;
 	int             gpu_ix;
-	int             max_K;
+    int             max_K;
+    float           base_defocus;
 	
 	GPU::GHostSingle c_rslt;
 	
@@ -146,6 +166,7 @@ public:
 		p_info     = info;
 		gpu_ix     = info->p_gpu[ id % info->n_threads ];
 		max_K      = in_max_K;
+        base_defocus = 1;
 	}
 	
 	void setup_working_data(float*stack,ParticlesSubset*ptcls,Tomogram*tomo) {
@@ -176,7 +197,8 @@ protected:
 		while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
 			switch(current_cmd) {
 				case CTF_AVG:
-					ctf_avg_ps(stack_buffer,stream);
+                case CTF_NORM:
+                    ss_provider(stack_buffer,stream);
 					break;
 				default:
 					break;
@@ -197,7 +219,7 @@ protected:
 		gpu_worker.start();
 	}
 	
-	void ctf_avg_ps(DoubleBufferHandler&stack_buffer,GPU::Stream&stream) {
+    void ss_provider(DoubleBufferHandler&stack_buffer,GPU::Stream&stream) {
 		work_progress = 0;
 		stack_buffer.WO_sync(EMPTY);
 		float pi_lambda = M_PI*Math::get_lambda( p_tomo->KV );
@@ -206,11 +228,11 @@ protected:
 			p_ptcls->get(ptr->ptcl,i);
 			ptr->apix = p_tomo->pix_size;
 			ptr->K    = p_tomo->stk_dim.z;
-			crop_substack(ptr->c_substack.ptr,ptr->c_pi_lambda_dZ.ptr,pi_lambda,ptr->ptcl.pos(),ptr->K);
+            crop_substack(ptr->c_substack.ptr,ptr->c_factor.ptr,pi_lambda,ptr->ptcl.pos(),ptr->K);
 			work_progress++;
-			if( check_substack(ptr->c_pi_lambda_dZ.ptr,ptr->K) ) {
+            if( check_substack(ptr->c_factor.ptr,ptr->K) ) {
 				GPU::upload_async(ptr->g_substack.ptr,ptr->c_substack.ptr,p_info->box_size*p_info->box_size*ptr->K,stream.strm);
-				GPU::upload_async(ptr->g_pi_lambda_dZ.ptr,ptr->c_pi_lambda_dZ.ptr,ptr->K,stream.strm);
+                GPU::upload_async(ptr->g_factor.ptr,ptr->c_factor.ptr,ptr->K,stream.strm);
 				stream.sync();
 				stack_buffer.WO_sync(READY);
 			}
@@ -218,7 +240,7 @@ protected:
 		stack_buffer.WO_sync(DONE);
 	}
 	
-	void crop_substack(single*p_substack,float2*p_dZ,const float pi_lambda,Vec3&pt_ptcl,int K) {
+    void crop_substack(single*p_substack,float2*p_factor,const float pi_lambda,Vec3&pt_ptcl,int K) {
 		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
 		
 		pt_tomo(0) = pt_ptcl.x;
@@ -232,14 +254,13 @@ protected:
 			/// Angstroms -> pixels
 			pt_crop = pt_stack/p_tomo->pix_size + p_tomo->stk_center;
 
-			/// Setup data for upload to GPU
-			p_dZ[k].x = pi_lambda*pt_stack(2);
-			p_dZ[k].y = 1;
+            /// Setup data for upload to GPU
+            p_factor[k].x = sqrt(base_defocus/(base_defocus-pt_stack(2)));
+            p_factor[k].y = 1;
 			
 			/// Crop
 			if( ss_cropper.check_point(pt_crop) ) {
 				ss_cropper.crop(p_substack,p_stack,pt_crop,k);
-                //ss_cropper.normalize_zero_mean_one_std(p_substack,k);
 
                 int N = p_info->box_size;
                 float avg,std;
@@ -247,8 +268,8 @@ protected:
                 Math::get_avg_std(avg,std,ss_ptr,N*N);
 
                 if( std < SUSAN_FLOAT_TOL || isnan(std) || isinf(std) ) {
-                    p_dZ[k].x = 0;
-                    p_dZ[k].y = 0;
+                    p_factor[k].x = 0;
+                    p_factor[k].y = 0;
                 }
                 else {
                     Math::normalize(ss_ptr,N*N,avg,std);
@@ -256,16 +277,16 @@ protected:
 
 			}
 			else {
-				p_dZ[k].x = 0;
-				p_dZ[k].y = 0;
+                p_factor[k].x = 0;
+                p_factor[k].y = 0;
 			}
 		}
 	}
 	
-	bool check_substack(float2*p_dZ,int K) {
+    bool check_substack(float2*p_factor,int K) {
 		bool rslt = true;
 		for(int k=0;k<K;k++) {
-			if( p_dZ[k].y < 1 )
+            if( p_factor[k].y < 1 )
 				rslt = false;
 		}
 		return rslt;
@@ -315,26 +336,50 @@ protected:
 		for(int i=0;i<p_info->n_threads;i++) {
 			workers[i].setup_working_data(stack,&ptcls,&tomo);
 		}
-		w_cmd.send_command(CtfCmd::CTF_AVG);
+        w_cmd.send_command(CtfCmd::CTF_AVG);
 		
 		while( (count=count_progress()) < ptcls.n_ptcl ) {
 			printf("\r        Tomo %3d [%5d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,100*float(count)/float(ptcls.n_ptcl));
 			fflush(stdout);
 			sleep(2);
 		}
-        printf("\r        Tomo %3d [%5d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,100.0);
+        printf("\r        Tomo %3d [%5d particles]: %6.2f%%.",tomo.tomo_id,ptcls.n_ptcl,100.0);
 		fflush(stdout);
-		
-		w_cmd.presend_sync();
+
+        w_cmd.presend_sync();
 		clear_workers();
 		reduce_and_bcast();
 		if( p_info->verbose > 0 ) {
-			sprintf(filename,"%s/Tomo%03d/ctf_normalized_raw.mrc",p_info->out_dir,tomo.tomo_id);
+            sprintf(filename,"%s/Tomo%03d/ctf_average_raw.mrc",p_info->out_dir,tomo.tomo_id);
 			Mrc::write(workers[0].c_rslt.ptr,(p_info->box_size/2)+1,p_info->box_size,tomo.num_proj,filename);
 		}
-		sprintf(filename,"%s/Tomo%03d",p_info->out_dir,tomo.tomo_id);
-		post_process(filename,workers[0].c_rslt.ptr,tomo);
-		w_cmd.send_command(WorkerCommand::BasicCommands::CMD_IDLE);
+        sprintf(filename,"%s/Tomo%03d",p_info->out_dir,tomo.tomo_id);
+        float tomo_def = initial_estimation(filename,workers[0].c_rslt.ptr,tomo);
+        printf(" Initial tomogram Defocus (Angstroms): %8.2f\n",tomo_def);
+
+        for(int i=0;i<p_info->n_threads;i++) {
+            workers[i].base_defocus = tomo_def;
+        }
+        w_cmd.send_command(CtfCmd::CTF_NORM);
+
+        while( (count=count_progress()) < ptcls.n_ptcl ) {
+            printf("\r        Normalizing [%5d particles]: %6.2f%%",ptcls.n_ptcl,100*float(count)/float(ptcls.n_ptcl));
+            fflush(stdout);
+            sleep(2);
+        }
+        printf("\r        Normalizing [%5d particles]: %6.2f%%.",ptcls.n_ptcl,100.0);
+        fflush(stdout);
+
+        w_cmd.presend_sync();
+        clear_workers();
+        reduce_and_bcast();
+        if( p_info->verbose > 0 ) {
+            sprintf(filename,"%s/Tomo%03d/ctf_normalized_raw.mrc",p_info->out_dir,tomo.tomo_id);
+            Mrc::write(workers[0].c_rslt.ptr,(p_info->box_size/2)+1,p_info->box_size,tomo.num_proj,filename);
+        }
+        sprintf(filename,"%s/Tomo%03d",p_info->out_dir,tomo.tomo_id);
+        post_process(filename,workers[0].c_rslt.ptr,tomo);
+        w_cmd.send_command(WorkerCommand::BasicCommands::CMD_IDLE);
 		
 	}
 	
@@ -365,9 +410,15 @@ protected:
 	}
 	
 	void clear_workers() {
-		for(int i=1;i<p_info->n_threads;i++)
+        for(int i=0;i<p_info->n_threads;i++)
 			workers[i].work_progress = 0;
 	}
+
+    float initial_estimation(const char*out_dir,single*ptr,Tomogram&tomo) {
+        CtfLinearizer ctf_lin(p_info->p_gpu[0],p_info->box_size,tomo.num_proj);
+        ctf_lin.load_info(p_info,&tomo);
+        return ctf_lin.initial_estimation(out_dir,ptr,&tomo);
+    }
 
 	void post_process(const char*out_dir,single*ptr,Tomogram&tomo) {
 		CtfLinearizer ctf_lin(p_info->p_gpu[0],p_info->box_size,tomo.num_proj);

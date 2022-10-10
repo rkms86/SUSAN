@@ -126,34 +126,55 @@ __global__ void dwgt_center_ps(float2*p_out,const int3 ss_siz) {
     }
 }
 
+__global__ void ctf_bin( float*p_out, cudaTextureObject_t texture,
+                         const float bin_factor, const int3 ss_siz)
+{
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float x = ss_idx.x;
+        float y = ss_idx.y;
+
+        if( bin_factor>1 ) {
+            x = x/bin_factor;
+            float Yh = ss_siz.y/2;
+            y = (y-Yh)/bin_factor + Yh;
+        }
+        y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
+        x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
+
+        float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
+        p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
+    }
+}
+
 __global__ void ctf_normalize( float*p_out, cudaTextureObject_t texture, 
-                               const float2*p_pi_lambda_dZ, const float3*p_vec_r,
-                               const float apix, const float bin_factor, const int3 ss_siz)
+                               const float2*p_factor, const float3*p_vec_r,
+                               const float bin_factor, const int3 ss_siz)
 {
     
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-            float3 vec_r = p_vec_r[get_2d_idx(ss_idx,ss_siz)];
-            //float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
-            float s2 = calc_s(vec_r.z,ss_siz.y,apix);
-            s2 = s2*s2;
-            /// factor = pi*lambda*dZ_angstroms*s^2
-            float factor = p_pi_lambda_dZ[ss_idx.z].x*s2;
-            float x = ss_idx.x-factor*vec_r.x;
-            float y = ss_idx.y-factor*vec_r.y;
+        float3 vec_r = p_vec_r[get_2d_idx(ss_idx,ss_siz)];
+        /// factor = sqrt(def/(def+delta))
+        float factor = vec_r.z*p_factor[ss_idx.z].x;
+        float x = factor*vec_r.x;
+        float y = factor*vec_r.y + ss_siz.y/2;
 
-            if( bin_factor>1 ) {
-                    x = x/bin_factor;
-                    float Yh = ss_siz.y/2;
-                    y = (y-Yh)/bin_factor + Yh;
-            }
-            y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
-            x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
+        if( bin_factor>1 ) {
+            x = x/bin_factor;
+            float Yh = ss_siz.y/2;
+            y = (y-Yh)/bin_factor + Yh;
+        }
+        y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
+        x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
 
-            float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
-            p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
+        float val = tex2DLayered<float>(texture,x+0.5,y+0.5,ss_idx.z);
+        p_out[ get_3d_idx(ss_idx,ss_siz) ] = val;
     }
 }
 
@@ -174,20 +195,24 @@ __global__ void ctf_radial_normalize( float*p_out, cudaTextureObject_t texture, 
             vec_r.y = vec_r.y/vec_r.z;
         }
 
-        //float s2 = calc_s(vec_r.z,ss_siz.y/2,apix);
         float s2 = calc_s(vec_r.z,ss_siz.y,apix);
         s2 = s2*s2;
+        float def_avg = (p_defocus[ss_idx.z].x+p_defocus[ss_idx.z].y)/2;
         float def_dif = (p_defocus[ss_idx.z].x-p_defocus[ss_idx.z].y);
         float def = calc_def(vec_r.x,vec_r.y,def_dif,0,p_defocus[ss_idx.z].z);
         def = ix2def*def;
         if(def_dif<0) def = -def;
-        float factor = pi_lambda*def*s2;
-        float x = ss_idx.x-factor*vec_r.x;
-        float y = ss_idx.y-factor*vec_r.y;
-        if( vec_r.z-factor >= ss_siz.y/2 ) {
-            x = ss_idx.x;
-            y = ss_idx.y;
-        }
+        float factor = vec_r.z*sqrtf( def_avg/(def_avg+def_dif) );
+        //float factor = pi_lambda*def*s2;
+        //float x = ss_idx.x-factor*vec_r.x;
+        //float y = ss_idx.y-factor*vec_r.y;
+        //if( vec_r.z-factor >= ss_siz.y/2 ) {
+        //    x = ss_idx.x;
+        //    y = ss_idx.y;
+        //}
+        float x = factor*vec_r.x;
+        float y = factor*vec_r.y + ss_siz.y/2;
+
         y = min(max(y,(float)0.0f),(float)ss_siz.y-1);
         x = min(max(x,(float)0.0f),(float)ss_siz.x-1);
 

@@ -34,7 +34,7 @@
 #include "io.h"
 #include "points_provider.h"
 #include "svg.h"
-#include "reconstruct_args.h"
+#include "estimate_ctf_args.h"
 #include <algorithm>
 #include <iostream>
 
@@ -875,6 +875,37 @@ public:
         tlt_fpix = ceilf(2+info->tlt_range/ix2def);
     }
 	
+    float initial_estimation(const char*out_dir,float*input,Tomogram*p_tomo) {
+
+        float max_lin_r_px = calc_initial_range_max(def_lin_range.x);
+
+        for(int k=0;k<K;k++) {
+            max_res_log[k].x = -1; /// max res
+            max_res_log[k].y =  0; /// shells
+
+            c_def_rslt[k].w = -1;
+        }
+
+        Normal ctf_normal(M,N,K);
+        Linear ctf_linear(M,N,K);
+        FitEllipse fit_ellipe(90);
+
+        set_lin_range(10.0,max_lin_r_px);
+
+        ctf_normal.load_rmv_bg_msk(input,fpix_range);
+        save_gpu_mrc(input,ctf_normal.ss_fg_masked.ptr,M,N,K,out_dir,"ctf_average.mrc",2);
+
+        ctf_linear.load_linearize(ctf_normal.ss_fg_masked.ptr,linearization_scale);
+        ctf_linear.mask_and_power_spectrum(ss_lin_mask.ptr,def_lin_range);
+
+        float3 avg_def;
+        ctf_linear.sum_z();
+        save_gpu_mrc(p_ps_lin_avg,ctf_linear.ss_ps_sum_z.ptr,M,N,1,out_dir,"ctf_ps_lin_initial.mrc",3);
+        fit_ellipe.fit(avg_def.x,avg_def.y,avg_def.z,p_ps_lin_avg,M,N);
+
+        return ix2def*(avg_def.x+avg_def.y)/2;
+    }
+
     void process(const char*out_dir,float*input,Tomogram*p_tomo) {
 
         float max_lin_r_px = calc_initial_range_max(def_lin_range.x);
@@ -897,7 +928,7 @@ public:
         save_gpu_mrc(input,ctf_normal.ss_fg_masked.ptr,M,N,K,out_dir,"ctf_normalized.mrc",1);
 
         ctf_linear.load_linearize(ctf_normal.ss_fg_masked.ptr,linearization_scale);
-        save_gpu_mrc(input,ctf_linear.r_linear_in.ptr,M,N,K,out_dir,"ctf_linearized.mrc",2);
+        save_gpu_mrc(input,ctf_linear.r_linear_in.ptr,M,N,K,out_dir,"ctf_linearized.mrc",1);
 
         set_lin_range(10.0,max_lin_r_px);
         ctf_linear.mask_and_power_spectrum(ss_lin_mask.ptr,def_lin_range);
@@ -981,11 +1012,11 @@ public:
         if( verbose >= 2 )
             fit_ctf.save_svg_report(p_rad_avg,p_rad_env,c_def_inf,out_dir,fpix_range);
 
-        save_cpu_mrc(p_rad_avg,N,K,1,out_dir,"ctf_rad_avg_raw.mrc",2);
-        save_cpu_mrc(p_rad_env,N,K,1,out_dir,"ctf_rad_avg_env.mrc",2);
-        save_cpu_mrc(fit_ctf.ctf_signal,M,K,1,out_dir,"ctf_rad_avg_nrm.mrc",2);
-        save_cpu_mrc(fit_ctf.ctf_fitted,M,K,1,out_dir,"ctf_rad_avg_est.mrc",2);
-        save_cpu_mrc(fit_ctf.ctf_qualit,M,K,1,out_dir,"ctf_rad_avg_qly.mrc",2);
+        save_cpu_mrc(p_rad_avg,N,K,1,out_dir,"ctf_rad_avg_raw.mrc",3);
+        save_cpu_mrc(p_rad_env,N,K,1,out_dir,"ctf_rad_avg_env.mrc",3);
+        save_cpu_mrc(fit_ctf.ctf_signal,M,K,1,out_dir,"ctf_rad_avg_nrm.mrc",3);
+        save_cpu_mrc(fit_ctf.ctf_fitted,M,K,1,out_dir,"ctf_rad_avg_est.mrc",3);
+        save_cpu_mrc(fit_ctf.ctf_qualit,M,K,1,out_dir,"ctf_rad_avg_qly.mrc",3);
 
         update_def_info();
         fit_ctf.get_max_env_for_final_rslt(results.c_min_ix,p_rad_env,c_def_inf);
