@@ -36,7 +36,7 @@ protected:
 
     void set_caption(single total_progress,bool show_buffering) {
         int offset=0;
-        offset = sprintf(buffer,"\r%s: %6.2f%%%% ",caption,100.0*total_progress/total);
+        offset = sprintf(buffer,"\r%s: %6.2f%% ",caption,100.0*total_progress/total);
 
         if( total_progress > 0 ) {
             int days,hours,mins,secs;
@@ -68,7 +68,7 @@ protected:
 
     void set_finished() {
         int offset=0;
-        offset = sprintf(buffer,"\r%s: 100.00%%%%",caption);
+        offset = sprintf(buffer,"\r%s: 100.00%%",caption);
 
         int i;
         for(i=offset;i<l_buffer-1;i++)
