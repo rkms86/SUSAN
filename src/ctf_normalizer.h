@@ -133,6 +133,9 @@ protected:
         GpuKernelsCtf::ctf_normalize<<<grd,blk,0,stream.strm>>>(ss_ctf_ps.ptr,ss_ps.texture,p_factor,ss_vec_r.ptr,bin_factor,ss_siz);
 		GpuKernels::get_avg_std<<<grd,blk,0,stream.strm>>>(ss_acc_std.ptr,ss_acc_avg.ptr,ss_ctf_ps.ptr,ss_siz);
         GpuKernels::zero_avg_one_std<<<grd,blk,0,stream.strm>>>(ss_ctf_ps.ptr,ss_acc_std.ptr,ss_acc_avg.ptr,ss_siz);
+        GpuKernels::load_surf<<<grd,blk,0,stream.strm>>>(ss_ps.surface,ss_ctf_ps.ptr,ss_siz);
+        GpuKernelsCtf::tangential_blur<<<grd,blk,0,stream.strm>>>(ss_norm.ptr,ss_ps.texture,ss_siz);
+        GpuKernels::conv_gaussian<<<grd,blk,0,stream.strm>>>(ss_ctf_ps.ptr,ss_norm.ptr,0.5000,6.2831,ss_siz);
 	}
 	
 	void accumulate() {

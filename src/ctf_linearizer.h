@@ -71,11 +71,12 @@ protected:
             /// use ss_fg_masked as an upload buffer:
             cudaMemcpy( (void*)ss_fg_masked.ptr, (const void*)(cpu_input), sizeof(float)*numel, cudaMemcpyHostToDevice);
             GpuKernelsCtf::rmv_bg<<<grd_c,blk>>>(ss_foreground.ptr,ss_fg_masked.ptr,ss_filter.ptr,n_filter,ss_c);
-            GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_foreground.ptr,ss_c);
-            GpuKernelsCtf::tangential_blur<<<grd_c,blk>>>(ss_foreground.ptr,ss_lin.texture,ss_c);
-            GpuKernels::conv_gaussian<<<grd_c,blk>>>(ss_fg_masked.ptr,ss_foreground.ptr,0.1250,23.9907,ss_c);
-            cudaMemcpy( (void*)ss_foreground.ptr, (const void*)(ss_fg_masked.ptr), sizeof(float)*numel, cudaMemcpyDeviceToDevice);
-
+            //GpuKernels::load_surf<<<grd_c,blk>>>(ss_lin.surface,ss_foreground.ptr,ss_c);
+            //GpuKernelsCtf::tangential_blur<<<grd_c,blk>>>(ss_foreground.ptr,ss_lin.texture,ss_c);
+            //GpuKernels::conv_gaussian<<<grd_c,blk>>>(ss_fg_masked.ptr,ss_foreground.ptr,0.1250,23.9907,ss_c);
+            //cudaMemcpy( (void*)ss_foreground.ptr, (const void*)(ss_fg_masked.ptr), sizeof(float)*numel, cudaMemcpyDeviceToDevice);
+            cudaMemcpy( (void*)ss_fg_masked.ptr, (const void*)(ss_foreground.ptr), sizeof(float)*numel, cudaMemcpyDeviceToDevice);
+            GpuKernels::conv_gaussian<<<grd_c,blk>>>(ss_foreground.ptr,ss_fg_masked.ptr,0.1250,23.9907,ss_c);
             GpuKernelsCtf::keep_fpix_range<<<grd_c,blk>>>(ss_fg_masked.ptr,fpix_range,ss_c);
         }
 
