@@ -46,7 +46,7 @@ if( Matlab_FOUND )
 		get_filename_component(target ${src} NAME_WE)
 		set(binary "${target}.${Matlab_MEX_EXTENSION}")
 		matlab_add_mex(NAME ${target} SRC ${src} LINK_TO Eigen3::Eigen R2018a)
-		file(COPY "${CMAKE_CURRENT_BINARY_DIR}/${binary}" DESTINATION "${folder}/")
+		add_custom_command(TARGET ${target} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_BINARY_DIR}/${binary}" "${folder}/.")
 	endforeach()
 endif( Matlab_FOUND )
 
