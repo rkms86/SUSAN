@@ -167,7 +167,7 @@ void sum(double*ptr_out, const double*ptr_in, const uint32 length) {
     }
 }
 
-#ifdef CUDA_VERSION
+#ifdef __NVCC__
 void sum(double2*ptr_out, const double2*ptr_in, const uint32 length) {
 	sum((double*)ptr_out,(const double*)ptr_in,length*2);
 }
@@ -553,6 +553,25 @@ bool normalize_masked(float*ptr,const float*msk,const uint32 length, const float
     std = sqrt( std/(count-1) );
 
     return normalize(ptr,length,avg,std,new_std);
+}
+
+
+void vst(float*ptr,const uint32 length,const float std=1.0) {
+    /// TODO: Speed this up!
+    float min_val = ptr[0];
+    for(int i=0;i<length;i++)
+        min_val = fmin(min_val,ptr[i]);
+
+    float mean=0;
+    float var = sqrt(std);
+    for(int i=0;i<length;i++) {
+        ptr[i] = 2*sqrt( (ptr[i]-min_val)/var + 3/8 );
+        mean += ptr[i];
+    }
+
+    mean = mean/length;
+    for(int i=0;i<length;i++)
+        ptr[i] = ptr[i] - mean;
 }
 
 void enforce_hermitian(double*p_vol, double*p_wgt, const uint32 M, const uint32 N) {

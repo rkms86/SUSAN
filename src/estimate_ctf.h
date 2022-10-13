@@ -272,7 +272,7 @@ protected:
                     p_factor[k].y = 0;
                 }
                 else {
-                    Math::normalize(ss_ptr,N*N,avg,std);
+                    Math::vst(ss_ptr,N*N,std);
                 }
 
 			}
@@ -339,17 +339,17 @@ protected:
         w_cmd.send_command(CtfCmd::CTF_AVG);
 		
 		while( (count=count_progress()) < ptcls.n_ptcl ) {
-			printf("\r        Tomo %3d [%5d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,100*float(count)/float(ptcls.n_ptcl));
+            printf("\r      - Tomo %3d [%5d particles]: %6.2f%%",tomo.tomo_id,ptcls.n_ptcl,100*float(count)/float(ptcls.n_ptcl));
 			fflush(stdout);
 			sleep(2);
 		}
-        printf("\r        Tomo %3d [%5d particles]: %6.2f%%.",tomo.tomo_id,ptcls.n_ptcl,100.0);
+        printf("\r      - Tomo %3d [%5d particles]: %6.2f%%.",tomo.tomo_id,ptcls.n_ptcl,100.0);
 		fflush(stdout);
 
         w_cmd.presend_sync();
 		clear_workers();
 		reduce_and_bcast();
-		if( p_info->verbose > 0 ) {
+        if( p_info->verbose > 1 ) {
             sprintf(filename,"%s/Tomo%03d/ctf_average_raw.mrc",p_info->out_dir,tomo.tomo_id);
 			Mrc::write(workers[0].c_rslt.ptr,(p_info->box_size/2)+1,p_info->box_size,tomo.num_proj,filename);
 		}
@@ -373,7 +373,7 @@ protected:
         w_cmd.presend_sync();
         clear_workers();
         reduce_and_bcast();
-        if( p_info->verbose > 0 ) {
+        if( p_info->verbose > 1 ) {
             sprintf(filename,"%s/Tomo%03d/ctf_normalized_raw.mrc",p_info->out_dir,tomo.tomo_id);
             Mrc::write(workers[0].c_rslt.ptr,(p_info->box_size/2)+1,p_info->box_size,tomo.num_proj,filename);
         }
