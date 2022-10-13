@@ -93,18 +93,19 @@ class Tomograms:
             self.num_proj[i]     = _np.uint32((_prsr.read(fp,'num_proj')))
             
             P = self.num_proj[i]
-            buffer = _np.loadtxt(fp,dtype=_np.float32,comments='#',ndmin=2,max_rows=P)
-            self.proj_eZYZ [i,:P,:] = buffer[:,0:3]
-            self.proj_shift[i,:P,:] = buffer[:,3:5]
-            self.proj_wgt  [i,:P]   = buffer[:,5]
-            self.def_U     [i,:P]   = buffer[:,6]
-            self.def_V     [i,:P]   = buffer[:,7]
-            self.def_ang   [i,:P]   = buffer[:,8]
-            self.def_phas  [i,:P]   = buffer[:,9]
-            self.def_Bfct  [i,:P]   = buffer[:,10]
-            self.def_ExFl  [i,:P]   = buffer[:,11]
-            self.def_mres  [i,:P]   = buffer[:,12]
-            self.def_scor  [i,:P]   = buffer[:,13]
+            for p in range(P):
+                buffer = _np.fromstring(_prsr.read_line(fp),dtype=_np.float32,sep=' ')
+                self.proj_eZYZ [i,p,:] = buffer[0:3]
+                self.proj_shift[i,p,:] = buffer[3:5]
+                self.proj_wgt  [i,p]   = buffer[5]
+                self.def_U     [i,p]   = buffer[6]
+                self.def_V     [i,p]   = buffer[7]
+                self.def_ang   [i,p]   = buffer[8]
+                self.def_phas  [i,p]   = buffer[9]
+                self.def_Bfct  [i,p]   = buffer[10]
+                self.def_ExFl  [i,p]   = buffer[11]
+                self.def_mres  [i,p]   = buffer[12]
+                self.def_scor  [i,p]   = buffer[13]
     
     def save(self,filename):
         Tomograms._check_filename(filename)

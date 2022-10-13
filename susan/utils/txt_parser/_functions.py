@@ -16,13 +16,19 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-__all__ = ['read','write']
+__all__ = ['read_line','read','write']
 
 def _decode_if_needed(line):
     try:
         return line.decode('utf-8')
     except:
         return line
+
+def read_line(fp):
+    line = _decode_if_needed( fp.readline().strip() )
+    while len(line) > 0 and line[0] == "#" :
+        line = _decode_if_needed( fp.readline().strip() )
+    return line
 
 def read(fp,tag):
     line = _decode_if_needed( fp.readline().strip() )
