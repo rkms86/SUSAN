@@ -227,11 +227,11 @@ void print(const Info&info,FILE*fp=stdout) {
         fprintf(stdout,"and 1 thread.\n");
     }
 
-    fprintf(stdout,"\t\tResolution range: %.1f - %.1f angstroms.\n",info.res_min,info.res_max);
-    fprintf(stdout,"\t\tDefocus range: %.2f - %.2f angstroms.\n",info.def_min,info.def_max);
-    fprintf(stdout,"\t\tTilt search range: %.1f angstroms.\n",info.tlt_range);
-    fprintf(stdout,"\t\tDefocus refinement range: %.2f angstroms\n",info.ref_range);
-    fprintf(stdout,"\t\tDefocus refinement step: %.2f angstroms\n",info.ref_step);
+    fprintf(stdout,"\t\tResolution range: %.1f - %.1f Å.\n",info.res_min,info.res_max);
+    fprintf(stdout,"\t\tDefocus range: %.2f - %.2f Å.\n",info.def_min,info.def_max);
+    fprintf(stdout,"\t\tTilt search range: %.1f Å.\n",info.tlt_range);
+    fprintf(stdout,"\t\tDefocus refinement range: %.2f Å.\n",info.ref_range);
+    fprintf(stdout,"\t\tDefocus refinement step: %.2f Å.\n",info.ref_step);
     
 }
 

@@ -355,7 +355,7 @@ protected:
 		}
         sprintf(filename,"%s/Tomo%03d",p_info->out_dir,tomo.tomo_id);
         float tomo_def = initial_estimation(filename,workers[0].c_rslt.ptr,tomo);
-        printf(" Initial tomogram Defocus (Angstroms): %8.2f\n",tomo_def);
+        printf(" Initial tomogram Defocus: %8.1f Å\n",tomo_def);
 
         for(int i=0;i<p_info->n_threads;i++) {
             workers[i].base_defocus = tomo_def;

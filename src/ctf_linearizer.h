@@ -939,7 +939,7 @@ public:
         ctf_linear.sum_z();
         save_gpu_mrc(p_ps_lin_avg,ctf_linear.ss_ps_sum_z.ptr,M,N,1,out_dir,"ctf_ps_lin_avg.mrc",1);
         fit_ellipe.fit(avg_def.x,avg_def.y,avg_def.z,p_ps_lin_avg,M,N);
-        printf(" Average defocus (Angstroms): U=%9.2f, V=%9.2f, angle=%6.1f.\n",
+        printf("\n        Avg defocus: U=%7.0fÅ, V=%7.0fÅ, angle=%5.0fº.\n",
                avg_def.x*ix2def,avg_def.y*ix2def,avg_def.z*180.0/M_PI);
 
         if( verbose >= 3 )
