@@ -281,7 +281,7 @@ class Particles:
         
         for j in range(P):
             buffer[i  ] = t[ix,j,0]
-            buffer[i+2] = t[ix,j,1]
+            buffer[i+1] = t[ix,j,1]
             i = i+2
         
         for j in range(P):
