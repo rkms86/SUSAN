@@ -450,7 +450,7 @@ void zero_mean(float*ptr,const uint32 length, const float avg) {
 
 bool normalize(float*ptr,const uint32 length, const float avg, const float old_std, const float new_std=1) {
     
-    if(old_std < SUSAN_FLOAT_TOL || isnan(old_std) || isinf(old_std) )
+    if(old_std < SUSAN_FLOAT_TOL || std::isnan(old_std) || std::isinf(old_std) )
         return false;
 		
     float scale_factor = new_std/old_std;
