@@ -157,7 +157,7 @@ class Tomograms:
         self.proj_eZYZ[idx,:,:] = 0
         self.proj_eZYZ[idx,:self.num_proj[idx],1] = angs
 
-    def set_defocus(self,idx,def_file):
+    def set_defocus(self,idx,def_file,skip_max_res=True):
         if( _is_ext(def_file,'defocus') ):
             line = _np.loadtxt(def_file,dtype=_np.float32,comments='#',max_rows=1)
             version = int(line[-1])
@@ -189,5 +189,7 @@ class Tomograms:
             self.def_ExFl  [idx,:P]   = buffer[:,5]
             self.def_mres  [idx,:P]   = buffer[:,6]
             self.def_scor  [idx,:P]   = buffer[:,7]
+            if skip_max_res:
+                self.def_mres[idx,:P] = 0
         else:
             raise NameError('Invalid filename')

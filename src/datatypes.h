@@ -95,8 +95,8 @@ typedef struct {
 typedef struct {
     float U;
     float V;
-    float angle;
-    float ph_shft;
+    float angle;   /// Sexagesimal degrees
+    float ph_shft; /// Radians
     float Bfactor;
     float ExpFilt;
     float max_res;

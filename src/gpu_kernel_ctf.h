@@ -54,12 +54,8 @@ __device__ float calc_def(const float x, const float y, const Defocus&def) {
     return calc_def(x,y,def.U,def.V,M_PI*def.angle/180.0);
 }
 
-__device__ float calc_gamma(const float def,const float lambda_pi,const float lambda3_Cs_pi_2,const float s2, const float s4) {
-	return (lambda_pi*def*s2 - lambda3_Cs_pi_2*s4);
-}
-
-__device__ float calc_gamma(const float def,const float lambda_pi,const float lambda3_Cs_pi_2,const float s2) {
-	return calc_gamma(def,lambda_pi,lambda3_Cs_pi_2,s2,s2*s2);
+__device__ float calc_gamma(const float def,const float lambda_pi,const float lambda3_Cs_pi_2,const float s2, const float phase_rad=0.0) {
+    return (lambda_pi*def*s2 - lambda3_Cs_pi_2*s2*s2 + phase_rad);
 }
 
 __device__ float calc_ctf(const float gamma,const float ac,const float ca) {
@@ -670,11 +666,10 @@ __global__ void vis_add_ctf(float*p_out,const float4*p_def_inf,const float apix,
         if( x < 0 && R < Nh ) {
             float s2 = calc_s(R,N,apix);
             s2 *= s2;
-            float s4 = s2*s2;
             if(R<0.5) R = 1;
 
             float def   = calc_def(x/R,y/R,p_def_inf[ss_idx.z].x,p_def_inf[ss_idx.z].y,p_def_inf[ss_idx.z].z);
-            float gamma = calc_gamma(def,lambda_pi,lambda3_Cs_pi_2,s2,s4);
+            float gamma = calc_gamma(def,lambda_pi,lambda3_Cs_pi_2,s2,p_def_inf[ss_idx.z].w);
             float ctf   = calc_ctf(gamma,ac);
             val = ctf*ctf;
         }
@@ -732,7 +727,7 @@ __global__ void ctf_stk_phase_flip( cudaSurfaceObject_t s_stk,cudaSurfaceObject_
 		if( w > 0.025 ) {
 			float s = calc_s(R,ss_siz.y,ctf_const.apix);
 			float z = calc_def(x,y,def[ss_idx.z]);
-			float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
+            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
 			ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
 			if(ctf<0)
 				ctf = -1.0;
@@ -773,7 +768,7 @@ __global__ void ctf_stk_wiener( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_
 		if( w > 0.025 ) {
 			float s = calc_s(R,ss_siz.y,ctf_const.apix);
 			float z = calc_def(x,y,def[ss_idx.z]);
-			float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
+            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
 			ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
 			if( def[ss_idx.z].Bfactor > 0 )
 				ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
@@ -816,7 +811,7 @@ __global__ void ctf_stk_wiener_ssnr( cudaSurfaceObject_t s_stk,cudaSurfaceObject
 		if( w > 0.025 ) {
 			float s = calc_s(R,ss_siz.y,ctf_const.apix);
 			float z = calc_def(x,y,def[ss_idx.z]);
-			float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
+            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
 			ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
 			if( def[ss_idx.z].Bfactor > 0 )
 				ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
@@ -852,7 +847,7 @@ __global__ void create_ctf( float*g_ctf,const float3 delta,const CtfConst ctf_co
 
             float s = calc_s(R,ss_siz.y,ctf_const.apix);
             float z = calc_def(x,y,U,V,A);
-            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
+            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
             float ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
             if( def[ss_idx.z].Bfactor > 0 )
                 ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
@@ -873,7 +868,7 @@ __global__ void create_ctf( float*g_ctf,const CtfConst ctf_const,const Defocus*d
 
             float s = calc_s(R,ss_siz.y,ctf_const.apix);
             float z = calc_def(x,y,def[ss_idx.z]);
-            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s);
+            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
             float ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
             if( def[ss_idx.z].Bfactor > 0 )
                 ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);

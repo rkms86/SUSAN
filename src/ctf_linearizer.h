@@ -471,17 +471,18 @@ protected:
             }
         }
 
-        void estimate(float4*ctf_info,float def_range,float def_step,float fpix_range_min,float fpix_range_max,float res_thres=0.5) {
+        void estimate(float4*ctf_info,float*score,float def_range,float def_step,float fpix_range_min,float fpix_range_max,float res_thres=0.5) {
             float it_sim,it_def;
             int off;
             int ix_min = floor(fpix_range_min);
             int ix_max = ceil (fpix_range_max);
             for(int k=0;k<K;k++) {
                 float cur_ctf = min(ctf_info[k].x,ctf_info[k].y);
+                float cur_ph  = 0.0;
 
                 off = k*M;
-                create_ctf(ctf_fitted+off,cur_ctf);
-                ctf_info[k].w = l1_norm(ctf_signal+off,ctf_fitted+off,ix_min,ix_max);
+                create_ctf(ctf_fitted+off,cur_ctf,cur_ph);
+                score[k] = l1_norm(ctf_signal+off,ctf_fitted+off,ix_min,ix_max);
 
                 it_def = 0;
                 float w_range = def_range;
@@ -489,11 +490,14 @@ protected:
 
                 do {
                     for(float delta_def=-w_range;delta_def<=w_range;delta_def+=w_step ) {
-                        create_ctf(ctf_fitted+off,cur_ctf+delta_def);
-                        it_sim = l1_norm(ctf_signal+off,ctf_fitted+off,ix_min,ix_max);
-                        if( it_sim < ctf_info[k].w ) {
-                            it_def = delta_def;
-                            ctf_info[k].w = it_sim;
+                        for(float ph_shift=-M_PI_2;ph_shift<M_PI_2;ph_shift+=(M_PI/100) ) {
+                            create_ctf(ctf_fitted+off,cur_ctf+delta_def,ph_shift);
+                            it_sim = l1_norm(ctf_signal+off,ctf_fitted+off,ix_min,ix_max);
+                            if( it_sim < score[k] ) {
+                                it_def = delta_def;
+                                cur_ph = ph_shift;
+                                score[k] = it_sim;
+                            }
                         }
                     }
 
@@ -503,11 +507,12 @@ protected:
                     it_def = 0;
                 } while( w_step>def_step );
 
-                create_ctf(ctf_fitted+off,cur_ctf);
+                create_ctf(ctf_fitted+off,cur_ctf,cur_ph);
                 float ctf_dif = abs(ctf_info[k].x-ctf_info[k].y);
                 ctf_info[k].x = cur_ctf + ctf_dif;
                 ctf_info[k].y = cur_ctf;
-                int min_ix = get_initial_ix(cur_ctf);
+                ctf_info[k].w = cur_ph;
+                int min_ix = get_initial_ix(cur_ctf,cur_ph);
                 calc_quality(ctf_qualit+off,min_ix,ctf_signal+off,ctf_fitted+off);
             }
         }
@@ -515,7 +520,7 @@ protected:
         void update_max_res(float2*max_res,const float4*ctf_info,float range,float res_thres=0.5) {
             int i=0;
             for(int k=0;k<K;k++) {
-                int min_ix = get_initial_ix(ctf_info[k].y)+1;
+                int min_ix = get_initial_ix(ctf_info[k].y,ctf_info[k].w)+1;
                 for(i=min_ix;i<M;i++) {
                     if( ctf_qualit[i+k*M] < res_thres )
                         break;
@@ -535,7 +540,7 @@ protected:
 
                 int   off = k*M;
 
-                create_ctf(ctf_fitted+off,cur_ctf);
+                create_ctf(ctf_fitted+off,cur_ctf,ctf_info[k].w);
                 energy = l1_norm(ctf_signal+off,ctf_fitted+off,floor(fpix_range.x),ceil(fpix_range.y));
 
                 if( shell_info[k].y < 0 | energy < shell_info[k].y ) {
@@ -555,7 +560,7 @@ protected:
             float *signal_tmp = new float[M];
 
             for(int k=0;k<K;k++) {
-                int min_ix = get_initial_ix(ctf_info[k].y);
+                int min_ix = get_initial_ix(ctf_info[k].y,ctf_info[k].w);
                 float nrm_max = 0;
                 for(int i=0;i<M;i++) {
                     signal_tmp[i] = ctf_avg[i + k*N]+ctf_env[i + k*N];
@@ -588,7 +593,7 @@ protected:
             delete [] signal_tmp;
         }
 
-        void save_estimation(float4*ctf_info,float res_thres,const char*out_dir) {
+        void save_estimation(float4*ctf_info,float*score,float res_thres,const char*out_dir) {
 
             char filename[SUSAN_FILENAME_LENGTH];
             sprintf(filename,"%s/defocus.txt",out_dir);
@@ -600,7 +605,7 @@ protected:
 
             int i=0;
             for(int k=0;k<K;k++) {
-                int min_ix = get_initial_ix(ctf_info[k].y)+1;
+                int min_ix = get_initial_ix(ctf_info[k].y,ctf_info[k].w)+1;
                 for(i=min_ix;i<M;i++) {
                     if( ctf_qualit[i+k*M] < res_thres )
                         break;
@@ -608,8 +613,9 @@ protected:
                 def.U       = ctf_info[k].x;
                 def.V       = ctf_info[k].y;
                 def.angle   = ctf_info[k].z*180.0/M_PI;
+                def.ph_shft = ctf_info[k].w;
                 def.max_res = ((float)N)*apix/((float)i);
-                def.score   = ctf_info[k].w;
+                def.score   = score[k];
                 IO::DefocusIO::write(fp,def);
             }
 
@@ -618,7 +624,7 @@ protected:
 
         void get_max_env_for_final_rslt(float2*p_out,const float*ctf_env,float4*ctf_info) {
             for(int k=0;k<K;k++) {
-                int min_ix = get_initial_ix(ctf_info[k].y);
+                int min_ix = get_initial_ix(ctf_info[k].y,ctf_info[k].w);
                 float nrm_max = 0;
                 for(int i=0;i<M;i++) {
                     if( i > min_ix ) {
@@ -633,10 +639,14 @@ protected:
         }
 
     protected:
-        void create_ctf(float*p_out,float def) {
+        float calc_gamma_ix(int i,float def,float ph_shift) {
+            return lambda_pi*def*s2[i] - s4_lambda3_Cs_pi_2[i] + ph_shift;
+        }
+
+        void create_ctf(float*p_out,float def,float ph_shift) {
             float gamma,ctf;
             for(int i=0;i<M;i++) {
-                gamma = lambda_pi*def*s2[i] - s4_lambda3_Cs_pi_2[i];
+                gamma = calc_gamma_ix(i,def,ph_shift);
                 ctf = CA*sin(gamma) + AC*cos(gamma);
                 p_out[i] = ctf*ctf;
             }
@@ -660,10 +670,10 @@ protected:
             return l1;
         }
 
-        int get_initial_ix(float def) {
+        int get_initial_ix(float def,float ph_shift) {
             int i=0;
             for(i=0;i<M;i++) {
-                float gamma = lambda_pi*def*s2[i] - s4_lambda3_Cs_pi_2[i];
+                float gamma = calc_gamma_ix(i,def,ph_shift);
                 if( gamma > M_PI )
                     break;
             }
@@ -775,6 +785,7 @@ public:
 
     float2 *lin_mask;
     float2 *max_res_log;
+    float  *score_log;
     float4 *c_def_inf;
     float4 *c_def_rslt;
     float  *p_rad_avg;
@@ -824,6 +835,7 @@ public:
         p_rad_avg = new float[int(N*K)];
         p_rad_env = new float[int(N*K)];
         c_def_inf = new float4[int(K)];
+        score_log = new float[int(K)];
         c_def_rslt = new float4[int(K)];
         max_res_log = new float2[int(K)];
         p_ps_lin_avg = new float[int(M*N)];
@@ -835,6 +847,7 @@ public:
         delete [] p_rad_avg;
         delete [] p_rad_env;
         delete [] c_def_inf;
+        delete [] score_log;
         delete [] c_def_rslt;
         delete [] max_res_log;
         delete [] p_ps_lin_avg;
@@ -978,7 +991,7 @@ public:
                 c_def_inf[k].y *= ix2def;
             }
             fit_ctf.load_ctf_avg(p_rad_avg,p_rad_env);
-            fit_ctf.estimate(c_def_inf,ref_range,ref_step,fpix_range.x,calc_fpix_max(i,def_avg),0.5);
+            fit_ctf.estimate(c_def_inf,score_log,ref_range,ref_step,fpix_range.x,calc_fpix_max(i,def_avg),0.5);
             fit_ctf.update_max_res(max_res_log,c_def_inf,max_lin_r_px,res_thres);
 
             sprintf(tmp,"ctf_rad_avg_raw_%d.mrc",i);
@@ -1008,8 +1021,8 @@ public:
         rad_avgr.calc_env(p_rad_env,p_rad_avg);
 
         fit_ctf.load_ctf_avg(p_rad_avg,p_rad_env);
-        fit_ctf.estimate(c_def_inf,ref_range,ref_step,fpix_range.x,fpix_range.y,res_thres);
-        fit_ctf.save_estimation(c_def_inf,res_thres,out_dir);
+        fit_ctf.estimate(c_def_inf,score_log,ref_range,ref_step,fpix_range.x,fpix_range.y,res_thres);
+        fit_ctf.save_estimation(c_def_inf,score_log,res_thres,out_dir);
         if( verbose >= 2 )
             fit_ctf.save_svg_report(p_rad_avg,p_rad_env,c_def_inf,out_dir,fpix_range);
 

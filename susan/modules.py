@@ -139,7 +139,8 @@ class Aligner:
             raise NameError('Error executing the alignment: ' + cmd)
     
     def align_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = self.mpi.gen_cmd() + ' susan_aligner_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
+        cmd = self.mpi.gen_cmd() + ' ' + _os.path.dirname(_os.path.abspath(__file__)) + '/bin/susan_aligner_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, 
+box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)
@@ -205,7 +206,7 @@ class Averager:
             raise NameError('Error executing the reconstruction: ' + cmd)
     
     def reconstruct_mpi(self,out_pfx,tomos_file,ptcls_in,box_size):
-        cmd = self.mpi.gen_cmd() + ' susan_reconstruct_mpi' + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
+        cmd = self.mpi.gen_cmd() + ' ' + _os.path.dirname(_os.path.abspath(__file__)) + '/bin/susan_reconstruct_mpi' + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the reconstruction: ' + cmd)
@@ -293,10 +294,10 @@ class CtfRefiner:
         if not self.defocus_angstroms.step > 0 or not self.angles.step > 0:
             raise ValueError('The steps values must be larger than 0')
         
-        if self.defocus_angstroms.span < self.offset.step:
+        if self.defocus_angstroms.span < self.defocus_angstroms.step:
             raise ValueError('Defocus (Angstroms): Step cannot be larger than Range/Span')
 
-        if self.angles.span < self.cone.step:
+        if self.angles.span < self.angles.step:
             raise ValueError('ANgles (degrees): Step cannot be larger than Range/Span')
 
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
@@ -322,13 +323,14 @@ class CtfRefiner:
         return args
     
     def refine(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = 'susan_refine_ctf ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
+        cmd = 'susan_ctf_refiner ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the refinement: ' + cmd)
     
     def refine_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = self.mpi.gen_cmd() + ' susan_refine_ctf_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
+        cmd = self.mpi.gen_cmd() + ' ' + _os.path.dirname(_os.path.abspath(__file__)) + '/bin/susan_ctf_refiner_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, 
+box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the refinement: ' + cmd)
