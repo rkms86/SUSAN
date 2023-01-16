@@ -1,19 +1,52 @@
-cmake_minimum_required(VERSION 3.3)
-
 # Define Project
+
+cmake_minimum_required(VERSION 3.3)
 project(SUSAN LANGUAGES CXX CUDA)
 set(CMAKE_BUILD_TYPE Release)
 
+########################################################################
+########################################################################
+
 # Configure EIGEN
 set(CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/extern/eigen_lib)
-find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
-# Configure CUDA
-set(CUDA_ARCHS 52 60 61 70 75)
+########################################################################
+########################################################################
+
+# Configure CUDA:
+# SM 5.0 and below: DEPRECATED
+# v10.2: up to SM 7.5
+# v11.0: SM 8.0
+# v11.1: SM 8.6
+# v11.5: SM 8.7
+# v11.8: SM 9.0
+# v12.0: up to SM 9.0
+find_package(CUDAToolkit)
+list(APPEND CUDA_ARCHS 52 53 60 61 62 70 72 75)
+if(CUDAToolkit_VERSION_MAJOR LESS 10)
+	message(FATAL_ERROR "SUSAN requires CUDA toolkit at least version 10.")
+elseif(CUDAToolkit_VERSION_MAJOR EQUAL 11)
+	list(APPEND CUDA_ARCHS 80)
+	if(CUDAToolkit_VERSION_MINOR GREATER_EQUAL 1)
+		list(APPEND CUDA_ARCHS 86)
+	elseif(CUDAToolkit_VERSION_MINOR GREATER_EQUAL 5)
+		list(APPEND CUDA_ARCHS 87)
+	elseif(CUDAToolkit_VERSION_MINOR GREATER_EQUAL 8)
+		list(APPEND CUDA_ARCHS 90)
+	endif()
+elseif(CUDAToolkit_VERSION_MAJOR EQUAL 12)
+	list(APPEND CUDA_ARCHS 80 86 87 89 90)
+else()
+	message(FATAL_ERROR "SUSAN does not support your CUDA toolkit version.")
+endif()
 string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr")
 string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --display_error_number")
 
-# Define Executables
+########################################################################
+########################################################################
+
+# Basic Executables
 set(target_list estimate_ctf reconstruct rec_subtomos aligner refs_aligner ctf_refiner)
 foreach(target IN LISTS target_list)
 	set(bin susan_${target})
