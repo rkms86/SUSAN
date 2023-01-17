@@ -75,7 +75,7 @@ class PtclsGeom:
             Rout = R@R_in
             _rotm_euZYZ(ali_eZYZ[i],Rout)
             tout = Rout.transpose()@t
-            ali_t[i,:] = ali_eZYZ[i,:] + tout
+            ali_t[i,:] = ali_t[i,:] + tout
     
     @staticmethod
     def rot_shift(ptcls,eZYZdeg=None,R=None,t=None,ref_idx=0):
