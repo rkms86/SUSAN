@@ -15,7 +15,7 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 ########################################################################
 
 # Configure CUDA:
-# SM 5.0 and below: DEPRECATED
+# SM 6.0 and below: DEPRECATED [for SUSAN]
 # v10.2: up to SM 7.5
 # v11.0: SM 8.0
 # v11.1: SM 8.6
@@ -23,7 +23,7 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 # v11.8: SM 9.0
 # v12.0: up to SM 9.0
 find_package(CUDAToolkit)
-list(APPEND CUDA_ARCHS 52 53 60 61 62 70 72 75)
+list(APPEND CUDA_ARCHS 60 61 62 70 72 75)
 if(CUDAToolkit_VERSION_MAJOR LESS 10)
 	message(FATAL_ERROR "SUSAN requires CUDA toolkit at least version 10.")
 elseif(CUDAToolkit_VERSION_MAJOR EQUAL 11)
@@ -53,6 +53,10 @@ foreach(target IN LISTS target_list)
 	add_executable(${bin} src/${target}.cu)
 	target_link_libraries(${bin} cufft Eigen3::Eigen)
 	set_property(TARGET ${bin} PROPERTY CUDA_ARCHITECTURES ${CUDA_ARCHS})
+	add_custom_command(TARGET ${bin} POST_BUILD 
+		COMMAND mkdir -p ${CMAKE_SOURCE_DIR}/susan/bin
+		COMMAND cp -v ${CMAKE_CURRENT_BINARY_DIR}/${bin} ${CMAKE_SOURCE_DIR}/susan/bin/
+	)
 endforeach()
 
 # Conditionally build if MPI is found
@@ -83,7 +87,7 @@ if( Matlab_FOUND )
 	endforeach()
 endif( Matlab_FOUND )
 
-# Add target to install binaries into the Python package
+# Add target to install binaries into the Python package [optional]
 add_custom_target(prepare_python
 	COMMAND mkdir -p ${CMAKE_SOURCE_DIR}/susan/bin
 	COMMAND cp -v ${CMAKE_CURRENT_BINARY_DIR}/susan_* ${CMAKE_SOURCE_DIR}/susan/bin/
