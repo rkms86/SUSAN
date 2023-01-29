@@ -131,6 +131,22 @@ namespace ArgParser {
         }
     }
 
+	void get_single_trio(float&val_a,float&val_b,float&val_c,const char*arg) {
+			int len_arg = strlen(arg);
+			char buffer[len_arg+1];
+			for(int i=0;i<len_arg;i++){
+				buffer[i] = arg[i];
+				if(arg[i]==',')
+					buffer[i] = ' ';
+			}
+			buffer[len_arg] = 0;
+			int validate = sscanf(buffer,"%f %f %f",&val_a,&val_b,&val_c);
+			if( validate != 3 ) {
+				fprintf(stderr,"Error parsing single trio: %s\n",arg);
+				exit(1);
+			}
+		}
+    
     void get_single_quad(float&val_a,float&val_b,float&val_c,float&val_d,const char*arg) {
         int len_arg = strlen(arg);
         char buffer[len_arg+1];

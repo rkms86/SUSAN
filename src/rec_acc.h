@@ -174,7 +174,10 @@ public:
     }
 
     void insert(GPU::GTex2DSingle2&ss_stk,GPU::GTex2DSingle&ss_wgt,GPU::GArrProj2D&g_ali,float3 bandpass,int k,GPU::Stream&stream) {
-        GpuKernelsVol::insert_stk<<<grd,blk,0,stream.strm>>>(vol_acc.ptr,vol_wgt.ptr,ss_stk.texture,ss_wgt.texture,g_ali.ptr,bandpass,MP,NP,k);
+        /// insert_stk faster for small volumes (no bottleneck, more operations).
+        /// insert_stk_atomic faster for larger volumes (small bottleneck, less operations).
+        //GpuKernelsVol::insert_stk<<<grd,blk,0,stream.strm>>>(vol_acc.ptr,vol_wgt.ptr,ss_stk.texture,ss_wgt.texture,g_ali.ptr,bandpass,MP,NP,k);
+        GpuKernelsVol::insert_stk_atomic<<<grd,blk,0,stream.strm>>>(vol_acc.ptr,vol_wgt.ptr,ss_stk.texture,ss_wgt.texture,g_ali.ptr,bandpass,MP,NP,k);
     }
 };
 
@@ -294,6 +297,13 @@ public:
         GpuKernels::multiply<<<grd,blk>>>(vol_fou.ptr,vol_acc.ptr,vol_wgt.ptr,siz,1.0/(double)(NP*NP*NP));
     }
 
+    void boost_low_freq(float scale,float value,float decay) {
+        int3 siz = make_int3(MP,NP,NP);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,NP);
+        GpuKernelsVol::boost_low_freq<<<grd,blk>>>(vol_fou.ptr,scale,value,decay,siz);
+    }
+
     void invert_and_extract(GPU::GArrSingle&vol_out) {
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,NP);
@@ -309,7 +319,6 @@ public:
         dim3 grd3 = GPU::calc_grid_size(blk,N,N,N);
         GpuKernels::remove_pad_vol<<<grd3,blk>>>(vol_out.ptr,vol_pad.ptr,(NP-N)/2,siz_raw,siz_pad);
     }
-
 };
 
 class RecSym {

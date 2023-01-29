@@ -76,6 +76,12 @@ class inversion_params:
     ite: int
     std: float
  
+@_dc
+class boost_lowfreq_params:
+    scale: float
+    value: float
+    decay: float
+ 
 
  
  

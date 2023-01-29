@@ -139,8 +139,7 @@ class Aligner:
             raise NameError('Error executing the alignment: ' + cmd)
     
     def align_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = self.mpi.gen_cmd() + ' ' + _os.path.dirname(_os.path.abspath(__file__)) + '/bin/susan_aligner_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, 
-box_size)
+        cmd = self.mpi.gen_cmd() + ' ' + _os.path.dirname(_os.path.abspath(__file__)) + '/bin/susan_aligner_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the alignment: ' + cmd)
@@ -162,6 +161,8 @@ class Averager:
         self.inversion         = _dt.inversion_params(10,0.75)
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
+        self.normalize_output  = True
+        self.boost_lowfreq     = _dt.boost_lowfreq_params(0,0,0)
         
     def _validate(self):
         if not self.padding_type in ['zero','noise']:
@@ -197,6 +198,8 @@ class Averager:
         args = args + ' -symmetry '        + self.symmetry
         args = args + ' -rec_halves %d'    % self.rec_halfsets
         args = args + ' -verbosity %d'     % self.verbosity
+        args = args + ' -norm_output %d'   % self.normalize_output
+        args = args + ' -boost_lowfq %f,%f,%f' % (self.boost_lowfreq.scale,self.boost_lowfreq.value,self.boost_lowfreq.decay)
         return args
     
     def reconstruct(self,out_pfx,tomos_file,ptcls_in,box_size):
@@ -210,6 +213,66 @@ class Averager:
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the reconstruction: ' + cmd)
+
+###############################################################################
+
+class SubtomoRec:
+    def __init__(self):
+        self.list_gpus_ids     = [0]
+        self.threads_per_gpu   = 1
+        self.bandpass          = _dt.bandpass(0,-1,2)
+        self.extra_padding     = 0
+        self.padding_type      = 'noise'
+        self.normalize_type    = 'zero_mean_one_std'
+        self.ctf_correction    = 'wiener'
+        self.ssnr              = _dt.ssnr(1,0.01)
+        self.inversion         = _dt.inversion_params(10,0.75)
+        self.use_align         = False
+        self.verbosity         = 0
+        self.normalize_output  = True
+        self.boost_lowfreq     = _dt.boost_lowfreq_params(0,0,0)
+
+    def _validate(self):
+        if not self.padding_type in ['zero','noise']:
+            raise NameError('Invalid padding type. Only "zero" or "noise" are valid')
+
+        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
+            raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
+
+        if not self.ctf_correction in ['none','phase_flip','wiener','wiener_ssnr']:
+            raise NameError('Invalid ctf correction type. Only "none", "phase_flip", "wiener" ot "wiener_ssnr" are valid')
+
+    def get_args(self,out_dir,tomos_file,ptcls_in,box_size):
+        self._validate()
+        if self.bandpass.lowpass <= 0:
+            self.bandpass.lowpass = box_size/2-1
+        n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
+        gpu_str   = _get_gpu_str(self.list_gpus_ids)
+        args =        ' -tomos_file '      + tomos_file
+        args = args + ' -out_dir '         + out_dir
+        args = args + ' -ptcls_file '      + ptcls_in
+        args = args + ' -n_threads %d'     % n_threads
+        args = args + ' -gpu_list '        + gpu_str
+        args = args + ' -box_size %d'      % box_size
+        args = args + ' -pad_size %d'      % self.extra_padding
+        args = args + ' -pad_type '        + self.padding_type
+        args = args + ' -norm_type '       + self.normalize_type
+        args = args + ' -ctf_type '        + self.ctf_correction
+        args = args + ' -bandpass %f,%f'   % (self.bandpass.highpass,self.bandpass.lowpass)
+        args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
+        args = args + ' -ssnr_param %f,%f' % (self.ssnr.F,self.ssnr.S)
+        args = args + ' -w_inv_iter %d'    % self.inversion.ite
+        args = args + ' -w_inv_gstd %f'    % self.inversion.std
+        args = args + ' -use_align %d'     % self.use_align
+        args = args + ' -norm_output %d'   % self.normalize_output
+        args = args + ' -boost_lowfq %f,%f,%f' % (self.boost_lowfreq.scale,self.boost_lowfreq.value,self.boost_lowfreq.decay)
+        return args
+    
+    def reconstruct(self,out_pfx,tomos_file,ptcls_in,box_size):
+        cmd = 'susan_rec_subtomos ' + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
+        rslt = _os.system(cmd)
+        if not rslt == 0:
+            raise NameError('Error executing the subtomogram reconstruction: ' + cmd)
 
 ###############################################################################
 
@@ -329,8 +392,7 @@ class CtfRefiner:
             raise NameError('Error executing the refinement: ' + cmd)
     
     def refine_mpi(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
-        cmd = self.mpi.gen_cmd() + ' ' + _os.path.dirname(_os.path.abspath(__file__)) + '/bin/susan_ctf_refiner_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, 
-box_size)
+        cmd = self.mpi.gen_cmd() + ' ' + _os.path.dirname(_os.path.abspath(__file__)) + '/bin/susan_ctf_refiner_mpi ' + self.get_args(ptcls_out, refs_file, tomos_file, ptcls_in, box_size)
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the refinement: ' + cmd)

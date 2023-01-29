@@ -200,9 +200,11 @@ protected:
                                 stream.sync();
 				reconstruct_core(p_vol,inv_wgt,inv_vol,vol.vol_acc,vol.vol_wgt);
 				cudaMemcpy((void*)map,(const void*)p_vol.ptr,sizeof(float)*N*N*N,cudaMemcpyDeviceToHost);
-                                float avg,std;
-                                Math::get_avg_std(avg,std,map,N*N*N);
-                                Math::normalize(map,N*N*N,avg,std);
+				if( p_info->norm_output ) {
+					float avg,std;
+					Math::get_avg_std(avg,std,map,N*N*N);
+					Math::normalize(map,N*N*N,avg,std);
+				}
 				sprintf(em_file,"%s/particle_%06d.em",p_info->out_dir,buffer.ptcl.ptcl_id());
 				EM::write(map,N,N,N,em_file);
 				stream.sync();
@@ -362,25 +364,24 @@ protected:
 	}
 
 	void add_data(RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
-                if( pad_type == PAD_ZERO )
+		if( pad_type == PAD_ZERO )
 			ss_data.pad_zero(stream);
-                if( pad_type == PAD_GAUSSIAN )
+		if( pad_type == PAD_GAUSSIAN )
 			ss_data.pad_normal(ptr.g_pad,ptr.K,stream);
 		
-                ss_data.add_data(ptr.g_stk,ptr.g_ali,ptr.K,stream);
+		ss_data.add_data(ptr.g_stk,ptr.g_ali,ptr.K,stream);
 
 	}
 	
 	void correct_ctf(RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
-                if( ctf_type == INV_NO_INV )
+		if( ctf_type == INV_NO_INV )
 			ss_data.set_no_ctf(bandpass,ptr.K,stream);
-                if( ctf_type == INV_PHASE_FLIP )
+		if( ctf_type == INV_PHASE_FLIP )
 			ss_data.set_phase_flip(ptr.ctf_vals,ptr.g_def,bandpass,ptr.K,stream);
-                if( ctf_type == INV_WIENER )
+		if( ctf_type == INV_WIENER )
 			ss_data.set_wiener(ptr.ctf_vals,ptr.g_def,bandpass,ptr.K,stream);
-                if( ctf_type == INV_WIENER_SSNR )
+		if( ctf_type == INV_WIENER_SSNR )
 			ss_data.set_wiener_ssnr(ptr.ctf_vals,ptr.g_def,bandpass,ssnr,ptr.K,stream);
-			
 	}
 
 	void insert_vol(RecAcc&vol,RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
@@ -390,6 +391,13 @@ protected:
 	void reconstruct_core(GPU::GArrSingle&p_vol,RecInvWgt&inv_wgt,RecInvVol&inv_vol,GPU::GArrDouble2&p_acc,GPU::GArrDouble&p_wgt) {
 		inv_wgt.invert(p_wgt);
 		inv_vol.apply_inv_wgt(p_acc,p_wgt);
+		if( p_info->boost_low_fq_scale > 0 ) {
+			float factor = NP;
+			factor = factor/N;
+			inv_vol.boost_low_freq(p_info->boost_low_fq_scale,
+			                       p_info->boost_low_fq_value*factor,
+			                       p_info->boost_low_fq_decay*factor);
+		}
 		inv_vol.invert_and_extract(p_vol);
 	}
 };

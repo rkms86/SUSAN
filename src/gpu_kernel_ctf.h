@@ -727,7 +727,7 @@ __global__ void ctf_stk_phase_flip( cudaSurfaceObject_t s_stk,cudaSurfaceObject_
 		if( w > 0.025 ) {
 			float s = calc_s(R,ss_siz.y,ctf_const.apix);
 			float z = calc_def(x,y,def[ss_idx.z]);
-            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
+			float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
 			ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
 			if(ctf<0)
 				ctf = -1.0;
