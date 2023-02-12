@@ -70,6 +70,10 @@ typedef struct {
     char   ptcls_in [SUSAN_FILENAME_LENGTH];
     char   tomo_file[SUSAN_FILENAME_LENGTH];
     
+    char   tm_type[SUSAN_FILENAME_LENGTH];
+    char   tm_pfx [SUSAN_FILENAME_LENGTH];
+    float  tm_sigma;
+    
     int verbosity;
 } Info;
 
@@ -116,6 +120,10 @@ bool validate(const Info&info) {
         fprintf(stderr,"Error with CUDA devices.\n");
         rslt = false;
     }
+    if( !(strcmp(info.tm_type,"none") || strcmp(info.tm_type,"matlab") || strcmp(info.tm_type,"python")) ) {
+        fprintf(stderr,"Invalid template matching type [tm_type] value: %s. [none,matlab,python].\n",info.tm_type);
+        rslt = false;
+    }
     return rslt;
 }
 
@@ -155,6 +163,9 @@ bool parse_args(Info&info,int ac,char** av) {
     memset(info.ptcls_in ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
     memset(info.tomo_file,0,SUSAN_FILENAME_LENGTH*sizeof(char));
     strcpy(info.pseudo_sym,"c1");
+    strcpy(info.tm_type,"none");
+    strcpy(info.tm_pfx ,"template_matching");
+    info.tm_sigma = 0;
 
     /// Parse inputs:
     enum {
@@ -182,6 +193,9 @@ bool parse_args(Info&info,int ac,char** av) {
         OFF_PARAM,
         VERBOSITY,
         USE_SIGMA,
+        TM_TYPE,
+        TM_PREFIX,
+        TM_SIGMA,
         TYPE
     };
 
@@ -211,6 +225,9 @@ bool parse_args(Info&info,int ac,char** av) {
         {"off_params",  1, 0, OFF_PARAM },
         {"use_sigma",   1, 0, USE_SIGMA },
         {"verbosity",   1, 0, VERBOSITY },
+        {"tm_type",     1, 0, TM_TYPE   },
+        {"tm_prefix",   1, 0, TM_PREFIX },
+        {"tm_sigma",    1, 0, TM_SIGMA },
         {"type",        1, 0, TYPE },
         {0, 0, 0, 0}
     };
@@ -291,6 +308,15 @@ bool parse_args(Info&info,int ac,char** av) {
                 break;
             case TYPE:
                 info.type = atoi(optarg);
+                break;
+            case TM_TYPE:
+                strcpy(info.tm_type,optarg);
+                break;
+            case TM_PREFIX:
+                strcpy(info.tm_pfx,optarg);
+                break;
+            case TM_SIGMA:
+                info.tm_sigma = atof(optarg);
                 break;
             default:
                 printf("Unknown parameter %d\n",c);
@@ -421,7 +447,7 @@ void print_full(const Info&info,FILE*fp) {
     fprintf(fp,"\t\tInplane search: Range=%.3f, Step=%.3f.\n",info.inplane_range,info.inplane_step);
     fprintf(fp,"\t\tAngle refinement: Levels=%d, Factor=%d.\n",info.refine_level,info.refine_factor);
     print_angles(info,fp,info.verbosity>0);
-	
+    
     uint32_t total_points=0;
     if( info.off_type == ELLIPSOID ) {
         Vec3*pt = PointsProvider::ellipsoid(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
@@ -435,11 +461,25 @@ void print_full(const Info&info,FILE*fp) {
         delete [] pt;
         fprintf(fp,"Range=[%.2f,%.2f,%.2f], Step=%.2f. Total points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
     }
+    if( info.off_type == CUBOID ) {
+        Vec3*pt = PointsProvider::cuboid(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
+        fprintf(fp,"\t\tCuboid offset search (3D): ");
+        delete [] pt;
+        fprintf(fp,"Range=[%.2f,%.2f,%.2f], Step=%.2f. Total points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
+    }
     if( info.off_type == CIRCLE ) {
         Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
         fprintf(fp,"\t\tCircular offset search (2D): ");
         delete [] pt;
         fprintf(fp,"Range=[%.2f,%.2f]. Total points: %d\n",info.off_x,info.off_y,total_points);
+    }
+    
+    if( strcmp(info.tm_type,"none") != 0 ) {
+        fprintf(fp,"\t\tSaving Cross Correlation in %s format. Prefix: %s.",info.tm_type,info.tm_pfx);
+        if( info.tm_sigma > 0 ) {
+            fprintf(fp," Discard CC < %.1fσ.",info.tm_sigma);
+        }
+        fprintf(fp,"\n");
     }
 }
 
@@ -531,11 +571,24 @@ void print_minimal(const Info&info,FILE*fp) {
         delete [] pt;
         fprintf(fp,"[%.2f,%.2f,%.2f], Step=%.2f. Points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
     }
+    if( info.off_type == CUBOID ) {
+        Vec3*pt = PointsProvider::cuboid(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
+        fprintf(fp,"    - Cuboid offset (3D): ");
+        delete [] pt;
+        fprintf(fp,"[%.2f,%.2f,%.2f], Step=%.2f. Points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
+    }
     if( info.off_type == CIRCLE ) {
         Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
         fprintf(fp,"    - Circular offset (2D): ");
         delete [] pt;
         fprintf(fp,"[%.2f,%.2f]. Points: %d\n",info.off_x,info.off_y,total_points);
+    }
+    if( strcmp(info.tm_type,"none") != 0 ) {
+        fprintf(fp,"    - Saving Cross Correlation in %s format. Prefix: %s.",info.tm_type,info.tm_pfx);
+        if( info.tm_sigma > 0 ) {
+            fprintf(fp," Discard CC < %.1fσ.",info.tm_sigma);
+        }
+        fprintf(fp,"\n");
     }
 }
 

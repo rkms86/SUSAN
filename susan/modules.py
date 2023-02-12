@@ -46,6 +46,9 @@ class Aligner:
         self.ssnr              = _dt.ssnr(1,0.01)
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
+        self.tm_type           = "none"
+        self.tm_prefix         = "template_matching"
+        self.tm_sigma          = 0
         
     def set_angular_search(self,c_r=0,c_s=1,i_r=0,i_s=1):
         self.cone.span    = c_r
@@ -54,8 +57,8 @@ class Aligner:
         self.inplane.step = i_s
         
     def set_offset_search(self,off_range,off_step=1,off_type='ellipsoid'):
-        if not off_type in ['ellipsoid','cylinider']:
-            raise ValueError('Invalid offset type. Only "ellipsoid" or "cylinder" are valid')
+        if not off_type in ['ellipsoid','cylinider','cuboid']:
+            raise ValueError('Invalid offset type. Only "ellipsoid", "cylinder" or "cuboid" are valid')
         
         if isinstance(off_range,int) or isinstance(off_range,float):
             self.offset.span = (off_range,off_range,off_range)
@@ -72,8 +75,8 @@ class Aligner:
         if not self.dimensionality in [2,3]:
             raise ValueError('Invalid dimensionality type. Only 3 or 3 are valid')
         
-        if not self.offset.kind in ['ellipsoid','cylinder']:
-            raise ValueError('Invalid offset type. Only "ellipsoid" or "cylinder" are valid')
+        if not self.offset.kind in ['ellipsoid','cylinder','cuboid']:
+            raise ValueError('Invalid offset type. Only "ellipsoid", "cuboid" or "cylinder" are valid')
         
         if not self.padding_type in ['zero','noise']:
             raise ValueError('Invalid padding type. Only "zero" or "noise" are valid')
@@ -130,6 +133,9 @@ class Aligner:
         args = args + ' -off_params %f,%f,%f,%f' % (self.offset.span[0],self.offset.span[1],self.offset.span[2],self.offset.step)
         args = args + ' -type %d'          % self.dimensionality
         args = args + ' -verbosity %d'     % self.verbosity
+        args = args + ' -tm_type '         + self.tm_type
+        args = args + ' -tm_prefix '       + self.tm_prefix
+        args = args + ' -tm_sigma %f'      % self.tm_sigma
         return args
     
     def align(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
@@ -222,15 +228,15 @@ class SubtomoRec:
         self.threads_per_gpu   = 1
         self.bandpass          = _dt.bandpass(0,-1,2)
         self.extra_padding     = 0
-        self.padding_type      = 'noise'
-        self.normalize_type    = 'zero_mean_one_std'
-        self.ctf_correction    = 'wiener'
+        self.padding_type      = 'zero'
+        self.normalize_type    = 'none'
+        self.ctf_correction    = 'phase_flip'
         self.ssnr              = _dt.ssnr(1,0.01)
-        self.inversion         = _dt.inversion_params(10,0.75)
+        self.inversion         = _dt.inversion_params(0,0.75)
         self.use_align         = False
         self.verbosity         = 0
-        self.normalize_output  = True
-        self.boost_lowfreq     = _dt.boost_lowfreq_params(0,0,0)
+        self.normalize_output  = False
+        self.boost_lowfreq     = _dt.boost_lowfreq_params(2,3,10)
 
     def _validate(self):
         if not self.padding_type in ['zero','noise']:

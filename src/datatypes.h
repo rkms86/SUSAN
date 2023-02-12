@@ -154,6 +154,7 @@ typedef enum {
     ELLIPSOID,
     CYLINDER,
     CIRCLE,
+    CUBOID,
 } OffsetType_t;
 
 

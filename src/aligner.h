@@ -43,6 +43,12 @@ typedef enum {
 	ALI_2D
 } AliCmd;
 
+typedef enum {
+	TM_NONE=0,
+	TM_PYTHON,
+	TM_MATLAB
+} TEMPLATE_MATCHING_OUTPUT;
+
 class AliBuffer {
 	
 public:
@@ -56,9 +62,12 @@ public:
     GPU::GArrDefocus  g_def;
     Particle ptcl;
     CtfConst ctf_vals;
-    int      K;
-    int      r_ix;
-    int      class_ix;
+    int K;
+    int r_ix;
+    int class_ix;
+    int tomo_pos_x;
+	int tomo_pos_y;
+	int tomo_pos_z;
 
     AliBuffer(int N,int max_k) {
         c_stk.alloc(N*N*max_k);
@@ -75,6 +84,93 @@ public:
     ~AliBuffer() {
     }
 	
+};
+
+class TemplateMatchingReporter {
+	
+	int  tm_type;
+	FILE *fp;
+	
+	float *c_cc;
+	int   n_cc;
+	float sigma;
+	
+public:
+	TemplateMatchingReporter(int n_pts) {
+		tm_type = TM_NONE;
+		n_cc    = n_pts;
+		c_cc    = new float[n_cc];
+		sigma   = 0;
+	}
+	
+	~TemplateMatchingReporter() {
+		delete [] c_cc;
+	}
+	
+	void start(int id,const char*type,const char*prefix,const float in_sigma) {
+		sigma = in_sigma;
+		
+		if( strcmp(type,"none") == 0 ) {
+			tm_type = TM_NONE;
+		}
+		else if( strcmp(type,"python") == 0 ) {
+			tm_type = TM_PYTHON;
+		}
+		else if( strcmp(type,"matlab") == 0 ) {
+			tm_type = TM_MATLAB;
+		}
+		
+		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB ) {
+			char tm_file[SUSAN_FILENAME_LENGTH];
+			sprintf(tm_file,"%s_worker%02d.txt",prefix,id);
+			fp = fopen(tm_file,"w");
+		}
+	}
+	
+	void finish() {
+		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB ) {
+			fclose(fp);
+		}
+	}
+
+	void clear_cc() {
+		memset(c_cc,0,n_cc*sizeof(float));
+	}
+
+	void push_cc(const float*p_cc) {
+		memcpy(c_cc,p_cc,n_cc*sizeof(float));
+	}
+	
+	void save_cc(int tid,int rid,int tx,int ty,int tz,const Vec3*c_pts) {
+		if( tm_type != TM_NONE ) {
+			int x,y,z;
+			
+			float avg,std;
+			Math::get_avg_std(avg,std,c_cc,n_cc);
+			
+			for(int i=0;i<n_cc;i++) {
+				x = (int)roundf(c_pts[i].x);
+				y = (int)roundf(c_pts[i].y);
+				z = (int)roundf(c_pts[i].z);
+				
+				if( sigma > 0 ) {
+					if( c_cc[i] > avg+sigma*std ) {
+						if( tm_type == TM_PYTHON )
+							fprintf(fp,"cc_tomo%03d_ref%02d[%4d,%4d,%4d] = %f\n",tid,rid,z+tz,y+ty,x+tx,c_cc[i]);
+						else if( tm_type == TM_MATLAB )
+							fprintf(fp,"cc_tomo%03d_ref%02d(%4d,%4d,%4d) = %f;\n",tid,rid,x+tx+1,y+ty+1,z+tz+1,c_cc[i]);
+					}
+				}
+				else {
+					if( tm_type == TM_PYTHON )
+						fprintf(fp,"cc_tomo%03d_ref%02d[%4d,%4d,%4d] = %f\n",tid,rid,z+tz,y+ty,x+tx,c_cc[i]);
+					else if( tm_type == TM_MATLAB )
+						fprintf(fp,"cc_tomo%03d_ref%02d(%4d,%4d,%4d) = %f;\n",tid,rid,x+tx+1,y+ty+1,z+tz+1,c_cc[i]);
+				}
+			}
+		}
+	}
+
 };
 
 class AliGpuWorker : public Worker {
@@ -107,13 +203,17 @@ public:
     bool drift3D;
 
     AnglesProvider ang_prov;
+    
+    const char *tm_type;
+    const char *tm_prefix;
+    float       tm_sigma;
 
     AliGpuWorker() {
     }
 
     ~AliGpuWorker() {
     }
-	
+
 protected:
     int NP;
     int MP;
@@ -131,6 +231,9 @@ protected:
         AliSubstack ss_data(M,N,max_K,P,stream);
 
         AliData ali_data(MP,NP,max_K,off_par,off_type,stream);
+        
+        TemplateMatchingReporter tm_rep(ali_data.n_pts);
+        tm_rep.start(worker_id,tm_type,tm_prefix,tm_sigma);
 
         RadialAverager rad_avgr(M,N,max_K);
 
@@ -155,17 +258,18 @@ protected:
         while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
             switch(current_cmd) {
                 case ALI_3D:
-                    align3D(vols,ctf_wgt,ss_data,ali_data,rad_avgr,stream);
+                    align3D(vols,ctf_wgt,ss_data,ali_data,rad_avgr,tm_rep,stream);
                     break;
                 case ALI_2D:
                     align2D(vols,ctf_wgt,ss_data,ali_data,rad_avgr,stream);
                     break;
                 default:
-                        break;
+                    break;
             }
         }
 
         GPU::sync();
+        tm_rep.finish();
         delete [] vols;
     }
 
@@ -229,7 +333,7 @@ protected:
         GpuKernels::fftshift3D<<<grdC,blk>>>(g_fou.ptr,MP,NP);
     }
 
-    void align3D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
+    void align3D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
         p_buffer->RO_sync();
         while( p_buffer->RO_get_status() > DONE ) {
             if( p_buffer->RO_get_status() == READY ) {
@@ -237,7 +341,7 @@ protected:
                 create_ctf(ctf_wgt,ptr,stream);
                 add_data(ss_data,ctf_wgt,ptr,rad_avgr,stream);
                 add_rec_weight(ss_data,ptr,stream);
-                angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,rad_avgr,stream);
+                angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,rad_avgr,tm_rep,stream);
                 stream.sync();
                 set_classification(ptr);
             }
@@ -265,7 +369,7 @@ protected:
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,ptr->K);
         GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_wgt.ptr,ptr->ctf_vals,ptr->g_def.ptr,ss);
     }
-	
+
     void add_data(AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,RadialAverager&rad_avgr,GPU::Stream&stream) {
 
         switch( pad_type ) {
@@ -295,7 +399,7 @@ protected:
                 break;
         }
     }
-	
+
     void add_rec_weight(AliSubstack&ss_data,AliBuffer*ptr,GPU::Stream&stream) {
         float w_total=0;
         for(int k=0;k<ptr->K;k++) {
@@ -304,7 +408,7 @@ protected:
         ss_data.apply_radial_wgt(w_total,ptr->K,stream);
     }
 
-    void angular_search_3D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
+    void angular_search_3D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
 
         Rot33 Rot;
         single max_cc=0,cc;
@@ -349,20 +453,23 @@ protected:
                         else {
                             ali_data.scale(4*float(N*N)/M_PI,ptr->K,stream);
                         }
-
+                        
                         ali_data.sparse_reconstruct(ptr->g_ali,ptr->K,stream);
                         stream.sync();
                         ali_data.get_max_cc(cc,idx,ali_data.c_cc);
+                        
                         if( cc > max_cc ) {
                             max_idx = idx;
                             max_cc  = cc;
                             max_R   = R_tmp;
+                            tm_rep.push_cc(ali_data.c_cc);
                         }
                         if( use_sigma ) {
                             running_avg += cc;
                             running_std += (cc*cc);
                             running_cnt += 1;
                         }
+                        
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
@@ -385,6 +492,7 @@ protected:
 
         }
         update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
+        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
     }
 
     void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
@@ -679,6 +787,9 @@ protected:
         gpu_worker.off_par.z  = p_info->off_z;
         gpu_worker.off_par.w  = p_info->off_s;
         gpu_worker.psym       = p_info->pseudo_sym;
+        gpu_worker.tm_type    = p_info->tm_type;
+        gpu_worker.tm_prefix  = p_info->tm_pfx;
+        gpu_worker.tm_sigma   = p_info->tm_sigma;
         gpu_worker.start();
     }
 
@@ -745,7 +856,10 @@ protected:
             pt_tomo(1) = ptr->ptcl.pos().y;
             pt_tomo(2) = ptr->ptcl.pos().z;
         }
-
+        
+        ptr->tomo_pos_x = (int)roundf( (pt_tomo(0)/p_tomo->pix_size) + p_tomo->tomo_center(0) );
+        ptr->tomo_pos_y = (int)roundf( (pt_tomo(1)/p_tomo->pix_size) + p_tomo->tomo_center(1) );
+        ptr->tomo_pos_z = (int)roundf( (pt_tomo(2)/p_tomo->pix_size) + p_tomo->tomo_center(2) );
 
         eu_ZYZ(0) = ptr->ptcl.ali_eu[r].x;
         eu_ZYZ(1) = ptr->ptcl.ali_eu[r].y;

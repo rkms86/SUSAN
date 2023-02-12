@@ -98,9 +98,10 @@ namespace ArgParser {
         check_arg_and_set(type,all_ok,arg,"ellipsoid",ELLIPSOID);
         check_arg_and_set(type,all_ok,arg,"cylinder" ,CYLINDER );
         check_arg_and_set(type,all_ok,arg,"circle"   ,CIRCLE   );
+        check_arg_and_set(type,all_ok,arg,"cuboid"   ,CUBOID   );
 
         if( !all_ok )
-            fprintf(stderr,"Invalid offset type %s. Options are: ellipsoid and cylinder. Defaulting to ellipsoid.\n",arg);
+            fprintf(stderr,"Invalid offset type %s. Options are: ellipsoid, cylinder or cuboid. Defaulting to ellipsoid.\n",arg);
 
         return type;
     }

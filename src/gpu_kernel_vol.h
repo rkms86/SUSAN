@@ -630,14 +630,14 @@ __global__ void reconstruct_pts(float*p_cc,const Proj2D*pTlt,cudaTextureObject_t
         Vec3  pt = p_pts[ss_idx.x];
         single x,y;
         single off = (single)(N/2) + 0.5;
-
+        
         for(int z=0;z<K;z++) {
             if( pTlt[z].w > 0 ) {
                 rot_inv_pt_XY(x,y,pTlt[z].R,pt);
                 cc += tex2DLayered<float>(ss_cc,x+off,y+off,z);
             }
         }
-
+        
         p_cc[ss_idx.x] = cc;
 
     }
