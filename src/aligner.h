@@ -46,7 +46,8 @@ typedef enum {
 typedef enum {
 	TM_NONE=0,
 	TM_PYTHON,
-	TM_MATLAB
+	TM_MATLAB.
+	TM_CSV
 } TEMPLATE_MATCHING_OUTPUT;
 
 class AliBuffer {
@@ -119,16 +120,22 @@ public:
 		else if( strcmp(type,"matlab") == 0 ) {
 			tm_type = TM_MATLAB;
 		}
+		else if( strcmp(type,"csv") == 0 ) {
+			tm_type = TM_CSV;
+		}
 		
-		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB ) {
+		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
 			char tm_file[SUSAN_FILENAME_LENGTH];
 			sprintf(tm_file,"%s_worker%02d.txt",prefix,id);
 			fp = fopen(tm_file,"w");
+			if( tm_type == TM_CSV ) {
+				fprintf(fp,"#TID,CID,X,Y,Z,CC\n");
+			}
 		}
 	}
 	
 	void finish() {
-		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB ) {
+		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
 			fclose(fp);
 		}
 	}
@@ -159,6 +166,8 @@ public:
 							fprintf(fp,"cc_tomo%03d_ref%02d[%4d,%4d,%4d] = %f\n",tid,rid,z+tz,y+ty,x+tx,c_cc[i]);
 						else if( tm_type == TM_MATLAB )
 							fprintf(fp,"cc_tomo%03d_ref%02d(%4d,%4d,%4d) = %f;\n",tid,rid,x+tx+1,y+ty+1,z+tz+1,c_cc[i]);
+						else if( tm_type == TM_CSV )
+							fprintf(fp,"%d,%d,%d,%d,%d,%f\n",tid,rid,x+tx,y+ty,z+tz,c_cc[i]);
 					}
 				}
 				else {
@@ -166,6 +175,8 @@ public:
 						fprintf(fp,"cc_tomo%03d_ref%02d[%4d,%4d,%4d] = %f\n",tid,rid,z+tz,y+ty,x+tx,c_cc[i]);
 					else if( tm_type == TM_MATLAB )
 						fprintf(fp,"cc_tomo%03d_ref%02d(%4d,%4d,%4d) = %f;\n",tid,rid,x+tx+1,y+ty+1,z+tz+1,c_cc[i]);
+					else if( tm_type == TM_CSV )
+						fprintf(fp,"%d,%d,%d,%d,%d,%f\n",tid,rid,x+tx,y+ty,z+tz,c_cc[i]);
 				}
 			}
 		}

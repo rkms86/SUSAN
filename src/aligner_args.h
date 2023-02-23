@@ -120,8 +120,8 @@ bool validate(const Info&info) {
         fprintf(stderr,"Error with CUDA devices.\n");
         rslt = false;
     }
-    if( !(strcmp(info.tm_type,"none") || strcmp(info.tm_type,"matlab") || strcmp(info.tm_type,"python")) ) {
-        fprintf(stderr,"Invalid template matching type [tm_type] value: %s. [none,matlab,python].\n",info.tm_type);
+    if( !(strcmp(info.tm_type,"none") || strcmp(info.tm_type,"matlab") || strcmp(info.tm_type,"python") || strcmp(info.tm_type,"csv")) ) {
+        fprintf(stderr,"Invalid template matching type [tm_type] value: %s. [none,matlab,python,csv].\n",info.tm_type);
         rslt = false;
     }
     return rslt;
