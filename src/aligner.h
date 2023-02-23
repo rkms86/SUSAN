@@ -458,11 +458,11 @@ protected:
                         if( ctf_type == ALI_ON_REFERENCE ||
                             ctf_type == ALI_ON_SUBSTACK )
                         {
-                            ali_data.scale(N*N,ptr->K,stream);
-                            ali_data.scale(N*N,ptr->K,stream);
+                            ali_data.scale(NP*NP,ptr->K,stream);
+                            ali_data.scale(NP*NP,ptr->K,stream);
                         }
                         else {
-                            ali_data.scale(4*float(N*N)/M_PI,ptr->K,stream);
+                            ali_data.scale(4*float(NP*NP)/M_PI,ptr->K,stream);
                         }
                         
                         ali_data.sparse_reconstruct(ptr->g_ali,ptr->K,stream);
