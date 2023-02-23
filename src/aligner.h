@@ -46,7 +46,7 @@ typedef enum {
 typedef enum {
 	TM_NONE=0,
 	TM_PYTHON,
-	TM_MATLAB.
+	TM_MATLAB,
 	TM_CSV
 } TEMPLATE_MATCHING_OUTPUT;
 
