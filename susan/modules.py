@@ -346,7 +346,6 @@ class CtfRefiner:
         self.list_gpus_ids     = [0]
         self.threads_per_gpu   = 1
         self.bandpass          = _dt.bandpass(0,-1,2)
-        self.dimensionality    = 3
         self.extra_padding     = 0
         self.padding_type      = 'noise'
         self.halfsets_independ = False
