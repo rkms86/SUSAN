@@ -135,6 +135,10 @@ class Manager:
         files = self.get_iteration_files(ite)
         return files.reference
 
+    def get_name_ptcls(self,ite):
+        files = self.get_iteration_files(ite)
+        return files.ptcl_rslt
+
     def get_map(self,ite,ref=1):
         v,_ = _mrc_read(self.get_names_map(ite,ref))
         return v
