@@ -20,15 +20,7 @@ __all__ = ['read','write','get_info']
 
 import numpy as _np
 
-def read(filename):
-    mrc_shape = _np.fromfile(filename,dtype=_np.uint32 ,count=3)
-    mrc_mode  = _np.fromfile(filename,dtype=_np.uint32 ,count=1,offset=12)
-    mrc_sampl = _np.fromfile(filename,dtype=_np.uint32 ,count=3,offset=28)
-    mrc_cellA = _np.fromfile(filename,dtype=_np.float32,count=3,offset=40)
-    mrc_offst = _np.fromfile(filename,dtype=_np.uint32 ,count=1,offset=92)
-
-    pix_size  = (mrc_cellA/mrc_sampl).astype(_np.float32)
-
+def _mode_to_type(mrc_mode):
     if mrc_mode == 0:
         in_type = _np.int8
     elif mrc_mode == 1:
@@ -41,6 +33,34 @@ def read(filename):
         in_type = _np.float16
     else:
         raise ValueError
+    return in_type
+
+def _type_to_mode(mrc_type):
+    if _np.issubdtype(mrc_type,_np.int8):
+        out_mode = 0
+    elif _np.issubdtype(mrc_type,_np.int16):
+        out_mode = 1
+    elif _np.issubdtype(mrc_type,_np.float32):
+        out_mode = 2
+    elif _np.issubdtype(mrc_type,_np.float64):
+        out_mode = 2
+    elif _np.issubdtype(mrc_type,_np.uint16):
+        out_mode = 6
+    elif _np.issubdtype(mrc_type,_np.float16):
+        out_mode = 12
+    else:
+        raise ValueError
+    return out_mode
+
+def read(filename):
+    mrc_shape = _np.fromfile(filename,dtype=_np.uint32 ,count=3)
+    mrc_mode  = _np.fromfile(filename,dtype=_np.uint32 ,count=1,offset=12)
+    mrc_sampl = _np.fromfile(filename,dtype=_np.uint32 ,count=3,offset=28)
+    mrc_cellA = _np.fromfile(filename,dtype=_np.float32,count=3,offset=40)
+    mrc_offst = _np.fromfile(filename,dtype=_np.uint32 ,count=1,offset=92)
+
+    pix_size  = (mrc_cellA/mrc_sampl).astype(_np.float32)
+    in_type   = _mode_to_type(mrc_mode)
 
     data = _np.fromfile(filename,dtype=in_type,count=-1,offset=(1024+mrc_offst[0]))
     data = _np.reshape(data,(mrc_shape[2],mrc_shape[1],mrc_shape[0]))
@@ -54,19 +74,7 @@ def get_info(filename):
     mrc_cellA = _np.fromfile(filename,dtype=_np.float32,count=3,offset=40)
     
     pix_size  = (mrc_cellA/mrc_sampl).astype(_np.float32)
-
-    if mrc_mode == 0:
-        in_type = _np.int8
-    elif mrc_mode == 1:
-        in_type = _np.int16
-    elif mrc_mode == 2:
-        in_type = _np.float32
-    elif mrc_mode == 6:
-        in_type = _np.uint16
-    elif mrc_mode == 12:
-        in_type = _np.float16
-    else:
-        raise ValueError
+    in_type   = _mode_to_type(mrc_mode)
 
     return mrc_shape,pix_size,in_type
 
@@ -79,12 +87,14 @@ def write(data,filename,apix=1,ispg=None,fill_statistics=True):
     apix_uint32 = apix.view(_np.uint32)
     
     if ispg is None:
+        print('Logging')
         ispg = (data.shape[0]==data.shape[1]) & (data.shape[2]==data.shape[1])
+        print(ispg)
     
     hdr[0]  = data.shape[2]
     hdr[1]  = data.shape[1]
     hdr[2]  = data.shape[0]
-    hdr[3]  = 2
+    hdr[3]  = _type_to_mode( data.dtype )
     hdr[7]  = data.shape[2]
     hdr[8]  = data.shape[1]
     hdr[9]  = data.shape[0]
@@ -103,10 +113,14 @@ def write(data,filename,apix=1,ispg=None,fill_statistics=True):
     hdr[53] =      17476 # 0x00004444 little-endian
     
     if fill_statistics:
-        hdr[19] = data.min().view(_np.uint32)
-        hdr[20] = data.max().view(_np.uint32)
-        hdr[21] = data.mean().view(_np.uint32)
-        hdr[54] = data.std().view(_np.uint32)
+        vmin = data.min()
+        vmax = data.max()
+        vavg = data.mean()
+        vstd = data.std()        
+        hdr[19] = _np.float32(vmin).view(_np.uint32)
+        hdr[20] = _np.float32(vmax).view(_np.uint32)
+        hdr[21] = _np.float32(vavg).view(_np.uint32)
+        hdr[54] = _np.float32(vstd).view(_np.uint32)
     
     f = open(filename,'w')
     hdr.tofile(f)
