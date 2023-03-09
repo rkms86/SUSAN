@@ -87,9 +87,7 @@ def write(data,filename,apix=1,ispg=None,fill_statistics=True):
     apix_uint32 = apix.view(_np.uint32)
     
     if ispg is None:
-        print('Logging')
         ispg = (data.shape[0]==data.shape[1]) & (data.shape[2]==data.shape[1])
-        print(ispg)
     
     hdr[0]  = data.shape[2]
     hdr[1]  = data.shape[1]
