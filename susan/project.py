@@ -78,6 +78,7 @@ class Manager:
         
         self.aligner           = _ssa_modules.Aligner()
         self.averager          = _ssa_modules.Averager()
+        self.ctf_refiner       = _ssa_modules.CtfRefiner()
         
         self.aligner.ctf_correction = 'cfsc'
         self.max_2d_delta_angs = 0
@@ -195,11 +196,29 @@ class Manager:
         
         print( '  [%dD Alignment] Finished. Elapsed time: %.1f seconds (%s).' % (ite_type,elapsed.total_seconds(),str(elapsed)) )
 
+    def _exec_ctf_refinement(self,cur,prv):
+        self.ctf_refiner.list_gpus_ids     = self.list_gpus_ids
+        self.ctf_refiner.threads_per_gpu   = self.threads_per_gpu
+        self.ctf_refiner.verbosity         = self.verbosity
+        
+        print( '  [CTF Refinement] Start:' )
+        
+        start_time = _ssa_utils.time_now()
+        if self.mpi.arg > 1:
+            self.ctf_refiner.mpi.cmd = self.mpi.cmd
+            self.ctf_refiner.mpi.arg = self.mpi.arg
+            self.ctf_refiner.refine_mpi(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size)
+        else:
+            self.ctf_refiner.refine(cur.ptcl_rslt,prv.reference,self.tomogram_file,prv.ptcl_rslt,self.box_size)
+        elapsed = _ssa_utils.time_now()-start_time
+        
+        print( '  [CTF Refinement] Finished. Elapsed time: %.1f seconds (%s).' % (elapsed.total_seconds(),str(elapsed)) )
+
     def exec_estimation(self,cur,prv):
         ite_type  = self._validate_ite_type()
         
         if ite_type == 'ctf':
-            raise ValueError('CTF iteration not implemented yet')
+            self._exec_ctf_refinement(cur,prv)
         else:
             self._exec_alignment(cur,prv,ite_type)
         
