@@ -316,9 +316,11 @@ void print_minimal(const Info&info,FILE*fp=stdout) {
         if( info.pad_type == PAD_GAUSSIAN )
             fprintf(fp," Random padding.\n");
     }
+    else
+        fprintf(fp,"\n");
 
-    fprintf(fp,"    - Defocus search: %.3f,%.3f. ",info.def_range,info.def_step);
-    fprintf(fp,"tDefocus angle %.3f,%.3f.\n",info.ang_range,info.ang_step);
+    fprintf(fp,"    - Defocus search: %.3f,%.3f.",info.def_range,info.def_step);
+    fprintf(fp,"\tDefocus angle %.3f,%.3f.\n",info.ang_range,info.ang_step);
 }
 
 void print(const Info&info,FILE*fp=stdout) {
