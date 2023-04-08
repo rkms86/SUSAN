@@ -231,70 +231,70 @@ __global__ void insert_stk_atomic(double2*p_acc,double*p_wgt,
 				bool bz1 = (z1>=0) && (z1<N);
 				
 				long idx;
-				float w_wgt;
+				double w_wgt;
 				
 				if( bx0 && by0 && bz0 ) {
 					idx = x0 + y0*M + z0*M*N;
 					w_wgt = wx0*wy0*wz0;
-					atomicAdd( &(p_acc[idx].x) , w_wgt*val.x );
-					atomicAdd( &(p_acc[idx].y) , w_wgt*val.y );
-					atomicAdd( &(p_wgt[idx]  ) , w_wgt*wgt   );
+					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
 				}
 				
 				if( bx1 && by0 && bz0 ) {
 					idx = x1 + y0*M + z0*M*N;
 					w_wgt = wx1*wy0*wz0;
-					atomicAdd( &(p_acc[idx].x) , w_wgt*val.x );
-					atomicAdd( &(p_acc[idx].y) , w_wgt*val.y );
-					atomicAdd( &(p_wgt[idx]  ) , w_wgt*wgt   );
+					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
 				}
 				
 				if( bx0 && by1 && bz0 ) {
 					idx = x0 + y1*M + z0*M*N;
 					w_wgt = wx0*wy1*wz0;
-					atomicAdd( &(p_acc[idx].x) , w_wgt*val.x );
-					atomicAdd( &(p_acc[idx].y) , w_wgt*val.y );
-					atomicAdd( &(p_wgt[idx]  ) , w_wgt*wgt   );
+					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
 				}
 				
 				if( bx1 && by1 && bz0 ) {
 					idx = x1 + y1*M + z0*M*N;
 					w_wgt = wx1*wy1*wz0;
-					atomicAdd( &(p_acc[idx].x) , w_wgt*val.x );
-					atomicAdd( &(p_acc[idx].y) , w_wgt*val.y );
-					atomicAdd( &(p_wgt[idx]  ) , w_wgt*wgt   );
+					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
 				}
 				
 				if( bx0 && by0 && bz1 ) {
 					idx = x0 + y0*M + z1*M*N;
 					w_wgt = wx0*wy0*wz1;
-					atomicAdd( &(p_acc[idx].x) , w_wgt*val.x );
-					atomicAdd( &(p_acc[idx].y) , w_wgt*val.y );
-					atomicAdd( &(p_wgt[idx]  ) , w_wgt*wgt   );
+					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
 				}
 				
 				if( bx1 && by0 && bz1 ) {
 					idx = x1 + y0*M + z1*M*N;
 					w_wgt = wx1*wy0*wz1;
-					atomicAdd( &(p_acc[idx].x) , w_wgt*val.x );
-					atomicAdd( &(p_acc[idx].y) , w_wgt*val.y );
-					atomicAdd( &(p_wgt[idx]  ) , w_wgt*wgt   );
+					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
 				}
 				
 				if( bx0 && by1 && bz1 ) {
 					idx = x0 + y1*M + z1*M*N;
 					w_wgt = wx0*wy1*wz1;
-					atomicAdd( &(p_acc[idx].x) , w_wgt*val.x );
-					atomicAdd( &(p_acc[idx].y) , w_wgt*val.y );
-					atomicAdd( &(p_wgt[idx]  ) , w_wgt*wgt   );
+					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
 				}
 				
 				if( bx1 && by1 && bz1 ) {
 					idx = x1 + y1*M + z1*M*N;
 					w_wgt = wx1*wy1*wz1;
-					atomicAdd( &(p_acc[idx].x) , w_wgt*val.x );
-					atomicAdd( &(p_acc[idx].y) , w_wgt*val.y );
-					atomicAdd( &(p_wgt[idx]  ) , w_wgt*wgt   );
+					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
 				}
 			
 			}

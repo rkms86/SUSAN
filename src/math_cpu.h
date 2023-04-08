@@ -21,7 +21,10 @@
 #ifndef MATH_CPU_H
 #define MATH_CPU_H
 
-#if __CUDACC_VER_MAJOR__ == 11
+#if __CUDACC_VER_MAJOR__ == 12
+    #pragma nv_diag_suppress 20012
+    #pragma diag_suppress 20012
+#elif __CUDACC_VER_MAJOR__ == 11
     #pragma nv_diag_suppress 20011
     #pragma nv_diag_suppress 20012
     #pragma nv_diag_suppress 20014
