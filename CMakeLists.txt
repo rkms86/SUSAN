@@ -15,15 +15,15 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 ########################################################################
 
 # Configure CUDA:
-# v10.2: from SM 5.2 up to SM 7.5
+# Below SM 5.2: DEPRECATED [for SUSAN]
+# v10.2: up to SM 7.5
 # v11.0: SM 8.0
 # v11.1: SM 8.6
 # v11.5: SM 8.7
 # v11.8: SM 9.0
 # v12.0: up to SM 9.0
-# Lower than SM 5.2: Deprecated and unsupported on SUSAN.
 find_package(CUDAToolkit)
-list(APPEND CUDA_ARCHS 52 60 61 62 70 72 75)
+list(APPEND CUDA_ARCHS 52 53 60 61 62 70 72 75)
 if(CUDAToolkit_VERSION_MAJOR LESS 10)
 	message(FATAL_ERROR "SUSAN requires CUDA toolkit at least version 10.")
 elseif(CUDAToolkit_VERSION_MAJOR EQUAL 11)
