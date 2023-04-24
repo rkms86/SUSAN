@@ -125,6 +125,7 @@ class Aligner:
         args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
         args = args + ' -p_symmetry '      + self.pseudo_symmetry
         args = args + ' -ali_halves %d'    % self.halfsets_independ
+        args = args + ' -allow_drift %d'   % self.allow_drift
         args = args + ' -use_sigma %d'     % self.use_cc_sigma
         args = args + ' -cone %f,%f'       % (self.cone.span,self.cone.step)
         args = args + ' -inplane %f,%f'    % (self.inplane.span,self.inplane.step)
