@@ -34,7 +34,6 @@ class Aligner:
         self.extra_padding     = 0
         self.allow_drift       = True
         self.halfsets_independ = False
-        self.use_cc_sigma      = False
         self.cone              = _dt.search_params(0,1)
         self.inplane           = _dt.search_params(0,1)
         self.refine            = _dt.refine_params(0,1)
@@ -42,6 +41,7 @@ class Aligner:
         self.padding_type      = 'noise'
         self.normalize_type    = 'zero_mean_one_std'
         self.ctf_correction    = 'on_reference'
+        self.cc_stats_type     = 'none'
         self.pseudo_symmetry   = 'c1'
         self.ssnr              = _dt.ssnr(1,0.01)
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
@@ -87,6 +87,9 @@ class Aligner:
         if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','wiener_white','cfsc']:
             raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
         
+        if not self.cc_stats_type in ['none','probability','sigma']:
+            raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
+        
         if not self.offset.step > 0 or not self.cone.step > 0 or not self.inplane.step > 0:
             raise ValueError('The steps values must be larger than 0')
         
@@ -126,7 +129,7 @@ class Aligner:
         args = args + ' -p_symmetry '      + self.pseudo_symmetry
         args = args + ' -ali_halves %d'    % self.halfsets_independ
         args = args + ' -allow_drift %d'   % self.allow_drift
-        args = args + ' -use_sigma %d'     % self.use_cc_sigma
+        args = args + ' -cc_type '         + self.cc_stats_type
         args = args + ' -cone %f,%f'       % (self.cone.span,self.cone.step)
         args = args + ' -inplane %f,%f'    % (self.inplane.span,self.inplane.step)
         args = args + ' -refine %d,%d'     % (self.refine.factor,self.refine.levels)

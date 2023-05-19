@@ -196,11 +196,12 @@ public:
     int ctf_type;
     int max_K;
     bool ali_halves;
-    bool use_sigma;
     float3  bandpass;
     float2  ssnr; /// x=F; y=S;
     DoubleBufferHandler *p_buffer;
     RefMap              *p_refs;
+
+    uint32 cc_stats;
 
     const char*psym;
     float2 cone; /// x=range; y=step
@@ -475,10 +476,13 @@ protected:
                             max_R   = R_tmp;
                             tm_rep.push_cc(ali_data.c_cc);
                         }
-                        if( use_sigma ) {
+                        if( cc_stats == CC_SIGMA ) {
                             running_avg += cc;
                             running_std += (cc*cc);
                             running_cnt += 1;
+                        }
+                        if( cc_stats == CC_PROB ) {
+                            running_avg += ali_data.get_sum_cc(ali_data.c_cc);
                         }
                         
                     } // INPLANE
@@ -487,7 +491,7 @@ protected:
             R_lvl = max_R;
         } // REFINE
 
-        if( use_sigma ) {
+        if( cc_stats == CC_SIGMA ) {
             if( (running_cnt > 0) || (running_std<SUSAN_FLOAT_TOL) ) {
                 running_avg = running_avg/running_cnt;
                 running_std = running_std/running_cnt;
@@ -500,8 +504,11 @@ protected:
                 max_cc  = 0;
                 max_idx = (ali_data.n_pts/2);
             }
-
         }
+        if( cc_stats == CC_PROB ) {
+            max_cc = max_cc/running_avg;
+        }
+        
         update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
         tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
     }
@@ -552,7 +559,7 @@ protected:
                             ali_data.scale(N*N,ptr->K,stream);
                         }
                         else {
-                            ali_data.scale(4*float(N*N)/M_PI,ptr->K,stream);
+                            ali_data.scale(4*float(NP*NP)/M_PI,ptr->K,stream);
                         }
 
                         ali_data.extract_cc(ite_cc,ite_idx,ptr->K,stream);
@@ -775,7 +782,7 @@ protected:
         gpu_worker.R          = R;
         gpu_worker.p_refs     = p_refs;
         gpu_worker.ali_halves = p_info->ali_halves;
-        gpu_worker.use_sigma  = p_info->use_sigma;
+        gpu_worker.cc_stats   = p_info->cc_stats;
         gpu_worker.pad_type   = pad_type;
         gpu_worker.ctf_type   = p_info->ctf_type;
         gpu_worker.max_K      = max_K;

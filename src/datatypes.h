@@ -144,6 +144,12 @@ typedef enum {
 } CtfAlignmentType_t;
 
 typedef enum {
+    CC_NONE=0,
+    CC_PROB,
+    CC_SIGMA
+} CcStatsType_t;
+
+typedef enum {
     INV_NO_INV=0,
     INV_PHASE_FLIP,
     INV_WIENER,
