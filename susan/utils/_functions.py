@@ -37,6 +37,8 @@ from numba import jit
 from os.path import splitext as split_ext
 import susan.utils.datatypes as datatypes
 
+###########################################
+
 def denoise_l0(data,l0_lambda,rho=1,max_clip=-1):
     rho  = max(min(rho,1),0)
     th   = np.quantile(data,l0_lambda)
@@ -47,6 +49,8 @@ def denoise_l0(data,l0_lambda,rho=1,max_clip=-1):
     if rho < 1:
         rslt = rho*rslt + (1-rho)*data
     return rslt
+
+###########################################
 
 @jit(nopython=True,cache=True)
 def _core_apply_fourier_rad_wgt(v_fou,wgt):
@@ -93,6 +97,8 @@ def bandpass(v,lowpass,highpass=0,rolloff=1):
 def apply_FOM(v,fsc_array):
     wgt = 2*fsc_array/(fsc_array+1)
     return _apply_fourier_rad_wgt(v,wgt)
+
+###########################################
 
 @jit(nopython=True,cache=True)
 def _fsc_get_core(n,d1,d2):
@@ -155,6 +161,8 @@ def fsc_analyse(fsc,apix=1.0,thres=0.143):
         res  = (2*(fsc.size-1)*apix)/fpix
     rslt = datatypes.fsc_info(fpix,res)
     return rslt
+
+###########################################
 
 @jit(nopython=True,cache=True)
 def euZYZ_rotm(R,eu):

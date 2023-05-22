@@ -45,6 +45,20 @@ namespace ArgParser {
         return type;
     }
 
+    CcStatsType_t get_cc_stats_type(const char*arg) {
+        CcStatsType_t type = CC_NONE;
+        bool all_ok = false;
+
+        check_arg_and_set(type,all_ok,arg,"none"       ,CC_NONE);
+        check_arg_and_set(type,all_ok,arg,"probability",CC_PROB);
+        check_arg_and_set(type,all_ok,arg,"sigma"      ,CC_SIGMA);
+
+        if( !all_ok )
+            fprintf(stderr,"Invalid cc statistics type %s. Options are: none, probability or sigma. Defaulting to none.\n",arg);
+
+        return type;
+    }
+
     NormalizationType_t get_norm_type(const char*arg) {
         NormalizationType_t type = NO_NORM;
         bool all_ok = false;

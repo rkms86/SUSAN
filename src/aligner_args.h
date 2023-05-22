@@ -50,7 +50,6 @@ typedef struct {
     float  ssnr_S;
     bool   ali_halves;
     bool   drift;
-    bool   use_sigma;
     float  cone_range;
     float  cone_step;
     float  inplane_range;
@@ -62,6 +61,7 @@ typedef struct {
     float  off_y;
     float  off_z;
     float  off_s;
+    uint32 cc_stats;
 
     char   pseudo_sym[64];
 
@@ -143,7 +143,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.ssnr_F        = 0;
     info.ssnr_S        = 1;
     info.ali_halves    = false;
-    info.use_sigma     = false;
+    info.cc_stats      = CC_NONE;
     info.drift         = true;
     info.cone_range    = 0;
     info.cone_step     = 1;
@@ -192,7 +192,7 @@ bool parse_args(Info&info,int ac,char** av) {
         OFF_TYPE,
         OFF_PARAM,
         VERBOSITY,
-        USE_SIGMA,
+        CC_TYPE,
         TM_TYPE,
         TM_PREFIX,
         TM_SIGMA,
@@ -223,7 +223,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"refine",      1, 0, REFINE    },
         {"off_type",    1, 0, OFF_TYPE  },
         {"off_params",  1, 0, OFF_PARAM },
-        {"use_sigma",   1, 0, USE_SIGMA },
+        {"cc_type",     1, 0, CC_TYPE   },
         {"verbosity",   1, 0, VERBOSITY },
         {"tm_type",     1, 0, TM_TYPE   },
         {"tm_prefix",   1, 0, TM_PREFIX },
@@ -282,8 +282,8 @@ bool parse_args(Info&info,int ac,char** av) {
             case ALI_HALVES:
                 info.ali_halves = ArgParser::get_bool(optarg);
                 break;
-            case USE_SIGMA:
-                info.use_sigma = ArgParser::get_bool(optarg);
+            case CC_TYPE:
+                info.cc_stats = ArgParser::get_cc_stats_type(optarg);
                 break;
             case DRIFT:
                 info.drift = ArgParser::get_bool(optarg);
@@ -440,8 +440,10 @@ void print_full(const Info&info,FILE*fp) {
     if( info.norm_type == ZERO_MEAN_W_STD )
         fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std according to projection weight.\n");
 
-    if( info.use_sigma )
-        fprintf(fp,"\t\tMeasuring: max( (cc_max - cc_mean) / cc_std , 0 ).\n");
+    if( info.cc_stats == CC_SIGMA )
+        fprintf(fp,"\t\tMeasuring: max( (cc_max - cc_mean) / cc_std , 0 ) per angle.\n");
+    if( info.cc_stats == CC_PROB )
+        fprintf(fp,"\t\tMeasuring: cc_max / sum( cc ).\n");
     fprintf(fp,"\t\tPseudo-symmetry search: %s.\n",info.pseudo_sym);
     fprintf(fp,"\t\tCone search:    Range=%.3f, Step=%.3f.\n",info.cone_range,info.cone_step);
     fprintf(fp,"\t\tInplane search: Range=%.3f, Step=%.3f.\n",info.inplane_range,info.inplane_step);
@@ -548,8 +550,10 @@ void print_minimal(const Info&info,FILE*fp) {
     if( info.norm_type == ZERO_MEAN_W_STD )
         fprintf(fp,"Normalized to Mean=0, Std=PRJ_W.\n");
 
-    if( info.use_sigma )
-        fprintf(fp,"    - Measuring: max( (cc_max - cc_mean) / cc_std , 0 ).\n");
+    if( info.cc_stats == CC_SIGMA )
+        fprintf(fp,"    - Measuring (per angle): max( (cc_max - cc_mean) / cc_std , 0 ).\n");
+    if( info.cc_stats == CC_PROB )
+        fprintf(fp,"    - Measuring: cc_max / sum(cc).\n");
 
     fprintf(fp,"    - Angular search: [ %s | ",info.pseudo_sym);
     

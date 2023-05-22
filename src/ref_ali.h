@@ -22,6 +22,7 @@
 #define REF_ALI_H
 
 #include "datatypes.h"
+#include "math_cpu.h"
 #include "gpu.h"
 #include "gpu_fft.h"
 #include "gpu_rand.h"
@@ -377,6 +378,10 @@ public:
                 max_idx = i;
             }
         }
+    }
+
+    float get_sum_cc(const float*p_data) {
+        return Math::sum_vec(p_data,n_pts);
     }
 
     void aggregate_avg_std(float&avg,float&std,float&count,const float*p_data) {
