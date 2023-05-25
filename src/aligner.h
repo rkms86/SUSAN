@@ -746,8 +746,10 @@ public:
         worker_id  = id;
         worker_cmd = in_worker_cmd;
 
-        p_info   = info;
-        gpu_ix   = info->p_gpu[ id % info->n_threads ];
+        p_info   = info; 
+	// info->n_threads = number_of_gpus * threads_per_gpu, in order to get a gpu index from a worker index we have to make an integer division by threads_per_gpu instead of remainder of the devision by info->n_threads, which will not change id, since id < info->n_threads all the time.
+	int threads_per_gpu = (info->n_threads) / (info->n_gpu);
+        gpu_ix   = info->p_gpu[ id / threads_per_gpu ];
         max_K    = in_max_K;
         pad_type = info->pad_type;
 
