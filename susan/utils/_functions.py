@@ -166,32 +166,37 @@ def fsc_analyse(fsc,apix=1.0,thres=0.143):
 
 @jit(nopython=True,cache=True)
 def euZYZ_rotm(R,eu):
+    #R = np.zeros((3,3))
     cos_theta = np.cos(eu[0])
     cos_phi = np.cos(eu[1])
     cos_psi = np.cos(eu[2])
     sin_theta = np.sin(eu[0])
     sin_phi = np.sin(eu[1])
     sin_psi = np.sin(eu[2])
-    R[0,0] = cos_theta*cos_phi*cos_psi - sin_theta*sin_theta
-    R[0,1] = -cos_psi*sin_theta - cos_theta*cos_phi*sin_theta
+    R[0,0] = cos_theta*cos_phi*cos_psi - sin_theta*sin_psi
+    R[0,1] = -cos_psi*sin_theta - cos_theta*cos_phi*sin_psi
     R[0,2] = cos_theta*sin_phi
-    R[1,0] = cos_theta*sin_theta + cos_phi*cos_psi*sin_theta
-    R[1,1] = cos_theta*cos_psi - cos_phi*sin_theta*sin_theta
+    R[1,0] = cos_theta*sin_psi + cos_phi*cos_psi*sin_theta
+    R[1,1] = cos_theta*cos_psi - cos_phi*sin_theta*sin_psi
     R[1,2] = sin_theta*sin_phi
     R[2,0] = -cos_psi*sin_phi
-    R[2,1] = sin_phi*sin_theta
+    R[2,1] = sin_phi*sin_psi
     R[2,2] = cos_phi
+    #return R
 
 @jit(nopython=True,cache=True)
-def rotm_euZYZ(eu,R):
-    eu[1] = np.arccos( R[2,2] )
+def rotm_euZYZ(euler, R):
+    #euler = np.zeros(3)
     if np.abs(R[2,0]) < 1e-5:
         # gimbal lock
-        eu[0] = 0
-        eu[2] = np.arctan2(R[0,1],R[1,1])
+        euler[0] = np.arctan(R[1,0] / R[0,0])
+        euler[1] =-np.arcsin(R[2,0])
+        euler[2] = 0
     else:
-        eu[0] = np.arctan2(R[1,2], R[0,2])
-        eu[2] = np.arctan2(R[2,1],-R[2,0])
+        euler[0] = np.arctan( R[1,2] / R[0,2])
+        euler[1] = np.arctan( R[0,2] /(R[2,2] * np.cos(eu[0])))
+        euler[2] = np.arctan(-R[2,1] / R[2,0])
+    #return euler
 
 def is_extension(filename,extension):
     _,ext = split_ext(filename)
