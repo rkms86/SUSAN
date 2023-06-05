@@ -194,7 +194,7 @@ def rotm_euZYZ(euler, R):
         euler[2] = 0
     else:
         euler[0] = np.arctan( R[1,2] / R[0,2])
-        euler[1] = np.arctan( R[0,2] /(R[2,2] * np.cos(eu[0])))
+        euler[1] = np.arctan( R[0,2] /(R[2,2] * np.cos(euler[0])))
         euler[2] = np.arctan(-R[2,1] / R[2,0])
     #return euler
 
