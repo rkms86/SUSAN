@@ -90,18 +90,29 @@ public:
 class TemplateMatchingReporter {
 	
 	int  tm_type;
+	int  tm_dim;
 	FILE *fp;
 	
 	float *c_cc;
+	int   num_points;
+	int   max_K;
 	int   n_cc;
 	float sigma;
 	
 public:
-	TemplateMatchingReporter(int n_pts) {
-		tm_type = TM_NONE;
-		n_cc    = n_pts;
-		c_cc    = new float[n_cc];
-		sigma   = 0;
+	TemplateMatchingReporter(int n_pts, int K, int dim) {
+		tm_type    = TM_NONE;
+		tm_dim     = dim;
+		num_points = n_pts;
+		max_K      = K;
+		if(dim==2){       //2D alignment
+			n_cc = n_pts * K;
+		}
+		else if (dim==3){ //3D alignment
+			n_cc = n_pts;
+		}
+		c_cc       = new float[n_cc];
+		sigma      = 0;
 	}
 	
 	~TemplateMatchingReporter() {
@@ -129,7 +140,12 @@ public:
 			sprintf(tm_file,"%s_worker%02d.txt",prefix,id);
 			fp = fopen(tm_file,"w");
 			if( tm_type == TM_CSV ) {
-				fprintf(fp,"#TID,CID,X,Y,Z,CC\n");
+				if (tm_dim == 2){
+					fprintf(fp,"TID,PartID,RID,ProjID,X,Y,CC\n");
+				}
+				else if (tm_dim == 3){
+					fprintf(fp,"TID,PartID,RID,X,Y,Z,CC\n");
+				}
 			}
 		}
 	}
@@ -148,36 +164,48 @@ public:
 		memcpy(c_cc,p_cc,n_cc*sizeof(float));
 	}
 	
-	void save_cc(int tid,int rid,int tx,int ty,int tz,const Vec3*c_pts) {
+	void save_cc(int tid,int rid,int pid,int tx,int ty,int tz,const Vec3*c_pts) {
 		if( tm_type != TM_NONE ) {
 			int x,y,z;
 			
+			int proj_id, point_id;
+			
 			float avg,std;
 			Math::get_avg_std(avg,std,c_cc,n_cc);
-			
-			for(int i=0;i<n_cc;i++) {
-				x = (int)roundf(c_pts[i].x);
-				y = (int)roundf(c_pts[i].y);
-				z = (int)roundf(c_pts[i].z);
+
+			for(int cc_index=0;cc_index<n_cc;cc_index++){
+				if (tm_dim == 2){
+					proj_id  = cc_index / num_points;
+					point_id = cc_index % num_points;
+				}
+				else if (tm_dim == 3){
+					proj_id  = 0;
+					point_id = cc_index;
+				}
+
+				x = (int)roundf(c_pts[point_id].x);
+                                y = (int)roundf(c_pts[point_id].y);
+                                z = (int)roundf(c_pts[point_id].z);
 				
-				if( sigma > 0 ) {
-					if( c_cc[i] > avg+sigma*std ) {
+				if ( ((sigma > 0) && (c_cc[cc_index] > avg+sigma*std)) || (sigma <= 0) ){
+					if (tm_dim == 2){
 						if( tm_type == TM_PYTHON )
-							fprintf(fp,"cc_tomo%03d_ref%02d[%4d,%4d,%4d] = %f\n",tid,rid,z+tz,y+ty,x+tx,c_cc[i]);
-						else if( tm_type == TM_MATLAB )
-							fprintf(fp,"cc_tomo%03d_ref%02d(%4d,%4d,%4d) = %f;\n",tid,rid,x+tx+1,y+ty+1,z+tz+1,c_cc[i]);
-						else if( tm_type == TM_CSV )
-							fprintf(fp,"%d,%d,%d,%d,%d,%f\n",tid,rid,x+tx,y+ty,z+tz,c_cc[i]);
+		                                        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d[%d,%d] = %f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
+		                                else if( tm_type == TM_MATLAB )
+		                                        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d(%d,%d) = %f;\n",tid, pid, rid, proj_id, (x+1), (y+1), c_cc[cc_index]);
+		                                else if( tm_type == TM_CSV )
+		                                        fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
+					}
+					else if (tm_dim == 3){
+						if( tm_type == TM_PYTHON )
+                                                        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %f\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
+                                                else if( tm_type == TM_MATLAB )
+                                                        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %f;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
+                                                else if( tm_type == TM_CSV )
+                                                        fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index]);	
 					}
 				}
-				else {
-					if( tm_type == TM_PYTHON )
-						fprintf(fp,"cc_tomo%03d_ref%02d[%4d,%4d,%4d] = %f\n",tid,rid,z+tz,y+ty,x+tx,c_cc[i]);
-					else if( tm_type == TM_MATLAB )
-						fprintf(fp,"cc_tomo%03d_ref%02d(%4d,%4d,%4d) = %f;\n",tid,rid,x+tx+1,y+ty+1,z+tz+1,c_cc[i]);
-					else if( tm_type == TM_CSV )
-						fprintf(fp,"%d,%d,%d,%d,%d,%f\n",tid,rid,x+tx,y+ty,z+tz,c_cc[i]);
-				}
+				
 			}
 		}
 	}
@@ -218,6 +246,7 @@ public:
     
     const char *tm_type;
     const char *tm_prefix;
+    int         tm_dim;
     float       tm_sigma;
 
     AliGpuWorker() {
@@ -244,7 +273,7 @@ protected:
 
         AliData ali_data(MP,NP,max_K,off_par,off_type,stream);
         
-        TemplateMatchingReporter tm_rep(ali_data.n_pts);
+        TemplateMatchingReporter tm_rep(ali_data.n_pts,max_K,tm_dim);
         tm_rep.start(worker_id,tm_type,tm_prefix,tm_sigma);
 
         RadialAverager rad_avgr(M,N,max_K);
@@ -273,7 +302,7 @@ protected:
                     align3D(vols,ctf_wgt,ss_data,ali_data,rad_avgr,tm_rep,stream);
                     break;
                 case ALI_2D:
-                    align2D(vols,ctf_wgt,ss_data,ali_data,rad_avgr,stream);
+                    align2D(vols,ctf_wgt,ss_data,ali_data,rad_avgr,tm_rep,stream);
                     break;
                 default:
                     break;
@@ -361,14 +390,14 @@ protected:
         }
     }
 
-    void align2D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
+    void align2D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
         p_buffer->RO_sync();
         while( p_buffer->RO_get_status() > DONE ) {
             if( p_buffer->RO_get_status() == READY ) {
                 AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
                 create_ctf(ctf_wgt,ptr,stream);
                 add_data(ss_data,ctf_wgt,ptr,rad_avgr,stream);
-                angular_search_2D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,rad_avgr,stream);
+                angular_search_2D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,rad_avgr,tm_rep,stream);
                 stream.sync();
             }
             p_buffer->RO_sync();
@@ -510,23 +539,26 @@ protected:
         }
         
         update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
-        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
+        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
     }
 
-    void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
-
-        ang_prov.refine_level = 0;
+    void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
+        
+	ang_prov.refine_level = 0;
         Rot33 Rot;
-        M33f R_ite;
+        M33f  R_ite;
 
         single max_cc[ptr->K];
         single ite_cc[ptr->K];
-        int max_idx[ptr->K];
-        int ite_idx[ptr->K];
-        M33f max_R[ptr->K];
+        int    max_idx[ptr->K];
+        int    ite_idx[ptr->K];
+        M33f   max_R[ptr->K];
+	// single := float //
+	single cc_placeholder[(ptr->K)*(ali_data.n_pts)];
 
-        memset(max_cc,0,sizeof(single)*ptr->K);
-        memset(max_idx,0,sizeof(single)*ptr->K);
+        memset(max_cc,         0, sizeof(single)*ptr->K);
+        memset(max_idx,        0, sizeof(single)*ptr->K);
+	memset(cc_placeholder, 0, sizeof(single)*(ptr->K)*(ali_data.n_pts));
 
         for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
             for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
@@ -569,12 +601,18 @@ protected:
                                 max_idx[i] = ite_idx[i];
                                 max_cc[i]  = ite_cc[i];
                                 max_R[i]   = R_ite;
+				// cc_placeholder stores cc-map (offset->cc) only for the best orientation 
+				for(int j=0;j<ali_data.n_pts;j++){
+					cc_placeholder[i*ali_data.n_pts + j] = ali_data.c_cc[i*ali_data.n_pts + j];
+				}
                             }
                         }
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
         } // REFINE
+
+	tm_rep.push_cc(cc_placeholder);
 
         single cc_acc=0,wgt_acc=0;
         for(int i=0;i<ptr->K;i++) {
@@ -585,6 +623,7 @@ protected:
             }
         }
         ptr->ptcl.ali_cc[ptr->class_ix] = cc_acc/max(wgt_acc,1.0);
+	tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
     }
 
     void update_particle_3D(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int ref_ix,const float apix) {
@@ -707,8 +746,10 @@ public:
         worker_id  = id;
         worker_cmd = in_worker_cmd;
 
-        p_info   = info;
-        gpu_ix   = info->p_gpu[ id % info->n_threads ];
+        p_info   = info; 
+	// info->n_threads = number_of_gpus * threads_per_gpu, in order to get a gpu index from a worker index we have to make an integer division by threads_per_gpu instead of remainder of the devision by info->n_threads, which will not change id, since id < info->n_threads all the time.
+	int threads_per_gpu = (info->n_threads) / (info->n_gpu);
+        gpu_ix   = info->p_gpu[ id / threads_per_gpu ];
         max_K    = in_max_K;
         pad_type = info->pad_type;
 
@@ -807,6 +848,7 @@ protected:
         gpu_worker.psym       = p_info->pseudo_sym;
         gpu_worker.tm_type    = p_info->tm_type;
         gpu_worker.tm_prefix  = p_info->tm_pfx;
+	gpu_worker.tm_dim     = p_info->type;
         gpu_worker.tm_sigma   = p_info->tm_sigma;
         gpu_worker.start();
     }

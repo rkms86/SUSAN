@@ -327,7 +327,7 @@ bool parse_args(Info&info,int ac,char** av) {
     
     if( info.type == 2 ) {
         info.off_type = CIRCLE;
-        info.off_s = 1;
+        //info.off_s = 1;
     }
 
     return validate(info);
@@ -470,7 +470,7 @@ void print_full(const Info&info,FILE*fp) {
         fprintf(fp,"Range=[%.2f,%.2f,%.2f], Step=%.2f. Total points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
     }
     if( info.off_type == CIRCLE ) {
-        Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
+        Vec3*pt = PointsProvider::circle(total_points,info.off_x,info.off_y,info.off_s);
         fprintf(fp,"\t\tCircular offset search (2D): ");
         delete [] pt;
         fprintf(fp,"Range=[%.2f,%.2f]. Total points: %d\n",info.off_x,info.off_y,total_points);

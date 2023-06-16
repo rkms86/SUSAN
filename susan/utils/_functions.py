@@ -27,7 +27,8 @@ __all__ = ['fsc_get',
            'force_extension',
            'time_now',
            'create_sphere',
-           'bin_vol']
+           'bin_vol',
+          ]
 
 import datetime
 import susan.io.mrc as mrc
@@ -165,32 +166,37 @@ def fsc_analyse(fsc,apix=1.0,thres=0.143):
 
 @jit(nopython=True,cache=True)
 def euZYZ_rotm(R,eu):
-    c1 = np.cos(eu[0])
-    c2 = np.cos(eu[1])
-    c3 = np.cos(eu[2])
-    s1 = np.sin(eu[0])
-    s2 = np.sin(eu[1])
-    s3 = np.sin(eu[2])
-    R[0,0] = c1*c2*c3 - s1*s3
-    R[0,1] = -c3*s1 - c1*c2*s3
-    R[0,2] = c1*s2
-    R[1,0] = c1*s3 + c2*c3*s1
-    R[1,1] = c1*c3 - c2*s1*s3
-    R[1,2] = s1*s2
-    R[2,0] = -c3*s2
-    R[2,1] = s2*s3
-    R[2,2] = c2
+    #R = np.zeros((3,3))
+    cos_theta = np.cos(eu[0])
+    cos_phi = np.cos(eu[1])
+    cos_psi = np.cos(eu[2])
+    sin_theta = np.sin(eu[0])
+    sin_phi = np.sin(eu[1])
+    sin_psi = np.sin(eu[2])
+    R[0,0] = cos_theta*cos_phi*cos_psi - sin_theta*sin_psi
+    R[0,1] = -cos_psi*sin_theta - cos_theta*cos_phi*sin_psi
+    R[0,2] = cos_theta*sin_phi
+    R[1,0] = cos_theta*sin_psi + cos_phi*cos_psi*sin_theta
+    R[1,1] = cos_theta*cos_psi - cos_phi*sin_theta*sin_psi
+    R[1,2] = sin_theta*sin_phi
+    R[2,0] = -cos_psi*sin_phi
+    R[2,1] = sin_phi*sin_psi
+    R[2,2] = cos_phi
+    #return R
 
 @jit(nopython=True,cache=True)
-def rotm_euZYZ(eu,R):
-    eu[1] = np.arccos( R[2,2] )
+def rotm_euZYZ(euler, R):
+    #euler = np.zeros(3)
     if np.abs(R[2,0]) < 1e-5:
         # gimbal lock
-        eu[0] = 0
-        eu[2] = np.arctan2(R[0,1],R[1,1])
+        euler[0] = np.arctan(R[1,0] / R[0,0])
+        euler[1] =-np.arcsin(R[2,0])
+        euler[2] = 0
     else:
-        eu[0] = np.arctan2(R[1,2], R[0,2])
-        eu[2] = np.arctan2(R[2,1],-R[2,0])
+        euler[0] = np.arctan( R[1,2] / R[0,2])
+        euler[1] = np.arctan( R[0,2] /(R[2,2] * np.cos(euler[0])))
+        euler[2] = np.arctan(-R[2,1] / R[2,0])
+    #return euler
 
 def is_extension(filename,extension):
     _,ext = split_ext(filename)
@@ -221,12 +227,3 @@ def bin_vol(data,bin_level):
     v = bandpass(data,data.shape[0]//s-1)
     v = v[::s,::s,::s]
     return np.float32(v)
-
-    
-    
-    
-    
-    
-    
-    
-    

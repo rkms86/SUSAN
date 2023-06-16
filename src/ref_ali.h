@@ -243,7 +243,7 @@ public:
         if( off_type == CUBOID )
             c_pts = PointsProvider::cuboid(n_pts,off_params.x,off_params.y,off_params.z,off_params.w);
         if( off_type == CIRCLE )
-            c_pts = PointsProvider::circle(n_pts,off_params.x,off_params.y);
+            c_pts = PointsProvider::circle(n_pts,off_params.x,off_params.y,off_params.w);
 
         if( off_type == CIRCLE ) {
             c_cc = new float[n_pts*max_K];
