@@ -152,7 +152,6 @@ mngr.averager.set_ctf_correction('phase_flip');
 %
 
 start_time = tic;
-
 %% Iteration 1   17:59:20
 
 for i = 1
@@ -207,10 +206,9 @@ p_class1 = SUSAN.Data.Particles.MRA.select_refs(p_rslt,1);
 p_class1.position = p_class1.position + p_class1.ali_t;
 p_class1.ali_t(:) = 0;
 p_class1_exc = SUSAN.Data.Particles.Geom.discard_closer(p_class1,20);
-pw = p_class1_exc.select(p_class1_exc.ali_cc<0.09&p_class1_exc.ali_cc>0.01);
+pw = p_class1_exc.select(p_class1_exc.ali_cc<0.9&p_class1_exc.ali_cc>0.01);
 pw.halfsets_by_Y();
 pw.save('prj_002.ptclsraw');
-
 %%
 
 avgr = SUSAN.Modules.Averager;

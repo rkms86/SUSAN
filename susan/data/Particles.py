@@ -357,10 +357,7 @@ class Particles:
             number_of_particles = idx.shape[0]
         elif( idx.ndim == 0):
             number_of_particles = 1
-        print(self.n_refs)
         ptcls_out = Particles(n_ptcl=number_of_particles,n_proj=self.n_proj,n_refs=self.n_refs)
-        print(ptcls_out.n_refs)
-        print(ptcls_out.get_n_refs())
         if (number_of_particles > 1):
             ptcls_out.ptcl_id  = self.ptcl_id [idx]
             ptcls_out.tomo_id  = self.tomo_id [idx]
