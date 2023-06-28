@@ -194,9 +194,9 @@ __global__ void insert_stk_atomic(double2*p_acc,double*p_wgt,
 				float2 val = tex2DLayered<float2>(ss_stk, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
 				float  wgt = tex2DLayered<float >(ss_wgt, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
 				float x,y,z;
-				val.x *= bp;
-				val.y *= bp;
-				wgt   *= bp;
+                val.x *= bp*pTlt[ss_idx.z].w;
+                val.y *= bp*pTlt[ss_idx.z].w;
+                wgt   *= bp*pTlt[ss_idx.z].w;
 				
 				rot_pt(x,y,z,pTlt[ss_idx.z].R,pt);
 				if( x < 0 ) {
@@ -634,7 +634,7 @@ __global__ void reconstruct_pts(float*p_cc,const Proj2D*pTlt,cudaTextureObject_t
         for(int z=0;z<K;z++) {
             if( pTlt[z].w > 0 ) {
                 rot_inv_pt_XY(x,y,pTlt[z].R,pt);
-                cc += tex2DLayered<float>(ss_cc,x+off,y+off,z);
+                cc += pTlt[z].w*tex2DLayered<float>(ss_cc,x+off,y+off,z);
             }
         }
         
