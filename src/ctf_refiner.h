@@ -309,7 +309,7 @@ protected:
                     ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
                     ali_data.invert_fourier(ptr->K,stream);
                     stream.sync();
-                    ali_data.extract_cc(ite_cc,ite_idx,ptr->K,stream);
+                    ali_data.extract_cc(ite_cc,ite_idx,ptr->g_ali,ptr->K,stream);
                     for(int i=0;i<ptr->K;i++) {
                         if( ite_cc[i] > max_cc[i] ) {
                             max_cc[i] = ite_cc[i];

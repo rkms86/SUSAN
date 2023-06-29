@@ -352,7 +352,7 @@ public:
         GPU::download_async(c_cc,g_cc.ptr,n_pts,stream.strm);
     }
 
-    void extract_cc(float*p_cc,int*p_ix,int k,GPU::Stream&stream) {
+    void extract_cc(float*p_cc,int*p_ix,GPU::GArrProj2D&ali,int k,GPU::Stream&stream) {
         dim3 blk;
         dim3 grd;
         blk.x = 1024;
@@ -361,7 +361,7 @@ public:
         grd.x = GPU::div_round_up(n_pts,1024);
         grd.y = 1;
         grd.z = k;
-        GpuKernelsVol::extract_pts<<<grd,blk,0,stream.strm>>>(g_cc.ptr,prj_r.ptr,g_pts.ptr,n_pts,N,k);
+        GpuKernelsVol::extract_pts<<<grd,blk,0,stream.strm>>>(g_cc.ptr,prj_r.ptr,ali.ptr,g_pts.ptr,n_pts,N,k);
         GPU::download_async(c_cc,g_cc.ptr,n_pts*k,stream.strm);
         stream.sync();
         for(int i=0;i<k;i++) {
