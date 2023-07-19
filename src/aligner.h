@@ -185,25 +185,25 @@ public:
 				}
 
 				x = (int)roundf(c_pts[point_id].x);
-                                y = (int)roundf(c_pts[point_id].y);
-                                z = (int)roundf(c_pts[point_id].z);
+                y = (int)roundf(c_pts[point_id].y);
+                z = (int)roundf(c_pts[point_id].z);
 				
 				if ( ((sigma > 0) && (c_cc[cc_index] > avg+sigma*std)) || (sigma <= 0) ){
 					if (tm_dim == 2){
 						if( tm_type == TM_PYTHON )
-		                                        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d[%d,%d] = %f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
-		                                else if( tm_type == TM_MATLAB )
-		                                        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d(%d,%d) = %f;\n",tid, pid, rid, proj_id, (x+1), (y+1), c_cc[cc_index]);
-		                                else if( tm_type == TM_CSV )
-		                                        fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
+                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d[%d,%d] = %f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
+                        else if( tm_type == TM_MATLAB )
+                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d(%d,%d) = %f;\n",tid, pid, rid, proj_id, (x+1), (y+1), c_cc[cc_index]);
+                        else if( tm_type == TM_CSV )
+                                fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
 					}
 					else if (tm_dim == 3){
 						if( tm_type == TM_PYTHON )
-                                                        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %f\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
-                                                else if( tm_type == TM_MATLAB )
-                                                        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %f;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
-                                                else if( tm_type == TM_CSV )
-                                                        fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index]);	
+                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %f\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
+                        else if( tm_type == TM_MATLAB )
+                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %f;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
+                        else if( tm_type == TM_CSV )
+                                fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index]);
 					}
 				}
 				
@@ -555,12 +555,12 @@ protected:
         int    max_idx[ptr->K];
         int    ite_idx[ptr->K];
         M33f   max_R[ptr->K];
-	// single := float //
-	single cc_placeholder[(ptr->K)*(ali_data.n_pts)];
+        // single := float //
+        single cc_placeholder[(ptr->K)*(ali_data.n_pts)];
 
         memset(max_cc,         0, sizeof(single)*ptr->K);
         memset(max_idx,        0, sizeof(single)*ptr->K);
-	memset(cc_placeholder, 0, sizeof(single)*(ptr->K)*(ali_data.n_pts));
+        memset(cc_placeholder, 0, sizeof(single)*(ptr->K)*(ali_data.n_pts));
 
         for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
             for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
@@ -596,7 +596,7 @@ protected:
                             ali_data.scale(4*float(NP*NP)/M_PI,ptr->K,stream);
                         }
 
-                        ali_data.extract_cc(ite_cc,ite_idx,ptr->K,stream);
+                        ali_data.extract_cc(ite_cc,ite_idx,ptr->g_ali,ptr->K,stream);
 
                         for(int i=0;i<ptr->K;i++) {
                             if( ite_cc[i] > max_cc[i] ) {
@@ -606,7 +606,7 @@ protected:
 				// cc_placeholder stores cc-map (offset->cc) only for the best orientation 
 				for(int j=0;j<ali_data.n_pts;j++){
 					cc_placeholder[i*ali_data.n_pts + j] = ali_data.c_cc[i*ali_data.n_pts + j];
-				}
+                }
                             }
                         }
                     } // INPLANE
@@ -750,8 +750,8 @@ public:
         worker_cmd = in_worker_cmd;
 
         p_info   = info; 
-	// info->n_threads = number_of_gpus * threads_per_gpu, in order to get a gpu index from a worker index we have to make an integer division by threads_per_gpu instead of remainder of the devision by info->n_threads, which will not change id, since id < info->n_threads all the time.
-	int threads_per_gpu = (info->n_threads) / (info->n_gpu);
+        // info->n_threads = number_of_gpus * threads_per_gpu, in order to get a gpu index from a worker index we have to make an integer division by threads_per_gpu instead of remainder of the devision by info->n_threads, which will not change id, since id < info->n_threads all the time.
+        int threads_per_gpu = (info->n_threads) / (info->n_gpu);
         gpu_ix   = info->p_gpu[ id / threads_per_gpu ];
         max_K    = in_max_K;
         pad_type = info->pad_type;
@@ -851,7 +851,7 @@ protected:
         gpu_worker.psym       = p_info->pseudo_sym;
         gpu_worker.tm_type    = p_info->tm_type;
         gpu_worker.tm_prefix  = p_info->tm_pfx;
-	gpu_worker.tm_dim     = p_info->type;
+        gpu_worker.tm_dim     = p_info->type;
         gpu_worker.tm_sigma   = p_info->tm_sigma;
         gpu_worker.start();
     }
