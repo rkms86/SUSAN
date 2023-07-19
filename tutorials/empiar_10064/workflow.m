@@ -132,14 +132,14 @@ refs(1).mask = 'mask_sph_b4.mrc';
 refs(2).map  = 'gb_b4.mrc';
 refs(2).mask = 'mask_sph_b4.mrc';
 refs.save(refs,'prj_001_b4.refstxt');
-
 %%
+addpath /fast/AG_Kudryashev/kralin/SUSAN_dev/SUSAN/
+%%
+mngr = SUSAN.Project.Manager('/fast/AG_Kudryashev/kralin/tests/test_project/b4/test_2',64);
 
-mngr = SUSAN.Project.Manager('prj_001_b4',64);
-
-mngr.initial_reference = 'prj_001_b4.refstxt';
-mngr.initial_particles = 'prj_001.ptclsraw';
-mngr.tomogram_file     = 'tomos_tlt_b4.tomostxt';
+mngr.initial_reference = '/fast/AG_Kudryashev/kralin/tests/test_project/b4/prj_001_b4.refstxt';
+mngr.initial_particles = '/fast/AG_Kudryashev/kralin/tests/test_project/b4/prj_001.ptclsraw';
+mngr.tomogram_file     = '/fast/AG_Kudryashev/kralin/tests/test_project/b4/tomos_b4.tomostxt';
 
 mngr.gpu_list = [0 1 2 3 4 5 6];
 
@@ -208,7 +208,10 @@ p_class1.ali_t(:) = 0;
 p_class1_exc = SUSAN.Data.Particles.Geom.discard_closer(p_class1,20);
 pw = p_class1_exc.select(p_class1_exc.ali_cc<0.9&p_class1_exc.ali_cc>0.01);
 pw.halfsets_by_Y();
-pw.save('prj_002.ptclsraw');
+pw.save('/fast/AG_Kudryashev/kralin/tests/test_project/test_ptcl.ptclsraw');
+%%
+pw = p_class1_exc.select(p_class1_exc.ali_cc<0.9&p_class1_exc.ali_cc>0.01)
+histogram(pw.ali_cc,100)
 %%
 
 avgr = SUSAN.Modules.Averager;

@@ -61,11 +61,17 @@ We assume that `SUSAN` will be installed in the `LOCAL_SUSAN_PATH` folder (`LOCA
    make -j
    ```
    **Note:** The `cmake` procedure detects the availabilty of `OpenMPI` and `Matlab` and compiles their functionalities accordingly.
+<<<<<<< HEAD
    **HINT:** You can use
    ```
    cmake ../ -DCMAKE_CUDA_COMPILER=$(which nvcc)
    ```
    in order to avoid problems with CMake and Cuda.
+=======
+
+   **HINT:** You can use ``` cmake ../ -DCMAKE_CUDA_COMPILER=$(which nvcc) ``` in order to avoid problems with CMake and Cuda.
+   
+>>>>>>> c27a3d9b1da8d1337d500293a0439a10d07ca9fc
 - **(Optional)** To be able to install `SUSAN` as a `Python` package:
   ```
   make prepare_python
