@@ -2,7 +2,10 @@
 
 cmake_minimum_required(VERSION 3.3)
 
+#include(CMakePrintHelpers)
+
 #set(CMAKE_CUDA_ARCHITECTURES "native")
+#cmake_print_variables(CMAKE_CUDA_ARCHITECTURES)
 
 project(SUSAN LANGUAGES CXX CUDA)
 set(CMAKE_BUILD_TYPE Release)
