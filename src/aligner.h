@@ -394,6 +394,36 @@ protected:
         }
     }
 
+    void debug_fourier_stack(const char*filename,GPU::GArrSingle2&g_fou,GPU::Stream&stream) {
+        GPU::GArrSingle2 g_work;
+        g_work.alloc( NP*NP*max_K );
+        GPU::copy_async(g_work.ptr,g_fou.ptr,MP*NP*max_K,stream.strm);
+
+        GpuFFT::IFFT2D ifft2;
+        ifft2.alloc(MP,NP,max_K);
+        ifft2.set_stream(stream.strm);
+
+        GPU::GArrSingle g_real;
+        g_real.alloc( NP*NP*max_K );
+
+        GPU::GHostSingle buffer;
+        buffer.alloc(NP*NP*max_K);
+
+        int3 ss_fou = make_int3(MP,NP,max_K);
+        int3 ss_pad = make_int3(NP,NP,max_K);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd_f = GPU::calc_grid_size(blk,MP,NP,max_K);
+        dim3 grd_r = GPU::calc_grid_size(blk,NP,NP,max_K);
+
+        GpuKernels::fftshift2D<<<grd_f,blk,0,stream.strm>>>(g_work.ptr,ss_fou);
+        ifft2.exec(g_real.ptr,g_work.ptr);
+        GpuKernels::fftshift2D<<<grd_r,blk,0,stream.strm>>>(g_real.ptr,ss_pad);
+        GPU::download_async(buffer.ptr,g_real.ptr,NP*NP*max_K,stream.strm);
+        stream.sync();
+
+        Mrc::write(buffer.ptr,NP,NP,max_K,filename);
+    }
+
     void align2D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
         p_buffer->RO_sync();
         while( p_buffer->RO_get_status() > DONE ) {
@@ -467,6 +497,9 @@ protected:
         single running_std = 0;
         single running_cnt = 0;
 
+        // DEBUG
+        //debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
+
         for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
             for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
                 for( ang_prov.cone_init(); ang_prov.cone_available(); ang_prov.cone_next() ) {
@@ -488,8 +521,13 @@ protected:
 
                         rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
 
+                        // DEBUG
+                        //debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
+
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
+                        // DEBUG
+                        //debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
 
                         ali_data.invert_fourier(ptr->K,stream);
 
@@ -557,6 +595,9 @@ protected:
         memset(max_idx,        0, sizeof(single)*ptr->K);
         memset(cc_placeholder, 0, sizeof(single)*(ptr->K)*(ali_data.n_pts));
 
+        // DEBUG
+        //debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
+
         for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
             for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
                 for( ang_prov.cone_init(); ang_prov.cone_available(); ang_prov.cone_next() ) {
@@ -577,7 +618,13 @@ protected:
 
                         rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
 
+                        // DEBUG
+                        //debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
+
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
+
+                        // DEBUG
+                        //debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
 
                         ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.invert_fourier(ptr->K,stream);
