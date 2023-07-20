@@ -67,6 +67,8 @@ namespace ArgParser {
         check_arg_and_set(type,all_ok,arg,"zero_mean"            ,ZERO_MEAN      );
         check_arg_and_set(type,all_ok,arg,"zero_mean_proj_weight",ZERO_MEAN_W_STD);
         check_arg_and_set(type,all_ok,arg,"zero_mean_one_std"    ,ZERO_MEAN_1_STD);
+        check_arg_and_set(type,all_ok,arg,"poisson_raw"          ,GAT_RAW);
+        check_arg_and_set(type,all_ok,arg,"poisson_normal"       ,GAT_NORMAL);
 
         if( !all_ok )
             fprintf(stderr,"Invalid normalization type %s. Options are: none, zero_mean, zero_mean_proj_weight and zero_mean_one_std. Defaulting to none.\n",arg);
