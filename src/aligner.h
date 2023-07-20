@@ -70,6 +70,8 @@ public:
 	int tomo_pos_y;
 	int tomo_pos_z;
 
+    float crowther_limit;
+
     AliBuffer(int N,int max_k) {
         c_stk.alloc(N*N*max_k);
         g_stk.alloc(N*N*max_k);
@@ -276,7 +278,7 @@ protected:
         TemplateMatchingReporter tm_rep(ali_data.n_pts,max_K,tm_dim);
         tm_rep.start(worker_id,tm_type,tm_prefix,tm_sigma);
 
-        RadialAverager rad_avgr(M,N,max_K);
+        RadialAverager rad_avgr(MP,NP,max_K);
 
         GPU::GArrSingle ctf_wgt;
         ctf_wgt.alloc(MP*NP*max_K);
@@ -372,6 +374,8 @@ protected:
         GpuKernels::fftshift3D<<<grdR,blk>>>(g_pad.ptr,NP);
         fft3.exec(g_fou.ptr,g_pad.ptr);
         GpuKernels::fftshift3D<<<grdC,blk>>>(g_fou.ptr,MP,NP);
+        int3 size = make_int3(MP,NP,NP);
+        GpuKernels::divide<<<grdC,blk>>>(g_fou.ptr,NP*NP*NP,size);
     }
 
     void align3D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
@@ -439,6 +443,8 @@ protected:
             default:
                 break;
         }
+
+        rad_avgr.normalize_stacks(ss_data.ss_fourier,bandpass,ptr->K,stream);
     }
 
     void add_rec_weight(AliSubstack&ss_data,AliBuffer*ptr,GPU::Stream&stream) {
@@ -446,7 +452,7 @@ protected:
         for(int k=0;k<ptr->K;k++) {
             w_total += ptr->c_ali.ptr[k].w;
         }
-        ss_data.apply_radial_wgt(w_total,ptr->K,stream);
+        ss_data.apply_radial_wgt(w_total,ptr->crowther_limit,ptr->K,stream);
     }
 
     void angular_search_3D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
@@ -480,25 +486,17 @@ protected:
                             rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
                         }
 
+                        rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
+
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
-                        ali_data.apply_bandpass(bandpass,ptr->K,stream);
+
                         ali_data.invert_fourier(ptr->K,stream);
 
-                        if( ctf_type == ALI_ON_REFERENCE ||
-                            ctf_type == ALI_ON_SUBSTACK )
-                        {
-                            ali_data.scale(NP*NP,ptr->K,stream);
-                            ali_data.scale(NP*NP,ptr->K,stream);
-                        }
-                        else {
-                            ali_data.scale(4*float(NP*NP)/M_PI,ptr->K,stream);
-                        }
-                        
                         ali_data.sparse_reconstruct(ptr->g_ali,ptr->K,stream);
                         stream.sync();
                         ali_data.get_max_cc(cc,idx,ali_data.c_cc);
-                        
+
                         if( cc > max_cc ) {
                             max_idx = idx;
                             max_cc  = cc;
@@ -544,7 +542,6 @@ protected:
 
     void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
         
-	ang_prov.refine_level = 0;
         Rot33 Rot;
         M33f  R_ite;
 
@@ -578,21 +575,13 @@ protected:
                             rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
                         }
 
+                        rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
+
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
                         ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.invert_fourier(ptr->K,stream);
                         stream.sync();
-
-                        if( ctf_type == ALI_ON_REFERENCE ||
-                            ctf_type == ALI_ON_SUBSTACK )
-                        {
-                            ali_data.scale(N*N,ptr->K,stream);
-                            ali_data.scale(N*N,ptr->K,stream);
-                        }
-                        else {
-                            ali_data.scale(4*float(NP*NP)/M_PI,ptr->K,stream);
-                        }
 
                         ali_data.extract_cc(ite_cc,ite_idx,ptr->g_ali,ptr->K,stream);
 
@@ -1005,6 +994,8 @@ protected:
                 ptr->c_ali.ptr[k].w = 0;
             }
         }
+
+        ptr->crowther_limit = 1/tanf( p_tomo->get_angle_step_rad() );
     }
 
     bool check_substack(AliBuffer*ptr) {

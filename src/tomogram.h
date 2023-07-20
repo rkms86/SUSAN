@@ -155,7 +155,24 @@ public:
 		}
 		
 		return rslt;
-	}
+    }
+
+    float get_angle_step_rad() {
+        float angle_step = 0;
+        int angle_count = 0;
+
+        float prv_ang = 0;
+        for(int j=0;j<num_proj;j++) {
+            float cur_ang = Math::get_Y_angle_rad(R[j]);
+            if( j>0 ) {
+                angle_step += (cur_ang-prv_ang);
+                angle_count++;
+            }
+            prv_ang = cur_ang;
+        }
+
+        return angle_step/angle_count;
+    }
 
 protected:
     void allocate(int K) {
@@ -258,7 +275,7 @@ public:
             rslt &= tomos[i].check();
         }
         return rslt;
-	}
+    }
 
 };
 

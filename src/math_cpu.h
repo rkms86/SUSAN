@@ -112,6 +112,13 @@ void set(M33f&Rout,const Rot33&Rin) {
     Rout(2,2) = Rin.zz;
 }
 
+float get_Y_angle_rad(const M33f&R) {
+    V3f p_z(0.0,0.0,1.0);
+    V3f p = R*p_z;
+    float l = sqrtf( p(1)*p(1) + p(2)*p(2) );
+    return atan2( p(0), l );
+}
+
 int make_even_up(const float val) {
     return (int)(2*ceil(val/2));
 }

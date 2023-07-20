@@ -423,6 +423,49 @@ __global__ void get_avg_std(float*p_std, float*p_avg, const float*p_in, const in
     }
 }
 
+__global__ void get_std_from_fourier_stk(float*p_std,const float2*p_data,const float3 bandpass,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        Vec3 pt_in;
+        pt_in.x = ss_idx.x;
+        pt_in.y = ss_idx.y - ss_siz.y/2;
+
+        float R = l2_distance(pt_in.x,pt_in.y);
+        float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+
+        if( (bp > 0.05) && (R > 0.5) ) {
+            long idx = get_3d_idx(ss_idx,ss_siz);
+            float2 val = p_data[idx];
+            val.x *= bp;
+            val.y *= bp;
+            double acc = cuCabsf(val);
+            atomicAdd( p_std + ss_idx.z , acc );
+        }
+    }
+}
+
+__global__ void apply_std_to_fourier_stk(float2*p_data,const float*p_std,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        long idx = get_3d_idx(ss_idx,ss_siz);
+        float2 val = p_data[idx];
+        float  wgt = 2*p_std[ss_idx.z];
+        //wgt   = wgt / (ss_siz.y*ss_siz.y);
+        wgt   = sqrtf(wgt);
+        val.x = val.x/wgt;
+        val.y = val.y/wgt;
+        //if(ss_idx.x==0 && ss_idx.y==0)
+        //    printf("%2d: %f\n",ss_siz.z,wgt);
+        p_data[idx] = val;
+    }
+}
+
 __global__ void zero_avg_one_std(float*p_in, const float*p_std, const float*p_avg, const int3 ss_siz) {
     
     int3 ss_idx = get_th_idx();
@@ -678,6 +721,19 @@ __global__ void divide(float*p_avg,const float*p_wgt,const int3 ss_siz) {
     }
 }
 
+__global__ void divide(cudaSurfaceObject_t surf,const float wgt,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float2 val = surf3Dread<float2>(surf,ss_idx.x*sizeof(float2), ss_idx.y, ss_idx.z);
+        val.x = val.x/wgt;
+        val.y = val.y/wgt;
+        surf3Dwrite<float2>(val,surf,ss_idx.x*sizeof(float2), ss_idx.y, ss_idx.z);
+    }
+}
+
 __global__ void divide(float2*p_avg,const float wgt,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
@@ -872,7 +928,7 @@ __global__ void rotate_pre(Proj2D*g_tlt,Rot33 R,Proj2D*g_tlt_in,const int in_K) 
 
 }
 
-__global__ void apply_radial_wgt(float2*p_data,const float w_total,const int3 ss_siz) {
+__global__ void apply_radial_wgt(float2*p_data,const float w_total,float crowther_limit,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
 
@@ -883,7 +939,7 @@ __global__ void apply_radial_wgt(float2*p_data,const float w_total,const int3 ss
 
         float w_off = 1/w_total;
         float w = ss_idx.x;
-        w = w/ss_siz.y;
+        w = fminf(w/crowther_limit,1.0);
         w = (1-w_off)*w + w_off;
         val.x = w*val.x;
         val.y = w*val.y;
