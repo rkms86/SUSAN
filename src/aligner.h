@@ -524,6 +524,8 @@ protected:
                         // DEBUG
                         //debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
+                        if( ctf_type == ALI_CUMULATIVE_FSC )
+                            ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
                         // DEBUG
@@ -621,6 +623,8 @@ protected:
                         // DEBUG
                         //debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
+                        if( ctf_type == ALI_CUMULATIVE_FSC )
+                            ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
                         // DEBUG
