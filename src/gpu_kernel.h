@@ -71,6 +71,10 @@ __device__ int3 get_th_idx() {
 	return make_int3(threadIdx.x + blockIdx.x*blockDim.x,threadIdx.y + blockIdx.y*blockDim.y,threadIdx.z + blockIdx.z*blockDim.z);
 }
 
+__device__ bool first_thread_in_block() {
+    return (threadIdx.x==0) && (threadIdx.y==0) && (threadIdx.z==0);
+}
+
 __device__ long get_2d_idx(const int x,const int y,const int3&ss_siz) {
 	return x + y*ss_siz.x;
 }
@@ -79,12 +83,20 @@ __device__ long get_2d_idx(const int3&ss_idx,const int3&ss_siz) {
 	return get_2d_idx(ss_idx.x,ss_idx.y,ss_siz);
 }
 
+__device__ long get_3d_idx(const int x,const int y,const int z,const int X,const int Y) {
+    return x + y*X + z*X*Y;
+}
+
 __device__ long get_3d_idx(const int x,const int y,const int z,const int3&ss_siz) {
-	return x + y*ss_siz.x + z*ss_siz.x*ss_siz.y;
+    return get_3d_idx(x,y,z,ss_siz.x,ss_siz.y);
 }
 
 __device__ long get_3d_idx(const int3&ss_idx,const int3&ss_siz) {
-	return get_3d_idx(ss_idx.x,ss_idx.y,ss_idx.z,ss_siz);
+    return get_3d_idx(ss_idx.x,ss_idx.y,ss_idx.z,ss_siz.x,ss_siz.y);
+}
+
+__device__ long get_3d_idx(const uint3&ss_idx,const dim3&ss_siz) {
+    return get_3d_idx(ss_idx.x,ss_idx.y,ss_idx.z,ss_siz.x,ss_siz.y);
 }
 
 __device__ int fftshift_idx(const int idx, const int center) {
@@ -425,15 +437,16 @@ __global__ void get_avg_std(float*p_std, float*p_avg, const float*p_in, const in
 
 __global__ void get_std_from_fourier_stk(float*p_std,const float2*p_data,const float3 bandpass,const int3 ss_siz) {
 
+    __shared__ float local_std[1];
+    if( first_thread_in_block() )
+        local_std[0] = 0;
+    __syncthreads();
+
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-        Vec3 pt_in;
-        pt_in.x = ss_idx.x;
-        pt_in.y = ss_idx.y - ss_siz.y/2;
-
-        float R = l2_distance(pt_in.x,pt_in.y);
+         float R = l2_distance(ss_idx.x,ss_idx.y - ss_siz.y/2);
         float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
 
         if( (bp > 0.05) && (R > 0.5) ) {
@@ -441,8 +454,14 @@ __global__ void get_std_from_fourier_stk(float*p_std,const float2*p_data,const f
             float2 val = p_data[idx];
             val.x *= bp;
             val.y *= bp;
-            double acc = cuCabsf(val);
-            atomicAdd( p_std + ss_idx.z , acc );
+            float acc = cuCabsf(val);
+            atomicAdd( local_std , acc );
+        }
+        __syncthreads();
+
+        if(first_thread_in_block()) {
+            float acc = local_std[0];
+            atomicAdd( p_std+ss_idx.z , acc );
         }
     }
 }
@@ -453,15 +472,13 @@ __global__ void apply_std_to_fourier_stk(float2*p_data,const float*p_std,const i
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
+
         long idx = get_3d_idx(ss_idx,ss_siz);
         float2 val = p_data[idx];
-        float  wgt = 2*p_std[ss_idx.z];
-        //wgt   = wgt / (ss_siz.y*ss_siz.y);
+        float wgt = 2*p_std[ss_idx.z];
         wgt   = sqrtf(wgt);
         val.x = val.x/wgt;
         val.y = val.y/wgt;
-        //if(ss_idx.x==0 && ss_idx.y==0)
-        //    printf("%2d: %f\n",ss_siz.z,wgt);
         p_data[idx] = val;
     }
 }
