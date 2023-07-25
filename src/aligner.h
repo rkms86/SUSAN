@@ -628,7 +628,6 @@ protected:
                         // DEBUG
                         //debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
 
-                        ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.invert_fourier(ptr->K,stream);
                         stream.sync();
 
