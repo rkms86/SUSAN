@@ -374,8 +374,6 @@ protected:
         GpuKernels::fftshift3D<<<grdR,blk>>>(g_pad.ptr,NP);
         fft3.exec(g_fou.ptr,g_pad.ptr);
         GpuKernels::fftshift3D<<<grdC,blk>>>(g_fou.ptr,MP,NP);
-        int3 size = make_int3(MP,NP,NP);
-        GpuKernels::divide<<<grdC,blk>>>(g_fou.ptr,NP*NP*NP,size);
     }
 
     void align3D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
