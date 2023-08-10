@@ -40,6 +40,7 @@ typedef struct {
     single fpix_roll;
     uint32 pad_size;
     uint32 pad_type;
+    uint32 norm_type;
     float  def_range;
     float  def_step;
     float  ang_range;
@@ -104,6 +105,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.fpix_roll  = 4;
     info.pad_size   = 0;
     info.pad_type   = PAD_ZERO;
+    info.norm_type  = NO_NORM;
     info.def_range  = 1000;
     info.def_step   = 100;
     info.ang_range  = 20;
@@ -129,6 +131,7 @@ bool parse_args(Info&info,int ac,char** av) {
         BOX_SIZE,
         PAD_SIZE,
         PAD_TYPE,
+        NORM_TYPE,
         BANDPASS,
         ROLLOFF_F,
         USE_HALVES,
@@ -149,6 +152,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"box_size",   1, 0, BOX_SIZE  },
         {"pad_size",   1, 0, PAD_SIZE  },
         {"pad_type",   1, 0, PAD_TYPE  },
+        {"norm_type",  1, 0, NORM_TYPE },
         {"bandpass",   1, 0, BANDPASS  },
         {"rolloff_f",  1, 0, ROLLOFF_F },
         {"def_search", 1, 0, DEF_SEARCH},
@@ -187,6 +191,9 @@ bool parse_args(Info&info,int ac,char** av) {
                 break;
             case PAD_TYPE:
                 info.pad_type = ArgParser::get_pad_type(optarg);
+                break;
+            case NORM_TYPE:
+                info.norm_type = ArgParser::get_norm_type(optarg);
                 break;
             case BANDPASS:
                 ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);
@@ -265,6 +272,15 @@ void print_full(const Info&info,FILE*fp=stdout) {
         if( info.pad_type == PAD_GAUSSIAN )
             fprintf(fp,"\t\tPadding policy: Fill with gaussian noise.\n");
     }
+    
+    if( info.norm_type == NO_NORM )
+        fprintf(fp,"\t\tSubstack normalization policy: Disabled.\n");
+    if( info.norm_type == ZERO_MEAN )
+        fprintf(fp,"\t\tSubstack normalization policy: Mean=0.\n");
+    if( info.norm_type == ZERO_MEAN_1_STD )
+        fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std=1.\n");
+    if( info.norm_type == ZERO_MEAN_W_STD )
+        fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std according to projection weight.\n");
 
     fprintf(fp,"\t\tDefocus search range: %.2f.\n",info.def_range);
     fprintf(fp,"\t\tDefocus search step: %.2f.\n",info.def_step);
@@ -309,6 +325,15 @@ void print_minimal(const Info&info,FILE*fp=stdout) {
         fprintf(fp," (Smooth decay: %.2f).",info.fpix_roll);
     else
         fprintf(fp,".");
+    
+    if( info.norm_type == NO_NORM )
+        fprintf(fp,"No Normalization.");
+    if( info.norm_type == ZERO_MEAN )
+        fprintf(fp,"Normalized to Mean=0.");
+    if( info.norm_type == ZERO_MEAN_1_STD )
+        fprintf(fp,"Normalized to Mean=0, Std=1.");
+    if( info.norm_type == ZERO_MEAN_W_STD )
+        fprintf(fp,"Normalized to Mean=0, Std=PRJ_W.");
 
     if( info.pad_size > 0 ) {
         if( info.pad_type == PAD_ZERO )

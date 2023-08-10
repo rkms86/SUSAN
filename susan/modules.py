@@ -81,8 +81,8 @@ class Aligner:
         if not self.padding_type in ['zero','noise']:
             raise ValueError('Invalid padding type. Only "zero" or "noise" are valid')
         
-        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
-            raise ValueError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
+        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight','poisson_raw','poisson_normal']:
+            raise ValueError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std", "zero_mean_proj_weight", "poisson_raw" or "poisson_normal" are valid')
         
         if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','wiener_white','cfsc']:
             raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
@@ -352,6 +352,7 @@ class CtfRefiner:
         self.bandpass          = _dt.bandpass(0,-1,2)
         self.extra_padding     = 0
         self.padding_type      = 'noise'
+        self.normalize_type    = 'zero_mean_one_std'
         self.halfsets_independ = False
         self.estimate_dose_wgt = False
         self.defocus_angstroms = _dt.search_params(1000,100)
@@ -363,6 +364,9 @@ class CtfRefiner:
         if not self.padding_type in ['zero','noise']:
             raise ValueError('Invalid padding type. Only "zero" or "noise" are valid')
         
+        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight','poisson_raw','poisson_normal']:
+            raise ValueError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std", "zero_mean_proj_weight", "poisson_raw" or "poisson_normal" are valid')
+        
         if not self.defocus_angstroms.step > 0 or not self.angles.step > 0:
             raise ValueError('The steps values must be larger than 0')
         
@@ -370,7 +374,7 @@ class CtfRefiner:
             raise ValueError('Defocus (Angstroms): Step cannot be larger than Range/Span')
 
         if self.angles.span < self.angles.step:
-            raise ValueError('ANgles (degrees): Step cannot be larger than Range/Span')
+            raise ValueError('Angles (degrees): Step cannot be larger than Range/Span')
 
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         self._validate()
@@ -385,6 +389,7 @@ class CtfRefiner:
         args = args + ' -box_size %d'      % box_size
         args = args + ' -pad_size %d'      % self.extra_padding
         args = args + ' -pad_type '        + self.padding_type
+        args = args + ' -norm_type '       + self.normalize_type
         args = args + ' -bandpass %f,%f'   % (self.bandpass.highpass,self.bandpass.lowpass)
         args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
         args = args + ' -def_search %f,%f' % (self.defocus_angstroms.span,self.defocus_angstroms.step)
