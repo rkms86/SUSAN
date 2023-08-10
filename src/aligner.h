@@ -1033,10 +1033,6 @@ protected:
                             if( p_info->norm_type == ::ZERO_MEAN ) {
                                 ptr->c_pad.ptr[k].y = std;
                             }
-                            // Skip: (default value)
-                            //if( p_info->norm_type == ZERO_MEAN_1_STD ) {
-                            //    ptr->c_pad.ptr[k].y = 1;
-                            //}
                             if( p_info->norm_type == ZERO_MEAN_W_STD ) {
                                 ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
                             }
@@ -1044,8 +1040,6 @@ protected:
                                 Math::generalized_anscombe_transform_zero_mean(ss_ptr,N*N);
                                 ptr->c_pad.ptr[k].y = 1;
                             }
-
-
                         }
                     }
                 }
