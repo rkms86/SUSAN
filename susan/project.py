@@ -226,21 +226,21 @@ class Manager:
     
     def _apply_2D_shift_limit(self,ptcls_in,cur,prv):
         if self.aligner.allow_drift:
-            print('    Limiting 2D drift to %.2f Å.' % self.max_2d_delta_angs )
+            print('    Limiting 2D drift to %.2f Å.' % self.max_2d_delta_angstroms )
             ptcls_old  = _ssa_data.Particles(prv.ptcl_rslt)
             delta_angs = ptcls_in.prj_t - ptcls_old.prj_t
             norm_angs  = _np.linalg.norm( delta_angs, axis=2 )
-            scale_lim  = self.max_2d_delta_angs/_np.maximum(norm_angs,1)
-            scale_lim[ norm_angs<self.max_2d_delta_angs ] = 1
+            scale_lim  = self.max_2d_delta_angstroms/_np.maximum(norm_angs,1)
+            scale_lim[ norm_angs<self.max_2d_delta_angstroms ] = 1
             scale_lim = scale_lim[:,:,_np.newaxis]
             delta_angs = scale_lim*delta_angs
             ptcls_in.prj_t[:] = ptcls_old.prj_t + delta_angs
             ptcls_in.save(cur.ptcl_rslt)
         else:
-            print('    Limiting 2D shift to %.2f Å.' % self.max_2d_delta_angs )
+            print('    Limiting 2D shift to %.2f Å.' % self.max_2d_delta_angstroms )
             norm_angs  = _np.linalg.norm( ptcls_in.prj_t, axis=2 )
-            scale_lim  = self.max_2d_delta_angs/_np.maximum(norm_angs,1)
-            scale_lim[ norm_angs<self.max_2d_delta_angs ] = 1
+            scale_lim  = self.max_2d_delta_angstroms/_np.maximum(norm_angs,1)
+            scale_lim[ norm_angs<self.max_2d_delta_angstroms ] = 1
             scale_lim = scale_lim[:,:,_np.newaxis]
             ptcls_in.prj_t[:] = scale_lim*ptcls_in.prj_t
             ptcls_in.save(cur.ptcl_rslt)
@@ -285,7 +285,7 @@ class Manager:
         ptcls_in = _ssa_data.Particles(cur.ptcl_rslt)
         
         # Limit 2D shifts:
-        if self._validate_ite_type() == 2 and self.max_2d_delta_angs > 0:
+        if self._validate_ite_type() == 2 and self.max_2d_delta_angstroms > 0:
             self._apply_2D_shift_limit(ptcls_in,cur,prv)
         
         # Classify
