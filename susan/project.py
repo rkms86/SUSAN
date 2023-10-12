@@ -74,6 +74,7 @@ class Manager:
         self.fsc_threshold     = 0.143
         
         self.max_2d_delta_angstroms  = 0
+        self.max_tilt_reconstruction = -1
         
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
@@ -275,6 +276,10 @@ class Manager:
             
         return ptcls_in[ (ptcls_in.half_id>0).flatten() ]
         
+    def _limit_tilt_range_reconstruction(self,ptcls_out):
+        tomos = _ssa_data.Tomograms(filename=self.tomogram_file)
+        _ssa_data.Particles.Geom.enable_by_tilt(ptcls_out,tomos,tilt_deg_max=self.max_tilt)
+    
     def exec_particle_selection(self,cur,prv):
         print('  [Aligned partices] Processing:')
         ptcls_in = _ssa_data.Particles(cur.ptcl_rslt)
@@ -290,6 +295,11 @@ class Manager:
         
         # Select particles for reconstruction
         ptcls_out = self._select_particles_reconstruction(ptcls_in)
+        
+        # Limit tilt range
+        if self.max_tilt_reconstruction > 0:
+            self._limit_tilt_range_reconstruction(ptcls_out)
+        
         ptcls_out.save(cur.ptcl_temp)
         print('  [Aligned partices] Done.')
         
