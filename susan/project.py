@@ -73,6 +73,8 @@ class Manager:
         self.cc_threshold      = 0.8
         self.fsc_threshold     = 0.143
         
+        self.max_2d_delta_angstroms  = 0
+        
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         
@@ -81,7 +83,6 @@ class Manager:
         self.ctf_refiner       = _ssa_modules.CtfRefiner()
         
         self.aligner.ctf_correction = 'cfsc'
-        self.max_2d_delta_angs = 0
         
         self.averager.ctf_correction    = 'wiener'
         self.averager.rec_halfsets      = True
@@ -221,39 +222,29 @@ class Manager:
             self._exec_ctf_refinement(cur,prv)
         else:
             self._exec_alignment(cur,prv,ite_type)
-        
-    def exec_particle_selection(self,cur,prv):
-        print('  [Aligned partices] Processing:')
-        ptcls_in = _ssa_data.Particles(cur.ptcl_rslt)
-        
-        # Limit 2D shifts:
-        if self._validate_ite_type() == 2 and self.max_2d_delta_angs > 0:
-            if self.aligner.allow_drift:
-                print('    Limiting 2D drift to %.2f Å.' % self.max_2d_delta_angs )
-                ptcls_old  = _ssa_data.Particles(prv.ptcl_rslt)
-                delta_angs = ptcls_in.prj_t - ptcls_old.prj_t
-                norm_angs  = _np.linalg.norm( delta_angs, axis=2 )
-                scale_lim  = self.max_2d_delta_angs/_np.maximum(norm_angs,1)
-                scale_lim[ norm_angs<self.max_2d_delta_angs ] = 1
-                scale_lim = scale_lim[:,:,_np.newaxis]
-                delta_angs = scale_lim*delta_angs
-                ptcls_in.prj_t[:] = ptcls_old.prj_t + delta_angs
-                ptcls_in.save(cur.ptcl_rslt)
-            else:
-                print('    Limiting 2D shift to %.2f Å.' % self.max_2d_delta_angs )
-                norm_angs  = _np.linalg.norm( ptcls_in.prj_t, axis=2 )
-                scale_lim  = self.max_2d_delta_angs/_np.maximum(norm_angs,1)
-                scale_lim[ norm_angs<self.max_2d_delta_angs ] = 1
-                scale_lim = scale_lim[:,:,_np.newaxis]
-                ptcls_in.prj_t[:] = scale_lim*ptcls_in.prj_t
-                ptcls_in.save(cur.ptcl_rslt)
-        
-        # Classify
-        if ptcls_in.n_refs > 1 :
-            ptcls_in.ref_cix = _np.argmax(ptcls_in.ali_cc,axis=0)
+    
+    def _apply_2D_shift_limit(self,ptcls_in,cur,prv):
+        if self.aligner.allow_drift:
+            print('    Limiting 2D drift to %.2f Å.' % self.max_2d_delta_angs )
+            ptcls_old  = _ssa_data.Particles(prv.ptcl_rslt)
+            delta_angs = ptcls_in.prj_t - ptcls_old.prj_t
+            norm_angs  = _np.linalg.norm( delta_angs, axis=2 )
+            scale_lim  = self.max_2d_delta_angs/_np.maximum(norm_angs,1)
+            scale_lim[ norm_angs<self.max_2d_delta_angs ] = 1
+            scale_lim = scale_lim[:,:,_np.newaxis]
+            delta_angs = scale_lim*delta_angs
+            ptcls_in.prj_t[:] = ptcls_old.prj_t + delta_angs
             ptcls_in.save(cur.ptcl_rslt)
-        
-        # Select particles for reconstruction
+        else:
+            print('    Limiting 2D shift to %.2f Å.' % self.max_2d_delta_angs )
+            norm_angs  = _np.linalg.norm( ptcls_in.prj_t, axis=2 )
+            scale_lim  = self.max_2d_delta_angs/_np.maximum(norm_angs,1)
+            scale_lim[ norm_angs<self.max_2d_delta_angs ] = 1
+            scale_lim = scale_lim[:,:,_np.newaxis]
+            ptcls_in.prj_t[:] = scale_lim*ptcls_in.prj_t
+            ptcls_in.save(cur.ptcl_rslt)
+    
+    def _select_particles_reconstruction(self,ptcls_in):
         for i in range(ptcls_in.n_refs):
             idx = (ptcls_in.ref_cix == i).flatten()
             if _np.any( idx ):
@@ -281,9 +272,24 @@ class Manager:
                 print('    Class %2d: %7d particles.' % (i+1,0) )
                 print('      Half 1: %7d particles.'  % ( 0 ) )
                 print('      Half 2: %7d particles.'  % ( 0 ) )
-
             
-        ptcls_out = ptcls_in[ (ptcls_in.half_id>0).flatten() ]
+        return ptcls_in[ (ptcls_in.half_id>0).flatten() ]
+        
+    def exec_particle_selection(self,cur,prv):
+        print('  [Aligned partices] Processing:')
+        ptcls_in = _ssa_data.Particles(cur.ptcl_rslt)
+        
+        # Limit 2D shifts:
+        if self._validate_ite_type() == 2 and self.max_2d_delta_angs > 0:
+            self._apply_2D_shift_limit(ptcls_in,cur,prv)
+        
+        # Classify
+        if ptcls_in.n_refs > 1 :
+            ptcls_in.ref_cix = _np.argmax(ptcls_in.ali_cc,axis=0)
+            ptcls_in.save(cur.ptcl_rslt)
+        
+        # Select particles for reconstruction
+        ptcls_out = self._select_particles_reconstruction(ptcls_in)
         ptcls_out.save(cur.ptcl_temp)
         print('  [Aligned partices] Done.')
         
