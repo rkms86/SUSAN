@@ -278,7 +278,7 @@ class Manager:
         
     def _limit_tilt_range_reconstruction(self,ptcls_out):
         tomos = _ssa_data.Tomograms(filename=self.tomogram_file)
-        _ssa_data.Particles.Geom.enable_by_tilt(ptcls_out,tomos,tilt_deg_max=self.max_tilt)
+        _ssa_data.Particles.Geom.enable_by_tilt(ptcls_out,tomos,tilt_deg_max=self.max_tilt_reconstruction)
     
     def exec_particle_selection(self,cur,prv):
         print('  [Aligned partices] Processing:')
