@@ -439,6 +439,11 @@ void print_full(const Info&info,FILE*fp) {
         fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std=1.\n");
     if( info.norm_type == ZERO_MEAN_W_STD )
         fprintf(fp,"\t\tSubstack normalization policy: Mean=0, Std according to projection weight.\n");
+    if( info.norm_type == GAT_RAW )
+        fprintf(fp,"\t\tSubstack normalization policy: VST.\n");
+    if( info.norm_type == GAT_NORMAL )
+        fprintf(fp,"\t\tSubstack normalization policy: GAT.\n");
+    
 
     if( info.cc_stats == CC_SIGMA )
         fprintf(fp,"\t\tMeasuring: max( (cc_max - cc_mean) / cc_std , 0 ) per angle.\n");
@@ -549,6 +554,11 @@ void print_minimal(const Info&info,FILE*fp) {
         fprintf(fp,"Normalized to Mean=0, Std=1.\n");
     if( info.norm_type == ZERO_MEAN_W_STD )
         fprintf(fp,"Normalized to Mean=0, Std=PRJ_W.\n");
+    if( info.norm_type == GAT_RAW )
+        fprintf(fp,"VST Normalization.\n");
+    if( info.norm_type == GAT_NORMAL )
+        fprintf(fp,"GAT Normalization.\n");
+    
 
     if( info.cc_stats == CC_SIGMA )
         fprintf(fp,"    - Measuring (per angle): max( (cc_max - cc_mean) / cc_std , 0 ).\n");
