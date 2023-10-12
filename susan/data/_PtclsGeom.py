@@ -196,18 +196,21 @@ class PtclsGeom:
 ###############################################################################
     @staticmethod
     @_jit(nopython=True,cache=True)
-    def _enable_by_tilt(prj_w,tomo_cix,prj_eu,prj_wgt,tilt_max):
+    def _enable_by_tilt(prj_w,tomo_cix,prj_eu,prj_wgt,tilt_min,tilt_max):
         for p in range(prj_w.shape[0]):
             t_id = tomo_cix[p]
             for k in range(prj_w.shape[1]):
                 if prj_wgt[t_id,k] > 0:
                     tilt = _np.abs(prj_eu[t_id,k,1])
-                    prj_w[p,k] = tilt<tilt_max
+                    prj_w[p,k] = (tilt<tilt_max)&(tilt>=tilt_min)
+                else:
+                    prj_w[p,k] = 0
     
     @staticmethod
-    def enable_by_tilt(ptcls,tomos,tilt_range_deg):
-        tilt_max = _np.abs(tilt_range_deg)
-        PtclsGeom._enable_by_tilt(ptcls.prj_w,ptcls.tomo_cix,tomos.proj_eZYZ,tomos.proj_wgt,tilt_max)
+    def enable_by_tilt(ptcls,tomos,tilt_deg_max,tilt_deg_min=0):
+        tilt_max = _np.abs(tilt_deg_max)
+        tilt_min = _np.abs(tilt_deg_min)
+        PtclsGeom._enable_by_tilt(ptcls.prj_w,ptcls.tomo_cix,tomos.proj_eZYZ,tomos.proj_wgt,tilt_min,tilt_max)
 
 ###############################################################################
     @staticmethod
