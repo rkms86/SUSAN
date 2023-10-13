@@ -100,6 +100,10 @@ class TemplateMatchingReporter {
 	int   max_K;
 	int   n_cc;
 	float sigma;
+
+    float running_avg;
+    float running_std;
+    float running_cnt;
 	
 public:
 	TemplateMatchingReporter(int n_pts, int K, int dim) {
@@ -115,6 +119,10 @@ public:
 		}
 		c_cc       = new float[n_cc];
 		sigma      = 0;
+
+        running_avg = 0;
+        running_std = 0;
+        running_cnt = 0;
 	}
 	
 	~TemplateMatchingReporter() {
@@ -160,20 +168,36 @@ public:
 
 	void clear_cc() {
 		memset(c_cc,0,n_cc*sizeof(float));
+
+        running_avg = 0;
+        running_std = 0;
+        running_cnt = 0;
 	}
 
 	void push_cc(const float*p_cc) {
-		memcpy(c_cc,p_cc,n_cc*sizeof(float));
+        if(tm_type != TM_NONE) {
+            for(int cc_index=0;cc_index<n_cc;cc_index++) {
+                float cc = p_cc[cc_index];
+                c_cc[cc_index] = fmax(c_cc[cc_index],cc);
+                running_avg += cc;
+                running_std += (cc*cc);
+                running_cnt += 1;
+            }
+        }
 	}
 	
 	void save_cc(int tid,int rid,int pid,int tx,int ty,int tz,const Vec3*c_pts) {
-		if( tm_type != TM_NONE ) {
+        if( (tm_type != TM_NONE) && (running_cnt > 0) ) {
 			int x,y,z;
 			
-			int proj_id, point_id;
-			
-			float avg,std;
-			Math::get_avg_std(avg,std,c_cc,n_cc);
+            int proj_id, point_id;
+
+            running_avg = running_avg/running_cnt;
+            running_std = running_std/running_cnt;
+            running_std = running_std - (running_avg*running_avg);
+            running_std = sqrtf(running_std);
+
+            float cc_threshold = running_avg + sigma*running_std;
 
 			for(int cc_index=0;cc_index<n_cc;cc_index++){
 				if (tm_dim == 2){
@@ -189,7 +213,7 @@ public:
                 y = (int)roundf(c_pts[point_id].y);
                 z = (int)roundf(c_pts[point_id].z);
 				
-				if ( ((sigma > 0) && (c_cc[cc_index] > avg+sigma*std)) || (sigma <= 0) ){
+                if ( ((sigma > 0) && (c_cc[cc_index] > cc_threshold)) || (sigma <= 0) ){
 					if (tm_dim == 2){
 						if( tm_type == TM_PYTHON )
                                 fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d[%d,%d] = %f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
@@ -534,11 +558,12 @@ protected:
                         stream.sync();
                         ali_data.get_max_cc(cc,idx,ali_data.c_cc);
 
+                        tm_rep.push_cc(ali_data.c_cc);
+
                         if( cc > max_cc ) {
                             max_idx = idx;
                             max_cc  = cc;
                             max_R   = R_tmp;
-                            tm_rep.push_cc(ali_data.c_cc);
                         }
                         if( cc_stats == CC_SIGMA ) {
                             running_avg += cc;
