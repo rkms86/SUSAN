@@ -186,16 +186,9 @@ def euZYZ_rotm(R,eu):
 
 @jit(nopython=True,cache=True)
 def rotm_euZYZ(euler, R):
-    #euler = np.zeros(3)
-    if np.abs(R[2,0]) < 1e-5:
-        # gimbal lock
-        euler[0] = np.arctan(R[1,0] / R[0,0])
-        euler[1] =-np.arcsin(R[2,0])
-        euler[2] = 0
-    else:
-        euler[0] = np.arctan( R[1,2] / R[0,2])
-        euler[1] = np.arctan( R[0,2] /(R[2,2] * np.cos(euler[0])))
-        euler[2] = np.arctan(-R[2,1] / R[2,0])
+    euler[0] = np.arctan2(R[1,2],R[0,2])
+    euler[1] = np.arctan2(np.sqrt( 1-(R[2,2]*R[2,2]) ),R[2,2])
+    euler[2] = np.arctan2(R[2,1],-R[2,0])
     #return euler
 
 def is_extension(filename,extension):
