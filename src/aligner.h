@@ -518,6 +518,8 @@ protected:
         single running_std = 0;
         single running_cnt = 0;
 
+        tm_rep.clear_cc();
+
         // DEBUG
         //debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
 
