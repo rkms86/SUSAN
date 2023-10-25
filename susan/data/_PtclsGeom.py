@@ -44,7 +44,7 @@ class PtclsGeom:
             if R.ndim != 2 or R.shape[0] != 3 or R.shape[1] != 3:
                 raise ValueError('R must be a 3x3 matrix.')
         
-        return R
+        return _np.float32(R)
     
     @staticmethod
     def _validate_single_translation(t):
