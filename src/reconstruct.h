@@ -273,8 +273,11 @@ protected:
 		
 		while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
 			switch(current_cmd) {
-				case REC_EXEC:
-					crop_loop(stack_buffer,stream);
+                case REC_EXEC:
+                    if(p_info->ignore_ref)
+                        crop_loop_ignore_ref(stack_buffer,stream);
+                    else
+                        crop_loop(stack_buffer,stream);
 					break;
 				default:
 					break;
@@ -315,22 +318,40 @@ protected:
 			if( check_reference(ptr) ) {
 				read_defocus(ptr);
 				crop_substack(ptr);
-				work_progress++;
-				work_accumul++;
-				if( check_substack(ptr) ) {
+                if( check_substack(ptr) ) {
 					upload(ptr,stream.strm);
 					stream.sync();
 					stack_buffer.WO_sync(READY);
 				}
-			}
-			else {
-				work_progress++;
-				work_accumul++;
-			}
+            }
+            work_progress++;
+            work_accumul++;
 		}
 		stack_buffer.WO_sync(DONE);
-	}
-	
+    }
+
+    void crop_loop_ignore_ref(DoubleBufferHandler&stack_buffer,GPU::Stream&stream) {
+        stack_buffer.WO_sync(EMPTY);
+        for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
+            for(int r=0;r<R;r++) {
+                RecBuffer*ptr = (RecBuffer*)stack_buffer.WO_get_buffer();
+                p_ptcls->get(ptr->ptcl,i);
+                if( check_reference(ptr,r) ) {
+                    read_defocus(ptr);
+                    crop_substack(ptr,r);
+                    if( check_substack(ptr) ) {
+                        upload(ptr,stream.strm);
+                        stream.sync();
+                        stack_buffer.WO_sync(READY);
+                    }
+                }
+            }
+            work_progress++;
+            work_accumul++;
+        }
+        stack_buffer.WO_sync(DONE);
+    }
+
 	void read_defocus(RecBuffer*ptr) {
 		ptr->K = p_tomo->stk_dim.z;
 		
@@ -352,8 +373,10 @@ protected:
 		memcpy( (void**)(ptr->c_def.ptr), (const void**)(ptr->ptcl.def), sizeof(Defocus)*ptr->K  );
 	}
 	
-	bool check_reference(RecBuffer*ptr) {
-		int r = ptr->ptcl.ref_cix();
+    bool check_reference(RecBuffer*ptr,int r=-1) {
+        if(r<0)
+            r = ptr->ptcl.ref_cix();
+
 		if( p_info->rec_halves )
 			ptr->r_ix = 2*r + (ptr->ptcl.half_id()-1);
 		else
@@ -365,11 +388,12 @@ protected:
 			return ( ptr->ptcl.ali_w[r] )>0;
 	}
 	
-	void crop_substack(RecBuffer*ptr) {
+    void crop_substack(RecBuffer*ptr,int r=-1) {
 		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
-		M33f R_tmp,R_ali,R_stack,R_gpu;
-		
-		int r = ptr->ptcl.ref_cix();
+        M33f R_tmp,R_ali,R_stack,R_gpu;
+
+        if(r<0)
+            r = ptr->ptcl.ref_cix();
 		
 		/// P_tomo = P_ptcl + t_ali
 		pt_tomo(0) = ptr->ptcl.pos().x + ptr->ptcl.ali_t[r].x;

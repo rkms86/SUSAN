@@ -172,6 +172,7 @@ class Averager:
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         self.normalize_output  = True
+        self.ignore_classes    = False
         self.boost_lowfreq     = _dt.boost_lowfreq_params(0,0,0)
         
     def _validate(self):
@@ -207,6 +208,7 @@ class Averager:
         args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
         args = args + ' -symmetry '        + self.symmetry
         args = args + ' -rec_halves %d'    % self.rec_halfsets
+        args = args + ' -ignore_ref %d'    % self.ignore_classes
         args = args + ' -verbosity %d'     % self.verbosity
         args = args + ' -norm_output %d'   % self.normalize_output
         args = args + ' -boost_lowfq %f,%f,%f' % (self.boost_lowfreq.scale,self.boost_lowfreq.value,self.boost_lowfreq.decay)
