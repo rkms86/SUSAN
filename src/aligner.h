@@ -861,7 +861,10 @@ protected:
         while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
             switch(current_cmd) {
                 case ALI_3D:
-                    crop_loop(stack_buffer,stream);
+                    if(p_info->ignore_ref)
+                        crop_loop_ignore_ref(stack_buffer,stream);
+                    else
+                        crop_loop(stack_buffer,stream);
                     break;
                 case ALI_2D:
                     crop_loop(stack_buffer,stream);
@@ -919,8 +922,6 @@ protected:
     void crop_loop(DoubleBufferHandler&stack_buffer,GPU::Stream&stream) {
         stack_buffer.WO_sync(EMPTY);
         for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
-            work_progress++;
-            work_accumul++;
             for(int r=0;r<R;r++) {
                 AliBuffer*ptr = (AliBuffer*)stack_buffer.WO_get_buffer();
                 p_ptcls->get(ptr->ptcl,i);
@@ -932,6 +933,26 @@ protected:
                     stack_buffer.WO_sync(READY);
                 }
             }
+            work_progress++;
+            work_accumul++;
+        }
+        stack_buffer.WO_sync(DONE);
+    }
+
+    void crop_loop_ignore_ref(DoubleBufferHandler&stack_buffer,GPU::Stream&stream) {
+        stack_buffer.WO_sync(EMPTY);
+        for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
+            AliBuffer*ptr = (AliBuffer*)stack_buffer.WO_get_buffer();
+            p_ptcls->get(ptr->ptcl,i);
+            read_defocus(ptr);
+            crop_substack(ptr);
+            if( check_substack(ptr) ) {
+                upload(ptr,stream.strm);
+                stream.sync();
+                stack_buffer.WO_sync(READY);
+            }
+            work_progress++;
+            work_accumul++;
         }
         stack_buffer.WO_sync(DONE);
     }
@@ -957,10 +978,13 @@ protected:
         }
     }
 
-    void crop_substack(AliBuffer*ptr,const int r) {
+    void crop_substack(AliBuffer*ptr,const int ref_cix=-1) {
         V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
         M33f R_tmp,R_ali,R_stack,R_gpu;
 
+        int r = ref_cix;
+        if(ref_cix<0)
+            r = ptr->ptcl.ref_cix();
         ptr->class_ix = r;
 
         if( p_info->ali_halves )

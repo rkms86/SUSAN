@@ -49,6 +49,7 @@ typedef struct {
     float  ssnr_F;
     float  ssnr_S;
     bool   ali_halves;
+    bool   ignore_ref;
     bool   drift;
     float  cone_range;
     float  cone_step;
@@ -143,6 +144,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.ssnr_F        = 0;
     info.ssnr_S        = 1;
     info.ali_halves    = false;
+    info.ignore_ref    = false;
     info.cc_stats      = CC_NONE;
     info.drift         = true;
     info.cone_range    = 0;
@@ -185,6 +187,7 @@ bool parse_args(Info&info,int ac,char** av) {
         ROLLOFF_F,
         SYMMETRY,
         ALI_HALVES,
+        IGNORE_REF,
         DRIFT,
         CONE,
         INPLANE,
@@ -217,6 +220,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"rolloff_f",   1, 0, ROLLOFF_F },
         {"p_symmetry",  1, 0, SYMMETRY  },
         {"ali_halves",  1, 0, ALI_HALVES},
+        {"ignore_ref",  1, 0, IGNORE_REF},
         {"allow_drift", 1, 0, DRIFT     },
         {"cone",        1, 0, CONE      },
         {"inplane",     1, 0, INPLANE   },
@@ -281,6 +285,9 @@ bool parse_args(Info&info,int ac,char** av) {
                 break;
             case ALI_HALVES:
                 info.ali_halves = ArgParser::get_bool(optarg);
+                break;
+            case IGNORE_REF:
+                info.ignore_ref = ArgParser::get_bool(optarg);
                 break;
             case CC_TYPE:
                 info.cc_stats = ArgParser::get_cc_stats_type(optarg);
@@ -488,6 +495,9 @@ void print_full(const Info&info,FILE*fp) {
         }
         fprintf(fp,"\n");
     }
+
+    if( info.ignore_ref )
+        fprintf(fp,"\t\tAligning each particle to its class/reference only.\n");
 }
 
 void print_minimal(const Info&info,FILE*fp) {
@@ -592,7 +602,7 @@ void print_minimal(const Info&info,FILE*fp) {
         fprintf(fp,"[%.2f,%.2f,%.2f], Step=%.2f. Points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
     }
     if( info.off_type == CIRCLE ) {
-        Vec3*pt = PointsProvider::cylinder(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
+        Vec3*pt = PointsProvider::circle(total_points,info.off_x,info.off_y,info.off_s);
         fprintf(fp,"    - Circular offset (2D): ");
         delete [] pt;
         fprintf(fp,"[%.2f,%.2f]. Points: %d\n",info.off_x,info.off_y,total_points);
@@ -604,6 +614,9 @@ void print_minimal(const Info&info,FILE*fp) {
         }
         fprintf(fp,"\n");
     }
+
+    if( info.ignore_ref )
+        fprintf(fp,"    - Aligning each particle to its class/reference only.\n");
 }
 
 void print(const Info&info,FILE*fp=stdout) {
