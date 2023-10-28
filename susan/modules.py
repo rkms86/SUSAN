@@ -94,9 +94,7 @@ class Aligner:
         if not self.offset.step > 0 or not self.cone.step > 0 or not self.inplane.step > 0:
             raise ValueError('The steps values must be larger than 0')
 
-        if (self.offset.span[0] > 0 and self.offset.span[0] < self.offset.step)
-        or (self.offset.span[1] > 0 and self.offset.span[1] < self.offset.step)
-        or (self.offset.span[2] > 0 and self.offset.span[2] < self.offset.step):
+        if (self.offset.span[0] > 0 and self.offset.span[0] < self.offset.step) or (self.offset.span[1] > 0 and self.offset.span[1] < self.offset.step) or (self.offset.span[2] > 0 and self.offset.span[2] < self.offset.step):
             raise ValueError('Offset: Step cannot be larger than Range/Span')
 
         if self.cone.span == 0:
