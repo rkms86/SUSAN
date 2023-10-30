@@ -538,7 +538,6 @@ protected:
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
                         if( cc_type == CC_TYPE_CFSC ) {
-                            ali_data.multiply(ctf_wgt,ptr->K,stream);
                             rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
                         }
 
@@ -640,7 +639,6 @@ protected:
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
                         if( cc_type == CC_TYPE_CFSC ) {
-                            ali_data.multiply(ctf_wgt,ptr->K,stream);
                             rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
                         }
 
