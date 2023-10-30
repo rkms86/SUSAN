@@ -248,14 +248,14 @@ public:
     int R;
     int pad_type;
     int ctf_type;
+    int cc_type;
+    int cc_stats;
     int max_K;
     bool ali_halves;
     float3  bandpass;
     float2  ssnr; /// x=F; y=S;
     DoubleBufferHandler *p_buffer;
     RefMap              *p_refs;
-
-    uint32 cc_stats;
 
     const char*psym;
     float2 cone; /// x=range; y=step
@@ -482,18 +482,18 @@ protected:
         ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
 
         switch( ctf_type ) {
-            case ALI_ON_SUBSTACK:
+            case ALI_CTF_ON_SUBSTACK:
                 ss_data.correct_wiener(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
                 break;
-            case ALI_ON_SUBSTACK_SSNR:
+            case ALI_CTF_ON_SUBSTACK_SSNR:
                 ss_data.correct_wiener_ssnr(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ssnr,ptr->K,stream);
-                break;
-            case ALI_CUMULATIVE_FSC:
-                rad_avgr.preset_FRC(ss_data.ss_fourier,ptr->K,stream);
                 break;
             default:
                 break;
         }
+
+        if( cc_type == CC_TYPE_CFSC )
+                rad_avgr.preset_FRC(ss_data.ss_fourier,ptr->K,stream);
 
         rad_avgr.normalize_stacks(ss_data.ss_fourier,bandpass,ptr->K,stream);
     }
@@ -534,10 +534,10 @@ protected:
                         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
-                        if( ctf_type == ALI_ON_REFERENCE )
+                        if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
-                        if( ctf_type == ALI_CUMULATIVE_FSC ) {
+                        if( cc_type == CC_TYPE_CFSC ) {
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
                             rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
                         }
@@ -547,7 +547,7 @@ protected:
                         // DEBUG
                         //debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
-                        if( ctf_type == ALI_CUMULATIVE_FSC )
+                        if( cc_type == CC_TYPE_CFSC )
                             ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
@@ -567,12 +567,12 @@ protected:
                             max_cc  = cc;
                             max_R   = R_tmp;
                         }
-                        if( cc_stats == CC_SIGMA ) {
+                        if( cc_stats == CC_STATS_SIGMA ) {
                             running_avg += cc;
                             running_std += (cc*cc);
                             running_cnt += 1;
                         }
-                        if( cc_stats == CC_PROB ) {
+                        if( cc_stats == CC_STATS_PROB ) {
                             running_avg += ali_data.get_sum_cc(ali_data.c_cc);
                         }
                         
@@ -582,7 +582,7 @@ protected:
             R_lvl = max_R;
         } // REFINE
 
-        if( cc_stats == CC_SIGMA ) {
+        if( cc_stats == CC_STATS_SIGMA ) {
             if( (running_cnt > 0) || (running_std<SUSAN_FLOAT_TOL) ) {
                 running_avg = running_avg/running_cnt;
                 running_std = running_std/running_cnt;
@@ -596,7 +596,7 @@ protected:
                 max_idx = (ali_data.n_pts/2);
             }
         }
-        if( cc_stats == CC_PROB ) {
+        if( cc_stats == CC_STATS_PROB ) {
             max_cc = max_cc/running_avg;
         }
         
@@ -621,6 +621,8 @@ protected:
         memset(max_idx,        0, sizeof(single)*ptr->K);
         memset(cc_placeholder, 0, sizeof(single)*(ptr->K)*(ali_data.n_pts));
 
+        tm_rep.clear_cc();
+
         // DEBUG
         //debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
 
@@ -634,10 +636,10 @@ protected:
                         ali_data.rotate_pre(Rot,ptr->g_ali,ptr->K,stream);
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
-                        if( ctf_type == ALI_ON_REFERENCE )
+                        if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
-                        if( ctf_type == ALI_CUMULATIVE_FSC ) {
+                        if( cc_type == CC_TYPE_CFSC ) {
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
                             rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
                         }
@@ -647,7 +649,7 @@ protected:
                         // DEBUG
                         //debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
-                        if( ctf_type == ALI_CUMULATIVE_FSC )
+                        if( cc_type == CC_TYPE_CFSC )
                             ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
@@ -664,10 +666,10 @@ protected:
                                 max_idx[i] = ite_idx[i];
                                 max_cc[i]  = ite_cc[i];
                                 max_R[i]   = R_ite;
-				// cc_placeholder stores cc-map (offset->cc) only for the best orientation 
-				for(int j=0;j<ali_data.n_pts;j++){
-					cc_placeholder[i*ali_data.n_pts + j] = ali_data.c_cc[i*ali_data.n_pts + j];
-                }
+                                // cc_placeholder stores cc-map (offset->cc) only for the best orientation
+                                for(int j=0;j<ali_data.n_pts;j++){
+                                    cc_placeholder[i*ali_data.n_pts + j] = ali_data.c_cc[i*ali_data.n_pts + j];
+                                }
                             }
                         }
                     } // INPLANE
@@ -675,7 +677,7 @@ protected:
             } // SYMMETRY
         } // REFINE
 
-	tm_rep.push_cc(cc_placeholder);
+        tm_rep.push_cc(cc_placeholder);
 
         single cc_acc=0,wgt_acc=0;
         for(int i=0;i<ptr->K;i++) {
@@ -686,7 +688,7 @@ protected:
             }
         }
         ptr->ptcl.ali_cc[ptr->class_ix] = cc_acc/max(wgt_acc,1.0);
-	tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
+        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
     }
 
     void update_particle_3D(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int ref_ix,const float apix) {
@@ -888,9 +890,10 @@ protected:
         gpu_worker.P          = P;
         gpu_worker.R          = R;
         gpu_worker.p_refs     = p_refs;
+        gpu_worker.pad_type   = pad_type;
         gpu_worker.ali_halves = p_info->ali_halves;
         gpu_worker.cc_stats   = p_info->cc_stats;
-        gpu_worker.pad_type   = pad_type;
+        gpu_worker.cc_type    = p_info->cc_type;
         gpu_worker.ctf_type   = p_info->ctf_type;
         gpu_worker.max_K      = max_K;
         gpu_worker.bandpass.x = max(bp_scale*p_info->fpix_min-bp_pad,0.0);

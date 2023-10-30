@@ -45,6 +45,8 @@ typedef struct {
     uint32 pad_type;
     uint32 ctf_type;
     uint32 norm_type;
+    uint32 cc_type;
+    uint32 cc_stats;
     uint32 type;
     float  ssnr_F;
     float  ssnr_S;
@@ -62,7 +64,6 @@ typedef struct {
     float  off_y;
     float  off_z;
     float  off_s;
-    uint32 cc_stats;
 
     char   pseudo_sym[64];
 
@@ -138,14 +139,15 @@ bool parse_args(Info&info,int ac,char** av) {
     info.fpix_roll     = 4;
     info.pad_size      = 0;
     info.pad_type      = PAD_ZERO;
-    info.ctf_type      = ALI_ON_REFERENCE;
+    info.ctf_type      = ALI_CTF_ON_REFERENCE;
     info.norm_type     = NO_NORM;
     info.type          = 3;
     info.ssnr_F        = 0;
     info.ssnr_S        = 1;
     info.ali_halves    = false;
     info.ignore_ref    = false;
-    info.cc_stats      = CC_NONE;
+    info.cc_type       = CC_TYPE_BASIC;
+    info.cc_stats      = CC_STATS_NONE;
     info.drift         = true;
     info.cone_range    = 0;
     info.cone_step     = 1;
@@ -182,6 +184,8 @@ bool parse_args(Info&info,int ac,char** av) {
         PAD_TYPE,
         NORM_TYPE,
         CTF_TYPE,
+        CC_TYPE,
+        CC_STATS,
         SSNR,
         BANDPASS,
         ROLLOFF_F,
@@ -195,7 +199,6 @@ bool parse_args(Info&info,int ac,char** av) {
         OFF_TYPE,
         OFF_PARAM,
         VERBOSITY,
-        CC_TYPE,
         TM_TYPE,
         TM_PREFIX,
         TM_SIGMA,
@@ -215,6 +218,8 @@ bool parse_args(Info&info,int ac,char** av) {
         {"pad_type",    1, 0, PAD_TYPE  },
         {"norm_type",   1, 0, NORM_TYPE },
         {"ctf_type",    1, 0, CTF_TYPE  },
+        {"cc_type",     1, 0, CC_TYPE   },
+        {"cc_stats",    1, 0, CC_STATS  },
         {"ssnr_param",  1, 0, SSNR      },
         {"bandpass",    1, 0, BANDPASS  },
         {"rolloff_f",   1, 0, ROLLOFF_F },
@@ -227,7 +232,6 @@ bool parse_args(Info&info,int ac,char** av) {
         {"refine",      1, 0, REFINE    },
         {"off_type",    1, 0, OFF_TYPE  },
         {"off_params",  1, 0, OFF_PARAM },
-        {"cc_type",     1, 0, CC_TYPE   },
         {"verbosity",   1, 0, VERBOSITY },
         {"tm_type",     1, 0, TM_TYPE   },
         {"tm_prefix",   1, 0, TM_PREFIX },
@@ -270,6 +274,15 @@ bool parse_args(Info&info,int ac,char** av) {
                 break;
             case CTF_TYPE:
                 info.ctf_type = ArgParser::get_ali_ctf_type(optarg);
+                /// ToBeDeprecated:
+                if(strcmp(optarg,"cfsc")==0)
+                    info.cc_type = CC_TYPE_CFSC;
+                break;
+            case CC_TYPE:
+                info.cc_type = ArgParser::get_cc_type(optarg);
+                break;
+            case CC_STATS:
+                info.cc_stats = ArgParser::get_cc_stats_type(optarg);
                 break;
             case BANDPASS:
                 ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);
@@ -288,9 +301,6 @@ bool parse_args(Info&info,int ac,char** av) {
                 break;
             case IGNORE_REF:
                 info.ignore_ref = ArgParser::get_bool(optarg);
-                break;
-            case CC_TYPE:
-                info.cc_stats = ArgParser::get_cc_stats_type(optarg);
                 break;
             case DRIFT:
                 info.drift = ArgParser::get_bool(optarg);
@@ -427,16 +437,26 @@ void print_full(const Info&info,FILE*fp) {
             fprintf(fp,"\t\tPadding policy: Fill with gaussian noise.\n");
     }
 
-    if( info.ctf_type == ALI_NO_INV )
+    if( info.ctf_type == ALI_CTF_DISABLED )
         fprintf(fp,"\t\tCTF correction policy: Disabled.\n");
-    if( info.ctf_type == ALI_ON_REFERENCE )
+    if( info.ctf_type == ALI_CTF_ON_REFERENCE )
         fprintf(fp,"\t\tCTF correction policy: On reference.\n");
-    if( info.ctf_type == ALI_ON_SUBSTACK )
+    if( info.ctf_type == ALI_CTF_ON_SUBSTACK )
         fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion.\n");
-    if( info.ctf_type == ALI_ON_SUBSTACK_SSNR )
+    if( info.ctf_type == ALI_CTF_ON_SUBSTACK_SSNR )
         fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
-    if( info.ctf_type == ALI_CUMULATIVE_FSC )
-        fprintf(fp,"\t\tCTF correction policy: On reference - using cumulative FSC (experimental).\n");
+
+    if( info.cc_type == CC_TYPE_BASIC )
+        fprintf(fp,"\t\tAligning using Cross-Correlation. ");
+    if( info.cc_type == CC_TYPE_CFSC )
+        fprintf(fp,"\t\tAligning using the Cumulative Fourier Shell Correlation. ");
+
+    if( info.cc_stats == CC_STATS_NONE )
+        fprintf(fp,"\n");
+    if( info.cc_stats == CC_STATS_SIGMA )
+        fprintf(fp,"Measuring: max( (cc_max - cc_mean) / cc_std , 0 ) per angle.\n");
+    if( info.cc_stats == CC_STATS_PROB )
+        fprintf(fp,"Measuring: cc_max / sum( cc ).\n");
 
     if( info.norm_type == NO_NORM )
         fprintf(fp,"\t\tSubstack normalization policy: Disabled.\n");
@@ -450,12 +470,7 @@ void print_full(const Info&info,FILE*fp) {
         fprintf(fp,"\t\tSubstack normalization policy: VST.\n");
     if( info.norm_type == GAT_NORMAL )
         fprintf(fp,"\t\tSubstack normalization policy: GAT.\n");
-    
 
-    if( info.cc_stats == CC_SIGMA )
-        fprintf(fp,"\t\tMeasuring: max( (cc_max - cc_mean) / cc_std , 0 ) per angle.\n");
-    if( info.cc_stats == CC_PROB )
-        fprintf(fp,"\t\tMeasuring: cc_max / sum( cc ).\n");
     fprintf(fp,"\t\tPseudo-symmetry search: %s.\n",info.pseudo_sym);
     fprintf(fp,"\t\tCone search:    Range=%.3f, Step=%.3f.\n",info.cone_range,info.cone_step);
     fprintf(fp,"\t\tInplane search: Range=%.3f, Step=%.3f.\n",info.inplane_range,info.inplane_step);
@@ -545,16 +560,14 @@ void print_minimal(const Info&info,FILE*fp) {
             fprintf(fp,"Random padding. ");
     }
 
-    if( info.ctf_type == ALI_NO_INV )
+    if( info.ctf_type == ALI_CTF_DISABLED )
         fprintf(fp,"No CTF correction. ");
-    if( info.ctf_type == ALI_ON_REFERENCE )
+    if( info.ctf_type == ALI_CTF_ON_REFERENCE )
         fprintf(fp,"CTF on Reference. ");
-    if( info.ctf_type == ALI_ON_SUBSTACK )
-        fprintf(fp,"CTF on Substack (Wiener). ");
-    if( info.ctf_type == ALI_ON_SUBSTACK_SSNR )
-        fprintf(fp,"CTF on Substack (Wiener SSNR: S=%.2f F=%.2f). ",info.ssnr_S,info.ssnr_F);
-    if( info.ctf_type == ALI_CUMULATIVE_FSC )
-        fprintf(fp,"CTF on Reference (CFSC). ");
+    if( info.ctf_type == ALI_CTF_ON_SUBSTACK )
+        fprintf(fp,"CTF on Substack (Wiener inversion). ");
+    if( info.ctf_type == ALI_CTF_ON_SUBSTACK_SSNR )
+        fprintf(fp,"CTF on Substack (Wiener inversion with Ad-Hoc SSNR: S=%.2f F=%.2f). ",info.ssnr_S,info.ssnr_F);
 
     if( info.norm_type == NO_NORM )
         fprintf(fp,"No Normalization.\n");
@@ -569,11 +582,17 @@ void print_minimal(const Info&info,FILE*fp) {
     if( info.norm_type == GAT_NORMAL )
         fprintf(fp,"GAT Normalization.\n");
     
+    fprintf(fp,"    - ");
+    if( info.cc_type == CC_TYPE_BASIC )
+        fprintf(fp,"Aligning with CC. ");
+    if( info.cc_type == CC_TYPE_CFSC )
+        fprintf(fp,"Aligning with CFSC. ");
 
-    if( info.cc_stats == CC_SIGMA )
-        fprintf(fp,"    - Measuring (per angle): max( (cc_max - cc_mean) / cc_std , 0 ).\n");
-    if( info.cc_stats == CC_PROB )
-        fprintf(fp,"    - Measuring: cc_max / sum(cc).\n");
+    if( info.cc_stats == CC_STATS_SIGMA )
+        fprintf(fp,"Measuring (per angle): max( (cc_max - cc_mean) / cc_std , 0 ).");
+    if( info.cc_stats == CC_STATS_PROB )
+        fprintf(fp,"Measuring: cc_max / sum(cc).");
+    fprintf(fp,"\n");
 
     fprintf(fp,"    - Angular search: [ %s | ",info.pseudo_sym);
     

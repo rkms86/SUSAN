@@ -138,17 +138,21 @@ typedef enum {
 } PaddingType_t;
 
 typedef enum {
-    ALI_NO_INV=0,
-    ALI_ON_REFERENCE,
-    ALI_ON_SUBSTACK,
-    ALI_ON_SUBSTACK_SSNR,
-    ALI_CUMULATIVE_FSC
+    ALI_CTF_DISABLED=0,
+    ALI_CTF_ON_REFERENCE,
+    ALI_CTF_ON_SUBSTACK,
+    ALI_CTF_ON_SUBSTACK_SSNR
 } CtfAlignmentType_t;
 
 typedef enum {
-    CC_NONE=0,
-    CC_PROB,
-    CC_SIGMA
+    CC_TYPE_BASIC=0,
+    CC_TYPE_CFSC
+} CcType_t;
+
+typedef enum {
+    CC_STATS_NONE=0,
+    CC_STATS_PROB,
+    CC_STATS_SIGMA
 } CcStatsType_t;
 
 typedef enum {

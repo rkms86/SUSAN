@@ -39,9 +39,10 @@ class Aligner:
         self.inplane           = _dt.search_params(0,1)
         self.refine            = _dt.refine_params(0,1)
         self.offset            = _dt.offset_params([4,4,4],1,'ellipsoid')
-        self.padding_type      = 'noise'
+        self.padding_type      = 'zero'
         self.normalize_type    = 'zero_mean_one_std'
         self.ctf_correction    = 'on_reference'
+        self.cc_type           = 'basic'
         self.cc_stats_type     = 'none'
         self.pseudo_symmetry   = 'c1'
         self.ssnr              = _dt.ssnr(1,0.01)
@@ -58,7 +59,7 @@ class Aligner:
         self.inplane.step = i_s
         
     def set_offset_search(self,off_range,off_step=1,off_type='ellipsoid'):
-        if not off_type in ['ellipsoid','cylinider','cuboid']:
+        if not off_type in ['ellipsoid','cylinder','cuboid']:
             raise ValueError('Invalid offset type. Only "ellipsoid", "cylinder" or "cuboid" are valid')
         
         if isinstance(off_range,int) or isinstance(off_range,float):
@@ -85,11 +86,11 @@ class Aligner:
         if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight','poisson_raw','poisson_normal']:
             raise ValueError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std", "zero_mean_proj_weight", "poisson_raw" or "poisson_normal" are valid')
         
-        if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','wiener_white','cfsc']:
-            raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
+        if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','cfsc']:
+            raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack" or "wiener_ssnr" are valid')
         
         if not self.cc_stats_type in ['none','probability','sigma']:
-            raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
+            raise ValueError('Invalid cc statistic method. Only "none", "probability" or "sigma" are valid')
         
         if not self.offset.step > 0 or not self.cone.step > 0 or not self.inplane.step > 0:
             raise ValueError('The steps values must be larger than 0')
@@ -122,6 +123,8 @@ class Aligner:
         args = args + ' -box_size %d'      % box_size
         args = args + ' -pad_size %d'      % self.extra_padding
         args = args + ' -pad_type '        + self.padding_type
+        args = args + ' -cc_type '         + self.cc_type
+        args = args + ' -cc_stats '        + self.cc_stats_type
         args = args + ' -norm_type '       + self.normalize_type
         args = args + ' -ctf_type '        + self.ctf_correction
         args = args + ' -ssnr_param %f,%f' % (self.ssnr.F,self.ssnr.S)
@@ -131,7 +134,6 @@ class Aligner:
         args = args + ' -ali_halves %d'    % self.halfsets_independ
         args = args + ' -ignore_ref %d'    % self.ignore_classes
         args = args + ' -allow_drift %d'   % self.allow_drift
-        args = args + ' -cc_type '         + self.cc_stats_type
         args = args + ' -cone %f,%f'       % (self.cone.span,self.cone.step)
         args = args + ' -inplane %f,%f'    % (self.inplane.span,self.inplane.step)
         args = args + ' -refine %d,%d'     % (self.refine.factor,self.refine.levels)
@@ -165,7 +167,7 @@ class Averager:
         self.bandpass          = _dt.bandpass(0,-1,2)
         self.extra_padding     = 0
         self.rec_halfsets      = False
-        self.padding_type      = 'noise'
+        self.padding_type      = 'zero'
         self.normalize_type    = 'zero_mean_one_std'
         self.ctf_correction    = 'wiener'
         self.symmetry          = 'c1'
