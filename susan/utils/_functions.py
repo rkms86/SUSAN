@@ -165,6 +165,24 @@ def fsc_analyse(fsc,apix=1.0,thres=0.143):
 ###########################################
 
 @jit(nopython=True,cache=True)
+def euDYN_rotm(R,eu):
+    cos_theta = np.cos(eu[2])
+    cos_phi   = np.cos(eu[1])
+    cos_psi   = np.cos(eu[0])
+    sin_theta = np.sin(eu[2])
+    sin_phi   = np.sin(eu[1])
+    sin_psi   = np.sin(eu[0])
+    R[0,0] = cos_theta*cos_psi - cos_phi*sin_theta*sin_psi
+    R[0,1] = -cos_theta*sin_psi - cos_phi*cos_psi*sin_theta
+    R[0,2] = sin_theta*sin_phi
+    R[1,0] = cos_psi*sin_theta + cos_theta*cos_phi*sin_psi
+    R[1,1] = cos_theta*cos_phi*cos_psi - sin_theta*sin_psi
+    R[1,2] = -cos_theta*sin_phi
+    R[2,0] = sin_phi*sin_psi
+    R[2,1] = cos_psi*sin_phi
+    R[2,2] = cos_phi
+
+@jit(nopython=True,cache=True)
 def euZYZ_rotm(R,eu):
     #R = np.zeros((3,3))
     cos_theta = np.cos(eu[0])
@@ -184,6 +202,8 @@ def euZYZ_rotm(R,eu):
     R[2,2] = cos_phi
     #return R
 
+###########################################
+
 @jit(nopython=True,cache=True)
 def rotm_euZYZ(euler, R):
     euler[0] = np.arctan2(R[1,2],R[0,2])
@@ -198,6 +218,8 @@ def is_extension(filename,extension):
     else:
         return ext == '.'+extension
 
+###########################################
+
 def force_extension(filename,extension):
     base,ext = split_ext(filename)
     new_ext = extension
@@ -205,8 +227,12 @@ def force_extension(filename,extension):
         new_ext = '.' + extension
     return base + new_ext
 
+###########################################
+
 def time_now():
     return datetime.datetime.now()
+
+###########################################
 
 def create_sphere(radius,box_size):
     N = box_size//2
@@ -214,6 +240,8 @@ def create_sphere(radius,box_size):
     x,y,z = np.meshgrid(t,t,t)
     rad = np.sqrt( x**2 + y**2 + z**2 )
     return np.float32((radius-rad).clip(0,1))
+
+###########################################
 
 def bin_vol(data,bin_level):
     s = (2**bin_level)
