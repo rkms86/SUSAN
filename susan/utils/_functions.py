@@ -212,14 +212,16 @@ def rotm_euZYZ(euler, R):
 
 ###########################################
 
+def get_extension(filename):
+    _,ext = split_ext(filename)
+    return ext
+
 def is_extension(filename,extension):
     _,ext = split_ext(filename)
     if( extension[0] == '.' ):
         return ext == extension
     else:
         return ext == '.'+extension
-
-###########################################
 
 def force_extension(filename,extension):
     base,ext = split_ext(filename)
