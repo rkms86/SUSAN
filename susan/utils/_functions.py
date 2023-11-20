@@ -43,7 +43,8 @@ import susan.utils.datatypes as datatypes
 def denoise_l0(data,l0_lambda,rho=1,max_clip=-1):
     rho  = max(min(rho,1),0)
     th   = np.quantile(data,l0_lambda)
-    rslt = np.minimum(data-th,0)
+    rslt = np.copy(data)
+    rslt[rslt>th] = 0
     if max_clip > 0:
         th   = np.quantile(rslt,max_clip)
         rslt = np.maximum(rslt,th)
