@@ -23,7 +23,7 @@ from . import modules
 from . import project
 
 def read(filename):
-    if utils.get_extension(filename) in ('.mrc','.map','.ali','.st','.rec')
+    if utils.get_extension(filename) in ('.mrc','.map','.ali','.st','.rec'):
         v,_ = io.mrc.read(filename)
         return v
     elif utils.is_extension(filename,'ptclsraw'):
