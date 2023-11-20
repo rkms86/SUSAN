@@ -21,6 +21,7 @@ __all__ = ['fsc_get',
            'denoise_l0',
            'bandpass',
            'apply_FOM',
+           'euDYN_rotm',
            'euZYZ_rotm',
            'rotm_euZYZ',
            'is_extension',
@@ -202,14 +203,14 @@ def euZYZ_rotm(R,eu):
     R[2,2] = cos_phi
     #return R
 
-###########################################
-
 @jit(nopython=True,cache=True)
 def rotm_euZYZ(euler, R):
     euler[0] = np.arctan2(R[1,2],R[0,2])
     euler[1] = np.arctan2(np.sqrt( 1-(R[2,2]*R[2,2]) ),R[2,2])
     euler[2] = np.arctan2(R[2,1],-R[2,0])
     #return euler
+
+###########################################
 
 def is_extension(filename,extension):
     _,ext = split_ext(filename)
