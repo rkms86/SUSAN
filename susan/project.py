@@ -301,7 +301,7 @@ class Manager:
             self._limit_tilt_range_reconstruction(ptcls_out)
         
         ptcls_out.save(cur.ptcl_temp)
-        print('  [Aligned partices] Done.')
+        print('  [Aligned particles] Done.')
         
     def exec_averaging(self,cur,prv):
         self.averager.list_gpus_ids     = self.list_gpus_ids
