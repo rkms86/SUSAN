@@ -277,6 +277,7 @@ class Manager:
         return ptcls_in[ (ptcls_in.half_id>0).flatten() ]
         
     def _limit_tilt_range_reconstruction(self,ptcls_out):
+        print('    Restricting reconstruction to %.2f maximum tilt.' % self.max_tilt_reconstruction )
         tomos = _ssa_data.Tomograms(filename=self.tomogram_file)
         prj_w = _np.copy(ptcls_out.prj_w)
         _ssa_data.Particles.Geom.enable_by_tilt(ptcls_out,tomos,tilt_deg_max=self.max_tilt_reconstruction)
