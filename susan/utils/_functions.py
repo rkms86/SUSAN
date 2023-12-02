@@ -16,7 +16,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-__all__ = ['fsc_get',
+__all__ = ['radial_average',
+           'radial_expansion',
+           'fsc_get',
            'fsc_analyse',
            'denoise_l0',
            'bandpass',
@@ -24,6 +26,7 @@ __all__ = ['fsc_get',
            'euDYN_rotm',
            'euZYZ_rotm',
            'rotm_euZYZ',
+           'get_extension',
            'is_extension',
            'force_extension',
            'time_now',
@@ -37,6 +40,52 @@ import numpy as np
 from numba import jit
 from os.path import splitext as split_ext
 import susan.utils.datatypes as datatypes
+
+###########################################
+
+@jit(nopython=True,cache=True)
+def radial_average(v):
+    assert v.ndim == 3, "Volume must be three-dimensional"
+
+    N = max( max(v.shape[0],v.shape[1]), v.shape[2] )+1
+    val = np.zeros(N)
+    wgt = np.zeros(N)
+
+    cnt_z = v.shape[0]//2
+    cnt_y = v.shape[1]//2
+    cnt_x = v.shape[2]//2
+
+    for k in range(v.shape[0]):
+        z = k - cnt_z
+        for j in range(v.shape[1]):
+            y = j - cnt_y
+            for i in range(v.shape[2]):
+                x = i - cnt_x
+                r = np.sqrt( x**2 + y**2 + z**2 )
+                r = np.int32(np.round(r))
+                if r < N:
+                    val[r] += v[k,j,i]
+                    wgt[r] += 1.0
+    val = val/np.maximum(wgt,1)
+    return val
+
+@jit(nopython=True,cache=True)
+def radial_expansion(arr):
+    cnt = arr.shape[0]-1
+    N = 2*cnt
+    rslt = np.zeros((N,N,N),np.float32)
+
+    for k in range(N):
+        z = k - cnt
+        for j in range(N):
+            y = j - cnt
+            for i in range(N):
+                x = i - cnt
+                r = np.sqrt( x**2 + y**2 + z**2 )
+                r = np.int32(np.round(r))
+                if r < cnt:
+                    rslt[k,j,i] = arr[r]
+    return rslt
 
 ###########################################
 
