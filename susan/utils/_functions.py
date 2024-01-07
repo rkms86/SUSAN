@@ -89,16 +89,16 @@ def radial_expansion(arr):
 
 ###########################################
 
-def denoise_l0(data,l0_lambda,rho=1,max_clip=-1):
+def denoise_l0(v,l0_lambda,rho=1,max_clip=-1):
     rho  = max(min(rho,1),0)
-    th   = np.quantile(data,l0_lambda)
-    rslt = np.copy(data)
+    th   = np.quantile(v,l0_lambda)
+    rslt = np.copy(v)
     rslt[rslt>th] = 0
     if max_clip > 0:
         th   = np.quantile(rslt,max_clip)
         rslt = np.maximum(rslt,th)
     if rho < 1:
-        rslt = rho*rslt + (1-rho)*data
+        rslt = rho*rslt + (1-rho)*v
     return rslt
 
 ###########################################
@@ -287,17 +287,17 @@ def time_now():
 
 ###########################################
 
-def create_sphere(radius,box_size):
-    N = box_size//2
-    t = np.arange(-N,N)
+def create_sphere(r,N):
+    M = N//2
+    t = np.arange(-M,M)
     x,y,z = np.meshgrid(t,t,t)
     rad = np.sqrt( x**2 + y**2 + z**2 )
-    return np.float32((radius-rad).clip(0,1))
+    return np.float32((r-rad).clip(0,1))
 
 ###########################################
 
-def bin_vol(data,bin_level):
+def bin_vol(vol,bin_level):
     s = (2**bin_level)
-    v = bandpass(data,data.shape[0]//s-1)
+    v = bandpass(vol,vol.shape[0]//s-1)
     v = v[::s,::s,::s]
     return np.float32(v)
