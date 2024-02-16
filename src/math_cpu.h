@@ -81,11 +81,11 @@ void eZYZ_Rmat(M33f&R,const V3f&eu_rad) {
 }
 
 void Rmat_eZXZ(V3f&eu_rad,const M33f&R) {
-    eu_rad = R.canonicalEulerAngles(2,0,2);
+    eu_rad = R.eulerAngles(2,0,2);
 }
 
 void Rmat_eZYZ(V3f&eu_rad,const M33f&R) {
-    eu_rad = R.canonicalEulerAngles(2,1,2);
+    eu_rad = R.eulerAngles(2,1,2);
 }
 
 void set(Rot33&Rout,const M33f&Rin) {
