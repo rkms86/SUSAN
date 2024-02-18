@@ -133,6 +133,14 @@ typedef enum {
 } NormalizationType_t;
 
 typedef enum {
+    WGT_NONE=0,
+    WGT_3D,
+    WGT_2D,
+    WGT_3DCC,
+    WGT_2DCC
+} WeightingType_t;
+
+typedef enum {
     PAD_ZERO=0,
     PAD_GAUSSIAN
 } PaddingType_t;

@@ -169,6 +169,7 @@ class Averager:
         self.rec_halfsets      = False
         self.padding_type      = 'zero'
         self.normalize_type    = 'zero_mean_one_std'
+        self.weighting_type    = 'none'
         self.ctf_correction    = 'wiener'
         self.symmetry          = 'c1'
         self.ssnr              = _dt.ssnr(1,0.01)
@@ -185,7 +186,10 @@ class Averager:
         
         if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
             raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
-        
+
+        if not self.weighting_type in ['none','particle','projection','3DCC','2DCC']:
+            raise NameError('Invalid weighting type. Only "none", "particle", "projection", "3DCC" or "2DCC" are valid')
+
         if not self.ctf_correction in ['none','phase_flip','wiener','wiener_ssnr']:
             raise NameError('Invalid ctf correction type. Only "none", "phase_flip", "wiener" ot "wiener_ssnr" are valid')
             
@@ -205,6 +209,7 @@ class Averager:
         args = args + ' -pad_type '        + self.padding_type
         args = args + ' -norm_type '       + self.normalize_type
         args = args + ' -ctf_type '        + self.ctf_correction
+        args = args + ' -wgt_type '        + self.weighting_type
         args = args + ' -ssnr_param %f,%f' % (self.ssnr.F,self.ssnr.S)
         args = args + ' -w_inv_iter %d'    % self.inversion.ite
         args = args + ' -w_inv_gstd %f'    % self.inversion.std

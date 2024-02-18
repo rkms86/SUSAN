@@ -406,6 +406,8 @@ protected:
 		Math::eZYZ_Rmat(R_ali,eu_ZYZ);
 		
 		for(int k=0;k<ptr->K;k++) {
+            ptr->c_ali.ptr[k].w = 0;
+
 			if( ptr->ptcl.prj_w[k] > 0 ) {
 				
 				/// P_stack = R^k_tomo*P_tomo + t^k_tomo
@@ -438,7 +440,6 @@ protected:
 				ptr->c_ali.ptr[k].t.x = -pt_subpix(0);
 				ptr->c_ali.ptr[k].t.y = -pt_subpix(1);
 				ptr->c_ali.ptr[k].t.z = 0;
-				ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
                 R_gpu = (R_ali)*(R_stack.transpose());
 				Math::set( ptr->c_ali.ptr[k].R, R_gpu );
 				
@@ -471,19 +472,34 @@ protected:
 							if( p_info->norm_type == ZERO_MEAN_W_STD ) {
 								ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
 							}
-							ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
+                            //ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
 						}
-					}
+
+                        /// Set projection weight
+                        if( p_info->wgt_type == WGT_NONE )
+                            ptr->c_ali.ptr[k].w = (ptr->ptcl.prj_w[k] > 0);
+                        if( p_info->wgt_type == WGT_3D )
+                            ptr->c_ali.ptr[k].w = ptr->ptcl.ali_w[r];
+                        if( p_info->wgt_type == WGT_2D )
+                            ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
+                        if( p_info->wgt_type == WGT_3DCC )
+                            ptr->c_ali.ptr[k].w = ptr->ptcl.ali_cc[r];
+                        if( p_info->wgt_type == WGT_2DCC )
+                            ptr->c_ali.ptr[k].w = ptr->ptcl.prj_cc[k];
+
+
+                    } /// if( std < SUSAN_FLOAT_TOL || isnan(std) || isinf(std) )
 					
 				}
 				else {
 					ptr->c_ali.ptr[k].w = 0;
-				}
+                } /// if( ss_cropper.check_point(pt_crop) )
 			}
 			else {
 				ptr->c_ali.ptr[k].w = 0;
-			}
-		}
+            } /// if( ptr->ptcl.prj_w[k] > 0 )
+
+        } /// for(int k=0;k<ptr->K;k++)
 	}
 		
 	bool check_substack(RecBuffer*ptr) {

@@ -773,7 +773,7 @@ __global__ void ctf_stk_wiener( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_
 			if( def[ss_idx.z].Bfactor > 0 )
 				ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
 			if( def[ss_idx.z].ExpFilt > 0 )
-				w *= calc_bfactor(s,def[ss_idx.z].ExpFilt);
+                ctf *= calc_bfactor(s,def[ss_idx.z].ExpFilt);
 			
 			val = g_data[ get_3d_idx(ss_idx,ss_siz) ];
 			val.x = w*ctf*val.x;

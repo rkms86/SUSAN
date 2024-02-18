@@ -42,6 +42,7 @@ typedef struct {
 	uint32 pad_size;
 	uint32 pad_type;
 	uint32 ctf_type;
+    uint32 wgt_type;
 	uint32 norm_type;
 	int    w_inv_ite;
 	float  w_inv_std;
@@ -103,6 +104,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.pad_size    = 0;
     info.pad_type    = PAD_ZERO;
     info.ctf_type    = INV_WIENER;
+    info.wgt_type    = WGT_NONE;
     info.norm_type   = NO_NORM;
     info.w_inv_ite   = 10;
     info.w_inv_std   = 0.75;
@@ -133,6 +135,7 @@ bool parse_args(Info&info,int ac,char** av) {
 		PAD_TYPE,
 		NORM_TYPE,
 		CTF_TYPE,
+        WGT_TYPE,
 		SSNR,
 		W_INV_ITE,
 		W_INV_STD,
@@ -158,6 +161,7 @@ bool parse_args(Info&info,int ac,char** av) {
 		{"pad_type",    1, 0, PAD_TYPE  },
 		{"norm_type",   1, 0, NORM_TYPE },
 		{"ctf_type",    1, 0, CTF_TYPE  },
+        {"wgt_type",    1, 0, WGT_TYPE  },
 		{"ssnr_param",  1, 0, SSNR      },
 		{"w_inv_iter",  1, 0, W_INV_ITE },
 		{"w_inv_gstd",  1, 0, W_INV_STD },
@@ -201,10 +205,13 @@ bool parse_args(Info&info,int ac,char** av) {
 			case NORM_TYPE:
 				info.norm_type = ArgParser::get_norm_type(optarg);
 				break;
-			case CTF_TYPE:
-				info.ctf_type = ArgParser::get_inv_ctf_type(optarg);
-				break;
-			case BANDPASS:
+            case CTF_TYPE:
+                info.ctf_type = ArgParser::get_inv_ctf_type(optarg);
+                break;
+            case WGT_TYPE:
+                info.wgt_type = ArgParser::get_weighting_type(optarg);
+                break;
+            case BANDPASS:
 				ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);
 				break;
 			case ROLLOFF_F:
