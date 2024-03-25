@@ -112,6 +112,13 @@ void set(M33f&Rout,const Rot33&Rin) {
     Rout(2,2) = Rin.zz;
 }
 
+float get_Y_angle_rad(const M33f&R) {
+    V3f p_z(0.0,0.0,1.0);
+    V3f p = R*p_z;
+    float l = sqrtf( p(1)*p(1) + p(2)*p(2) );
+    return atan2( p(0), l );
+}
+
 int make_even_up(const float val) {
     return (int)(2*ceil(val/2));
 }
@@ -558,6 +565,45 @@ bool normalize_masked(float*ptr,const float*msk,const uint32 length, const float
     return normalize(ptr,length,avg,std,new_std);
 }
 
+void anscombe_transform(float*ptr,const uint32 length) {
+    /// Applies the Anscombe transform (Poisson -> Normal)
+    /// https://doi.org/10.1093/biomet/35.3-4.246
+    /// TODO: Speed this up!
+    uint32 i;
+    float avg = 0;
+    for(i=0;i<length;i++) {
+        float x = ptr[i] + (3.0/8.0);
+        ptr[i]  = 2*sqrtf( fmax(x,0.0) );
+        avg    += ptr[i];
+    }
+
+    avg = avg/((float)length);
+
+    for(i=0;i<length;i++) {
+        ptr[i] = ptr[i] - avg;
+    }
+}
+
+void generalized_anscombe_transform_zero_mean(float*ptr,const uint32 length) {
+	/// Modified from: https://doi.org/10.1109/TIP.2012.2202675
+	/// TODO: Speed this up!
+    //vv = vv + (3.0/8.0) + 1
+    //vv = 2*np.sqrt( np.maximum(vv,0.0) )
+
+    uint32 i;
+    float avg = 0;
+    for(i=0;i<length;i++) {
+        float x = ptr[i] + (3.0/8.0) + 1;
+        ptr[i]  = 2*sqrtf( fmax(x+1,0.0) );
+        avg    += ptr[i];
+    }
+
+    avg = avg/((float)length);
+
+    for(i=0;i<length;i++) {
+        ptr[i] = ptr[i] - avg;
+    }
+}
 
 void vst(float*ptr,const uint32 length,const float std=1.0) {
     /// TODO: Speed this up!

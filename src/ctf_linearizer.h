@@ -82,7 +82,7 @@ protected:
 
     protected:
         static void create_filter(uint32&n_filter,GPU::GArrSingle3&ss_filter) {
-            Vec3*c_filt = PointsProvider::circle(n_filter,10,10);
+            Vec3*c_filt = PointsProvider::circle(n_filter,10,10,1);
             ss_filter.alloc(n_filter);
             for(uint32 i=0;i<n_filter;i++) {
                 float R2 = (c_filt[i].x*c_filt[i].x) + (c_filt[i].y*c_filt[i].y);

@@ -350,39 +350,73 @@ class Particles:
     
     def select(self,idx):
         idx = _np.array(idx)
-        if( idx.ndim == 2 ):
+        if( idx.ndim >= 2 ):
             idx = idx[:,0]
-        tmp = self.ptcl_id[idx]
-        ptcls_out = Particles(n_ptcl=tmp.shape[0],n_proj=self.n_proj,n_refs=self.n_refs)
-        ptcls_out.ptcl_id  = self.ptcl_id [idx]
-        ptcls_out.tomo_id  = self.tomo_id [idx]
-        ptcls_out.tomo_cix = self.tomo_cix[idx]
-        ptcls_out.position = self.position[idx,:]
-        ptcls_out.ref_cix  = self.ref_cix [idx]
-        ptcls_out.half_id  = self.half_id [idx]
-        ptcls_out.extra_1  = self.extra_1 [idx]
-        ptcls_out.extra_2  = self.extra_2 [idx]
-        # 3D alignment
-        ptcls_out.ali_eu   = self.ali_eu[:,idx,:]
-        ptcls_out.ali_t    = self.ali_t [:,idx,:]
-        ptcls_out.ali_cc   = self.ali_cc[:,idx]
-        ptcls_out.ali_w    = self.ali_w [:,idx]
-        # 2D alignment
-        ptcls_out.prj_eu   = self.prj_eu[idx,:,:]
-        ptcls_out.prj_t    = self.prj_t [idx,:,:]
-        ptcls_out.prj_cc   = self.prj_cc[idx,:]
-        ptcls_out.prj_w    = self.prj_w [idx,:]
-        # Defocus
-        ptcls_out.def_U    = self.def_U   [idx,:]
-        ptcls_out.def_V    = self.def_V   [idx,:]
-        ptcls_out.def_ang  = self.def_ang [idx,:]
-        ptcls_out.def_phas = self.def_phas[idx,:]
-        ptcls_out.def_Bfct = self.def_Bfct[idx,:]
-        ptcls_out.def_ExFl = self.def_ExFl[idx,:]
-        ptcls_out.def_mres = self.def_mres[idx,:]
-        ptcls_out.def_scor = self.def_scor[idx,:]
+            number_of_particles = idx.shape[0]
+        elif( idx.ndim == 1):
+            number_of_particles = idx.shape[0]
+        elif( idx.ndim == 0):
+            number_of_particles = 1
+        ptcls_out = Particles(n_ptcl=number_of_particles,n_proj=self.n_proj,n_refs=self.n_refs)
+        if (number_of_particles > 1):
+            ptcls_out.ptcl_id  = self.ptcl_id [idx]
+            ptcls_out.tomo_id  = self.tomo_id [idx]
+            ptcls_out.tomo_cix = self.tomo_cix[idx]
+            ptcls_out.position = self.position[idx,:]
+            ptcls_out.ref_cix  = self.ref_cix [idx]
+            ptcls_out.half_id  = self.half_id [idx]
+            ptcls_out.extra_1  = self.extra_1 [idx]
+            ptcls_out.extra_2  = self.extra_2 [idx]
+            # 3D alignment
+            ptcls_out.ali_eu   = self.ali_eu[:,idx,:]
+            ptcls_out.ali_t    = self.ali_t [:,idx,:]
+            ptcls_out.ali_cc   = self.ali_cc[:,idx]
+            ptcls_out.ali_w    = self.ali_w [:,idx]
+            # 2D alignment
+            ptcls_out.prj_eu   = self.prj_eu[idx,:,:]
+            ptcls_out.prj_t    = self.prj_t [idx,:,:]
+            ptcls_out.prj_cc   = self.prj_cc[idx,:]
+            ptcls_out.prj_w    = self.prj_w [idx,:]
+            # Defocus
+            ptcls_out.def_U    = self.def_U   [idx,:]
+            ptcls_out.def_V    = self.def_V   [idx,:]
+            ptcls_out.def_ang  = self.def_ang [idx,:]
+            ptcls_out.def_phas = self.def_phas[idx,:]
+            ptcls_out.def_Bfct = self.def_Bfct[idx,:]
+            ptcls_out.def_ExFl = self.def_ExFl[idx,:]
+            ptcls_out.def_mres = self.def_mres[idx,:]
+            ptcls_out.def_scor = self.def_scor[idx,:]
+        elif (number_of_particles == 1):
+            ptcls_out.ptcl_id  = _np.expand_dims(_np.array(self.ptcl_id [idx]), 0).astype('uint32')
+            ptcls_out.tomo_id  = _np.expand_dims(_np.array(self.tomo_id [idx]), 0).astype('uint32')
+            ptcls_out.tomo_cix = _np.expand_dims(_np.array(self.tomo_cix[idx]), 0).astype('uint32')
+            ptcls_out.position = _np.expand_dims(_np.array(self.position[idx,:]), 0).astype('float32')
+            ptcls_out.ref_cix  = _np.expand_dims(_np.array(self.ref_cix [idx]), 0).astype('uint32')
+            ptcls_out.half_id  = _np.expand_dims(_np.array(self.half_id [idx]), 0).astype('uint32')
+            ptcls_out.extra_1  = _np.expand_dims(_np.array(self.extra_1 [idx]), 0).astype('float32')
+            ptcls_out.extra_2  = _np.expand_dims(_np.array(self.extra_2 [idx]), 0).astype('float32')
+            # 3D alignment
+            ptcls_out.ali_eu   = _np.expand_dims(_np.array(self.ali_eu[:,idx,:]),1).astype('float32')
+            ptcls_out.ali_t    = _np.expand_dims(_np.array(self.ali_t [:,idx,:]),1).astype('float32')
+            ptcls_out.ali_cc   = _np.expand_dims(_np.array(self.ali_cc[:,idx])  ,1).astype('float32')
+            ptcls_out.ali_w    = _np.expand_dims(_np.array(self.ali_w [:,idx])  ,1).astype('float32')
+            # 2D alignment
+            ptcls_out.prj_eu   = _np.expand_dims(_np.array(self.prj_eu[idx,:,:]),0).astype('float32')
+            ptcls_out.prj_t    = _np.expand_dims(_np.array(self.prj_t [idx,:,:]),0).astype('float32')
+            ptcls_out.prj_cc   = _np.expand_dims(_np.array(self.prj_cc[idx,:]),0).astype('float32')
+            ptcls_out.prj_w    = _np.expand_dims(_np.array(self.prj_w [idx,:]),0).astype('float32')
+            # Defocus
+            ptcls_out.def_U    = _np.expand_dims(_np.array(self.def_U   [idx,:]),0).astype('float32')
+            ptcls_out.def_V    = _np.expand_dims(_np.array(self.def_V   [idx,:]),0).astype('float32')
+            ptcls_out.def_ang  = _np.expand_dims(_np.array(self.def_ang [idx,:]),0).astype('float32')
+            ptcls_out.def_phas = _np.expand_dims(_np.array(self.def_phas[idx,:]),0).astype('float32')
+            ptcls_out.def_Bfct = _np.expand_dims(_np.array(self.def_Bfct[idx,:]),0).astype('float32')
+            ptcls_out.def_ExFl = _np.expand_dims(_np.array(self.def_ExFl[idx,:]),0).astype('float32')
+            ptcls_out.def_mres = _np.expand_dims(_np.array(self.def_mres[idx,:]),0).astype('float32')
+            ptcls_out.def_scor = _np.expand_dims(_np.array(self.def_scor[idx,:]),0).astype('float32')
         # Sort
-        ptcls_out.sort()
+        if (number_of_particles > 1):
+            ptcls_out.sort()
         return ptcls_out
     
     def append_ptcls(self,ptcls):
@@ -516,10 +550,13 @@ class Particles:
             raise ValueError('skip_border_pixels must be either a scalar or a 3-element vector')
 
     @staticmethod
-    def grid_2d(tomograms,step_angstroms=None,step_pixels=None,skip_border_pixels=0):
+    def grid_2d(tomograms,step_angstroms=None,step_pixels=None,skip_border_pixels=0,angle_deg_Y=0):
         apix = Particles._validate_tomogram(tomograms)
         step = Particles._get_grid_step(step_angstroms,step_pixels,apix)
         brdr = Particles._get_border_pixels(skip_border_pixels)
+
+        R = _np.eye(3)
+        _euZYZ_rotm(R,_np.deg2rad(_np.array((0,angle_deg_Y,0))))
         
         pts = _np.zeros((0,3),dtype=_np.float32)
         tcx = _np.zeros((0),dtype=_np.uint32)
@@ -532,6 +569,7 @@ class Particles:
             t_y = _np.concatenate( (-t_y[::-1],t_y[1:]) )
             x,y,z = _np.float32(_np.meshgrid(t_x,t_y,(0)))
             pos = _np.stack( (x.flatten(),y.flatten(),z.flatten()), ).transpose()
+            pos = pos@R
             pts = _np.concatenate( (pts,pos) )
             tcx = _np.concatenate( (tcx,_np.repeat(_np.uint32(i),pos.shape[0])) )
             tid = _np.concatenate( (tid,_np.repeat(tomograms.tomo_id[i],pos.shape[0])) )

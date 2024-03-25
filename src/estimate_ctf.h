@@ -164,7 +164,8 @@ public:
 		worker_id  = id;
 		worker_cmd = in_worker_cmd;
 		p_info     = info;
-		gpu_ix     = info->p_gpu[ id % info->n_threads ];
+		int threads_per_gpu = (info->n_threads) / (info->n_gpu);
+		gpu_ix     = info->p_gpu[ id / threads_per_gpu ];
 		max_K      = in_max_K;
         base_defocus = 1;
 	}

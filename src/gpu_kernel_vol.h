@@ -194,9 +194,9 @@ __global__ void insert_stk_atomic(double2*p_acc,double*p_wgt,
 				float2 val = tex2DLayered<float2>(ss_stk, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
 				float  wgt = tex2DLayered<float >(ss_wgt, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
 				float x,y,z;
-				val.x *= bp;
-				val.y *= bp;
-				wgt   *= bp;
+                val.x *= bp*pTlt[ss_idx.z].w;
+                val.y *= bp*pTlt[ss_idx.z].w;
+                wgt   *= bp*pTlt[ss_idx.z].w;
 				
 				rot_pt(x,y,z,pTlt[ss_idx.z].R,pt);
 				if( x < 0 ) {
@@ -344,6 +344,31 @@ __global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pT
         }
 
         p_out[ ss_idx.x + M*ss_idx.y + M*N*ss_idx.z ] = val;
+    }
+}
+
+
+__global__ void get_std_from_fourier(double*p_acc,cudaTextureObject_t vol,const float3 bandpass,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        Vec3 pt_in;
+        pt_in.x = ss_idx.x;
+        pt_in.y = ss_idx.y - ss_siz.y/2;
+        pt_in.z = ss_idx.z - ss_siz.z/2;
+
+        float R = l2_distance(pt_in.x,pt_in.y,pt_in.z);
+        float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+
+        if( (bp > 0.05) && (R > 0.5) ) {
+            float2 val = tex3D<float2>(vol, pt_in.x+0.5, pt_in.y+ss_idx.y/2+0.5, pt_in.z+ss_idx.z/2+0.5);
+            val.x *= bp;
+            val.y *= bp;
+            double acc = cuCabsf(val);
+            atomic_Add( p_acc , acc );
+        }
     }
 }
 
@@ -632,9 +657,9 @@ __global__ void reconstruct_pts(float*p_cc,const Proj2D*pTlt,cudaTextureObject_t
         single off = (single)(N/2) + 0.5;
         
         for(int z=0;z<K;z++) {
-            if( pTlt[z].w > 0 ) {
+            if( pTlt[z].w > SUSAN_FLOAT_TOL  ) {
                 rot_inv_pt_XY(x,y,pTlt[z].R,pt);
-                cc += tex2DLayered<float>(ss_cc,x+off,y+off,z);
+                cc += pTlt[z].w*tex2DLayered<float>(ss_cc,x+off,y+off,z);
             }
         }
         
@@ -646,7 +671,7 @@ __global__ void reconstruct_pts(float*p_cc,const Proj2D*pTlt,cudaTextureObject_t
 }
 
 
-__global__ void extract_pts(float*p_cc,const float*p_data,const Vec3*p_pts,const int n_pts,const int N,const int K) {
+__global__ void extract_pts(float*p_cc,const float*p_data,const Proj2D*pTlt,const Vec3*p_pts,const int n_pts,const int N,const int K) {
 
     int3 ss_idx = get_th_idx();
 
@@ -659,7 +684,7 @@ __global__ void extract_pts(float*p_cc,const float*p_data,const Vec3*p_pts,const
 
         float cc = p_data[x + y*N + ss_idx.z*N*N];
 
-        p_cc[ss_idx.x + n_pts*ss_idx.z] = cc;
+        p_cc[ss_idx.x + n_pts*ss_idx.z] = pTlt[ss_idx.z].w*cc;
 
     }
 

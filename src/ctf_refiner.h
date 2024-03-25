@@ -309,7 +309,7 @@ protected:
                     ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
                     ali_data.invert_fourier(ptr->K,stream);
                     stream.sync();
-                    ali_data.extract_cc(ite_cc,ite_idx,ptr->K,stream);
+                    ali_data.extract_cc(ite_cc,ite_idx,ptr->g_ali,ptr->K,stream);
                     for(int i=0;i<ptr->K;i++) {
                         if( ite_cc[i] > max_cc[i] ) {
                             max_cc[i] = ite_cc[i];
@@ -372,7 +372,8 @@ public:
         worker_cmd = in_worker_cmd;
 
         p_info   = info;
-        gpu_ix   = info->p_gpu[ id % info->n_threads ];
+	int threads_per_gpu = (info->n_threads) / (info->n_gpu);
+        gpu_ix   = info->p_gpu[ id / threads_per_gpu ];
         max_K    = in_max_K;
         pad_type = info->pad_type;
 
@@ -560,9 +561,32 @@ protected:
                         ptr->c_ali.ptr[k].w = 0;
                     }
                     else {
-                        Math::normalize(ss_ptr,N*N,avg,std);
-                        ptr->c_pad.ptr[k].x = 0;
-                        ptr->c_pad.ptr[k].y = 1;
+                        if( p_info->norm_type == NO_NORM ) {
+                            ptr->c_pad.ptr[k].x = avg;
+                            ptr->c_pad.ptr[k].y = std;
+                        }
+                        else if( p_info->norm_type == GAT_RAW ) {
+                            Math::anscombe_transform(ss_ptr,N*N);
+                            ptr->c_pad.ptr[k].x = 0;
+                            ptr->c_pad.ptr[k].y = 1;
+                        }
+                        else {
+                            Math::normalize(ss_ptr,N*N,avg,std);
+
+                            ptr->c_pad.ptr[k].x = 0;
+                            ptr->c_pad.ptr[k].y = 1;
+
+                            if( p_info->norm_type == ::ZERO_MEAN ) {
+                                ptr->c_pad.ptr[k].y = std;
+                            }
+                            if( p_info->norm_type == ZERO_MEAN_W_STD ) {
+                                ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
+                            }
+                            if( p_info->norm_type == GAT_NORMAL ) {
+                                Math::generalized_anscombe_transform_zero_mean(ss_ptr,N*N);
+                                ptr->c_pad.ptr[k].y = 1;
+                            }
+                        }
                     }
                 }
                 else {

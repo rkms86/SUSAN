@@ -241,7 +241,7 @@ protected:
             float work_std = 2*inv_gstd*inv_gstd;
             float acc = 0;
             uint32 tmp;
-            Vec3*c_filt = PointsProvider::circle(tmp,2,2);
+            Vec3*c_filt = PointsProvider::circle(tmp,2,2,1);
             n_krnl = tmp;
             float4 *c_krnl = new float4[n_krnl];
             for(int i=0;i<n_krnl;i++) {

@@ -186,7 +186,7 @@ public:
 		return points;
 	}
 
-    static Vec3 *circle(uint32&counter, const float x_range, const float y_range) {
+    static Vec3 *circle(uint32&counter, const float x_range, const float y_range, const float step) {
 
         if( (x_range+y_range) == 0 ) {
             counter = 1;
@@ -203,9 +203,9 @@ public:
 		float x_lim = floor(x_range);
 		float y_lim = floor(y_range);
 
-		for(y=-y_lim; y<=y_lim; y=y+1.0f) {
+		for(y=-y_lim; y<=y_lim; y=y+step) {
 			Y = y/y_lim;
-			for(x=-x_lim; x<=x_lim; x=x+1.0f) {
+			for(x=-x_lim; x<=x_lim; x=x+step) {
 				X = x/x_lim;
 				float R = sqrt( X*X + Y*Y );
 				if( R <= 1.0f ) {
@@ -216,9 +216,9 @@ public:
 
 		Vec3 *points = new Vec3[counter];
 		counter=0;
-		for(y=-y_lim; y<=y_lim; y=y+1.0f) {
+		for(y=-y_lim; y<=y_lim; y=y+step) {
 			Y = y/y_lim;
-			for(x=-x_lim; x<=x_lim; x=x+1.0f) {
+			for(x=-x_lim; x<=x_lim; x=x+step) {
 				X = x/x_lim;
 				float R = sqrt( X*X + Y*Y );
 				if( R <= 1.0f ) {

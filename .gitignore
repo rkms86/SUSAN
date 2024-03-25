@@ -1,0 +1,8 @@
+# Ignore bins
+bin/
+# Ignore build with eigen
+build/
+# Ignore mexa64 files
+*.mexa64
+# Ignore python supplementary
+susan.egg-info/

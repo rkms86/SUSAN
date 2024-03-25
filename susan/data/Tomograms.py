@@ -18,9 +18,15 @@
 
 import susan.utils.txt_parser as _prsr
 import numpy as _np
+
 from susan.io.mrc import get_info as _mrc_info
+from susan.io import tlt as _tlt
+from susan.io import xf  as _xf
+
 from susan.utils import is_extension as _is_ext
-from susan.utils import force_extension as _force_ext
+from susan.utils import force_extension as _force_ext 
+from susan.utils import euZYZ_rotm as _euZYZ_rotm
+from susan.utils import rotm_euZYZ as _rotm_euZYZ
 
 class Tomograms:
     
@@ -152,10 +158,39 @@ class Tomograms:
         self.proj_wgt[idx,:]   = 0
         self.proj_wgt[idx,:P]  = 1
     
-    def set_angles(self,idx,tlt_file):
-        angs = _np.loadtxt(tlt_file)
-        self.proj_eZYZ[idx,:,:] = 0
-        self.proj_eZYZ[idx,:self.num_proj[idx],1] = angs
+    def set_angles(self, idx, tlt_filename, xf_filename = None, xf_apix = None):
+        self.proj_eZYZ [idx,:,:] = 0
+        self.proj_shift[idx,:,:] = 0
+        self.proj_wgt  [idx,:, ] = 0
+        
+        tlt = _tlt.read(tlt_filename)
+        if (xf_filename == None):
+            self.proj_eZYZ[idx, :self.num_proj[idx], 1] = tlt
+            self.proj_wgt [idx, :self.num_proj[idx],  ] = 1
+        else:
+            xf = _xf.read(xf_filename)
+            if (xf_apix != None):
+                apix = xf_apix
+            else:
+                apix = self.pix_size[idx]
+            for i in range(self.num_proj[idx]):
+                rot_tlt = _np.zeros([3,3])
+                _euZYZ_rotm(rot_tlt, _np.array([0.0, tlt[i], 0.0]) * _np.pi / 180.0)
+                rot_xf  = _np.array([[xf[i,0,0], xf[i,0,1], 0],
+                                     [xf[i,1,0], xf[i,1,1], 0],
+                                     [0        , 0        , 1],
+                                    ]).T
+                
+                vec_xf  = _np.array([xf[i,0,2], xf[i,1,2], 0]) * apix
+                vec     = -rot_xf @ vec_xf
+                rot     =  rot_xf @ rot_tlt
+                euler   = _np.zeros(3)
+                _rotm_euZYZ(euler, rot)
+                self.proj_eZYZ [idx, i, :] = euler * 180.0 / _np.pi 
+                self.proj_shift[idx, i, :] = vec[:2]
+                self.proj_wgt  [idx, i,  ] = 1
+         
+         
 
     def set_defocus(self,idx,def_file,skip_max_res=True):
         if( _is_ext(def_file,'defocus') ):
