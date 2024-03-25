@@ -34,13 +34,15 @@ class Aligner:
         self.extra_padding     = 0
         self.allow_drift       = True
         self.halfsets_independ = False
+        self.ignore_classes    = False
         self.cone              = _dt.search_params(0,1)
         self.inplane           = _dt.search_params(0,1)
         self.refine            = _dt.refine_params(0,1)
         self.offset            = _dt.offset_params([4,4,4],1,'ellipsoid')
-        self.padding_type      = 'noise'
+        self.padding_type      = 'zero'
         self.normalize_type    = 'zero_mean_one_std'
         self.ctf_correction    = 'on_reference'
+        self.cc_type           = 'basic'
         self.cc_stats_type     = 'none'
         self.pseudo_symmetry   = 'c1'
         self.ssnr              = _dt.ssnr(1,0.01)
@@ -57,7 +59,7 @@ class Aligner:
         self.inplane.step = i_s
         
     def set_offset_search(self,off_range,off_step=1,off_type='ellipsoid'):
-        if not off_type in ['ellipsoid','cylinider','cuboid']:
+        if not off_type in ['ellipsoid','cylinder','cuboid']:
             raise ValueError('Invalid offset type. Only "ellipsoid", "cylinder" or "cuboid" are valid')
         
         if isinstance(off_range,int) or isinstance(off_range,float):
@@ -81,19 +83,19 @@ class Aligner:
         if not self.padding_type in ['zero','noise']:
             raise ValueError('Invalid padding type. Only "zero" or "noise" are valid')
         
-        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
-            raise ValueError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
+        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight','poisson_raw','poisson_normal']:
+            raise ValueError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std", "zero_mean_proj_weight", "poisson_raw" or "poisson_normal" are valid')
         
-        if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','wiener_white','cfsc']:
-            raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
+        if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','cfsc']:
+            raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack" or "wiener_ssnr" are valid')
         
         if not self.cc_stats_type in ['none','probability','sigma']:
-            raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack", "wiener_ssnr", "wiener_white" or "cfsc" are valid')
+            raise ValueError('Invalid cc statistic method. Only "none", "probability" or "sigma" are valid')
         
         if not self.offset.step > 0 or not self.cone.step > 0 or not self.inplane.step > 0:
             raise ValueError('The steps values must be larger than 0')
-        
-        if self.offset.span[0] < self.offset.step or self.offset.span[1] < self.offset.step  or self.offset.span[2] < self.offset.step :
+
+        if (self.offset.span[0] > 0 and self.offset.span[0] < self.offset.step) or (self.offset.span[1] > 0 and self.offset.span[1] < self.offset.step) or (self.offset.span[2] > 0 and self.offset.span[2] < self.offset.step):
             raise ValueError('Offset: Step cannot be larger than Range/Span')
 
         if self.cone.span == 0:
@@ -121,6 +123,8 @@ class Aligner:
         args = args + ' -box_size %d'      % box_size
         args = args + ' -pad_size %d'      % self.extra_padding
         args = args + ' -pad_type '        + self.padding_type
+        args = args + ' -cc_type '         + self.cc_type
+        args = args + ' -cc_stats '        + self.cc_stats_type
         args = args + ' -norm_type '       + self.normalize_type
         args = args + ' -ctf_type '        + self.ctf_correction
         args = args + ' -ssnr_param %f,%f' % (self.ssnr.F,self.ssnr.S)
@@ -128,8 +132,8 @@ class Aligner:
         args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
         args = args + ' -p_symmetry '      + self.pseudo_symmetry
         args = args + ' -ali_halves %d'    % self.halfsets_independ
+        args = args + ' -ignore_ref %d'    % self.ignore_classes
         args = args + ' -allow_drift %d'   % self.allow_drift
-        args = args + ' -cc_type '         + self.cc_stats_type
         args = args + ' -cone %f,%f'       % (self.cone.span,self.cone.step)
         args = args + ' -inplane %f,%f'    % (self.inplane.span,self.inplane.step)
         args = args + ' -refine %d,%d'     % (self.refine.factor,self.refine.levels)
@@ -163,8 +167,9 @@ class Averager:
         self.bandpass          = _dt.bandpass(0,-1,2)
         self.extra_padding     = 0
         self.rec_halfsets      = False
-        self.padding_type      = 'noise'
+        self.padding_type      = 'zero'
         self.normalize_type    = 'zero_mean_one_std'
+        self.weighting_type    = 'none'
         self.ctf_correction    = 'wiener'
         self.symmetry          = 'c1'
         self.ssnr              = _dt.ssnr(1,0.01)
@@ -172,6 +177,7 @@ class Averager:
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         self.normalize_output  = True
+        self.ignore_classes    = False
         self.boost_lowfreq     = _dt.boost_lowfreq_params(0,0,0)
         
     def _validate(self):
@@ -180,7 +186,10 @@ class Averager:
         
         if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
             raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
-        
+
+        if not self.weighting_type in ['none','particle','projection','3DCC','2DCC']:
+            raise NameError('Invalid weighting type. Only "none", "particle", "projection", "3DCC" or "2DCC" are valid')
+
         if not self.ctf_correction in ['none','phase_flip','wiener','wiener_ssnr']:
             raise NameError('Invalid ctf correction type. Only "none", "phase_flip", "wiener" ot "wiener_ssnr" are valid')
             
@@ -200,6 +209,7 @@ class Averager:
         args = args + ' -pad_type '        + self.padding_type
         args = args + ' -norm_type '       + self.normalize_type
         args = args + ' -ctf_type '        + self.ctf_correction
+        args = args + ' -wgt_type '        + self.weighting_type
         args = args + ' -ssnr_param %f,%f' % (self.ssnr.F,self.ssnr.S)
         args = args + ' -w_inv_iter %d'    % self.inversion.ite
         args = args + ' -w_inv_gstd %f'    % self.inversion.std
@@ -207,6 +217,7 @@ class Averager:
         args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
         args = args + ' -symmetry '        + self.symmetry
         args = args + ' -rec_halves %d'    % self.rec_halfsets
+        args = args + ' -ignore_ref %d'    % self.ignore_classes
         args = args + ' -verbosity %d'     % self.verbosity
         args = args + ' -norm_output %d'   % self.normalize_output
         args = args + ' -boost_lowfq %f,%f,%f' % (self.boost_lowfreq.scale,self.boost_lowfreq.value,self.boost_lowfreq.decay)
@@ -352,6 +363,7 @@ class CtfRefiner:
         self.bandpass          = _dt.bandpass(0,-1,2)
         self.extra_padding     = 0
         self.padding_type      = 'noise'
+        self.normalize_type    = 'zero_mean_one_std'
         self.halfsets_independ = False
         self.estimate_dose_wgt = False
         self.defocus_angstroms = _dt.search_params(1000,100)
@@ -363,6 +375,9 @@ class CtfRefiner:
         if not self.padding_type in ['zero','noise']:
             raise ValueError('Invalid padding type. Only "zero" or "noise" are valid')
         
+        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight','poisson_raw','poisson_normal']:
+            raise ValueError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std", "zero_mean_proj_weight", "poisson_raw" or "poisson_normal" are valid')
+        
         if not self.defocus_angstroms.step > 0 or not self.angles.step > 0:
             raise ValueError('The steps values must be larger than 0')
         
@@ -370,7 +385,7 @@ class CtfRefiner:
             raise ValueError('Defocus (Angstroms): Step cannot be larger than Range/Span')
 
         if self.angles.span < self.angles.step:
-            raise ValueError('ANgles (degrees): Step cannot be larger than Range/Span')
+            raise ValueError('Angles (degrees): Step cannot be larger than Range/Span')
 
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         self._validate()
@@ -385,6 +400,7 @@ class CtfRefiner:
         args = args + ' -box_size %d'      % box_size
         args = args + ' -pad_size %d'      % self.extra_padding
         args = args + ' -pad_type '        + self.padding_type
+        args = args + ' -norm_type '       + self.normalize_type
         args = args + ' -bandpass %f,%f'   % (self.bandpass.highpass,self.bandpass.lowpass)
         args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
         args = args + ' -def_search %f,%f' % (self.defocus_angstroms.span,self.defocus_angstroms.step)

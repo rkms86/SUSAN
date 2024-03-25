@@ -1,12 +1,7 @@
 # Define Project
 
-cmake_minimum_required(VERSION 3.3)
 
-#include(CMakePrintHelpers)
-
-#set(CMAKE_CUDA_ARCHITECTURES "native")
-#cmake_print_variables(CMAKE_CUDA_ARCHITECTURES)
-
+cmake_minimum_required(VERSION 3.14
 project(SUSAN LANGUAGES CXX CUDA)
 set(CMAKE_BUILD_TYPE Release)
 
@@ -14,8 +9,18 @@ set(CMAKE_BUILD_TYPE Release)
 ########################################################################
 
 # Configure EIGEN
-set(CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/extern/eigen_lib)
-find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+include(FetchContent)
+set(EIGEN_VERSION 3.4)
+find_package(Eigen3 ${EIGEN_VERSION} QUIET)
+if(NOT EIGEN3_FOUND)
+  set(BUILD_TESTING OFF CACHE INTERNAL "")
+  FetchContent_Declare(eigen
+    GIT_REPOSITORY  https://gitlab.com/libeigen/eigen.git
+    GIT_TAG         ${EIGEN_VERSION}
+    GIT_SHALLOW     ON)
+  FetchContent_MakeAvailable(eigen)
+  unset(BUILD_TESTING CACHE)
+endif()
 
 ########################################################################
 ########################################################################

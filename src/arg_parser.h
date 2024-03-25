@@ -45,13 +45,26 @@ namespace ArgParser {
         return type;
     }
 
-    CcStatsType_t get_cc_stats_type(const char*arg) {
-        CcStatsType_t type = CC_NONE;
+    CcType_t get_cc_type(const char*arg) {
+        CcType_t type = CC_TYPE_BASIC;
         bool all_ok = false;
 
-        check_arg_and_set(type,all_ok,arg,"none"       ,CC_NONE);
-        check_arg_and_set(type,all_ok,arg,"probability",CC_PROB);
-        check_arg_and_set(type,all_ok,arg,"sigma"      ,CC_SIGMA);
+        check_arg_and_set(type,all_ok,arg,"basic",CC_TYPE_BASIC);
+        check_arg_and_set(type,all_ok,arg,"cfsc" ,CC_TYPE_CFSC );
+
+        if( !all_ok )
+            fprintf(stderr,"Invalid cc type %s. Options are: basic or cfsc. Defaulting to basic.\n",arg);
+
+        return type;
+    }
+
+    CcStatsType_t get_cc_stats_type(const char*arg) {
+        CcStatsType_t type = CC_STATS_NONE;
+        bool all_ok = false;
+
+        check_arg_and_set(type,all_ok,arg,"none"       ,CC_STATS_NONE);
+        check_arg_and_set(type,all_ok,arg,"probability",CC_STATS_PROB);
+        check_arg_and_set(type,all_ok,arg,"sigma"      ,CC_STATS_SIGMA);
 
         if( !all_ok )
             fprintf(stderr,"Invalid cc statistics type %s. Options are: none, probability or sigma. Defaulting to none.\n",arg);
@@ -65,8 +78,10 @@ namespace ArgParser {
 
         check_arg_and_set(type,all_ok,arg,"none"                 ,NO_NORM        );
         check_arg_and_set(type,all_ok,arg,"zero_mean"            ,ZERO_MEAN      );
-        check_arg_and_set(type,all_ok,arg,"zero_mean_proj_weight",ZERO_MEAN_W_STD);
+        check_arg_and_set(type,all_ok,arg,"zero_mean_proj_weight",ZERO_MEAN_W_STD); /// ToBeDeprecated
         check_arg_and_set(type,all_ok,arg,"zero_mean_one_std"    ,ZERO_MEAN_1_STD);
+        check_arg_and_set(type,all_ok,arg,"poisson_raw"          ,GAT_RAW);
+        check_arg_and_set(type,all_ok,arg,"poisson_normal"       ,GAT_NORMAL);
 
         if( !all_ok )
             fprintf(stderr,"Invalid normalization type %s. Options are: none, zero_mean, zero_mean_proj_weight and zero_mean_one_std. Defaulting to none.\n",arg);
@@ -74,18 +89,34 @@ namespace ArgParser {
         return type;
     }
 
-    CtfAlignmentType_t get_ali_ctf_type(const char*arg) {
-        CtfAlignmentType_t type = ALI_NO_INV;
+    WeightingType_t get_weighting_type(const char*arg) {
+        WeightingType_t type = WGT_NONE;
         bool all_ok = false;
 
-        check_arg_and_set(type,all_ok,arg,"none"        ,ALI_NO_INV          );
-        check_arg_and_set(type,all_ok,arg,"on_reference",ALI_ON_REFERENCE    );
-        check_arg_and_set(type,all_ok,arg,"on_substack" ,ALI_ON_SUBSTACK     );
-        check_arg_and_set(type,all_ok,arg,"wiener_ssnr" ,ALI_ON_SUBSTACK_SSNR);
-        check_arg_and_set(type,all_ok,arg,"cfsc"        ,ALI_CUMULATIVE_FSC  );
+        check_arg_and_set(type,all_ok,arg,"none"      ,WGT_NONE);
+        check_arg_and_set(type,all_ok,arg,"particle"  ,WGT_3D  );
+        check_arg_and_set(type,all_ok,arg,"projection",WGT_2D  );
+        check_arg_and_set(type,all_ok,arg,"3DCC"      ,WGT_3DCC);
+        check_arg_and_set(type,all_ok,arg,"2DCC"      ,WGT_2DCC);
 
         if( !all_ok )
-            fprintf(stderr,"Invalid ctf correction type %s. Options are: none, on_reference, on_substack, wiener_ssnr and cfsc. Defaulting to on_reference.\n",arg);
+            fprintf(stderr,"Invalid weighting type %s. Options are: none, particle, projection, 3DCC and 2DCC. Defaulting to none.\n",arg);
+
+        return type;
+    }
+
+    CtfAlignmentType_t get_ali_ctf_type(const char*arg) {
+        CtfAlignmentType_t type = ALI_CTF_DISABLED;
+        bool all_ok = false;
+
+        check_arg_and_set(type,all_ok,arg,"none"        ,ALI_CTF_DISABLED        );
+        check_arg_and_set(type,all_ok,arg,"on_reference",ALI_CTF_ON_REFERENCE    );
+        check_arg_and_set(type,all_ok,arg,"on_substack" ,ALI_CTF_ON_SUBSTACK     );
+        check_arg_and_set(type,all_ok,arg,"wiener_ssnr" ,ALI_CTF_ON_SUBSTACK_SSNR);
+        check_arg_and_set(type,all_ok,arg,"cfsc"        ,ALI_CTF_ON_REFERENCE    ); /// ToBeDeprecated
+
+        if( !all_ok )
+            fprintf(stderr,"Invalid ctf correction type %s. Options are: none, on_reference, on_substack or wiener_ssnr. Defaulting to on_reference.\n",arg);
 
         return type;
     }

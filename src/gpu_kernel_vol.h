@@ -347,6 +347,31 @@ __global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pT
     }
 }
 
+
+__global__ void get_std_from_fourier(double*p_acc,cudaTextureObject_t vol,const float3 bandpass,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        Vec3 pt_in;
+        pt_in.x = ss_idx.x;
+        pt_in.y = ss_idx.y - ss_siz.y/2;
+        pt_in.z = ss_idx.z - ss_siz.z/2;
+
+        float R = l2_distance(pt_in.x,pt_in.y,pt_in.z);
+        float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+
+        if( (bp > 0.05) && (R > 0.5) ) {
+            float2 val = tex3D<float2>(vol, pt_in.x+0.5, pt_in.y+ss_idx.y/2+0.5, pt_in.z+ss_idx.z/2+0.5);
+            val.x *= bp;
+            val.y *= bp;
+            double acc = cuCabsf(val);
+            atomic_Add( p_acc , acc );
+        }
+    }
+}
+
 __global__ void invert_wgt(double*p_data,const int3 ss_siz) {
 	
     int3 ss_idx = get_th_idx();

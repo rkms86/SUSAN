@@ -16,13 +16,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ###########################################################################
 
-__all__ = ['fsc_get',
+__all__ = ['radial_average',
+           'radial_expansion',
+           'fsc_get',
            'fsc_analyse',
            'denoise_l0',
            'bandpass',
            'apply_FOM',
+           'euDYN_rotm',
            'euZYZ_rotm',
            'rotm_euZYZ',
+           'get_extension',
            'is_extension',
            'force_extension',
            'time_now',
@@ -39,15 +43,62 @@ import susan.utils.datatypes as datatypes
 
 ###########################################
 
-def denoise_l0(data,l0_lambda,rho=1,max_clip=-1):
+@jit(nopython=True,cache=True)
+def radial_average(v):
+    assert v.ndim == 3, "Volume must be three-dimensional"
+
+    N = max( max(v.shape[0],v.shape[1]), v.shape[2] )+1
+    val = np.zeros(N)
+    wgt = np.zeros(N)
+
+    cnt_z = v.shape[0]//2
+    cnt_y = v.shape[1]//2
+    cnt_x = v.shape[2]//2
+
+    for k in range(v.shape[0]):
+        z = k - cnt_z
+        for j in range(v.shape[1]):
+            y = j - cnt_y
+            for i in range(v.shape[2]):
+                x = i - cnt_x
+                r = np.sqrt( x**2 + y**2 + z**2 )
+                r = np.int32(np.round(r))
+                if r < N:
+                    val[r] += v[k,j,i]
+                    wgt[r] += 1.0
+    val = val/np.maximum(wgt,1)
+    return val
+
+@jit(nopython=True,cache=True)
+def radial_expansion(arr):
+    cnt = arr.shape[0]-1
+    N = 2*cnt
+    rslt = np.zeros((N,N,N),np.float32)
+
+    for k in range(N):
+        z = k - cnt
+        for j in range(N):
+            y = j - cnt
+            for i in range(N):
+                x = i - cnt
+                r = np.sqrt( x**2 + y**2 + z**2 )
+                r = np.int32(np.round(r))
+                if r < cnt:
+                    rslt[k,j,i] = arr[r]
+    return rslt
+
+###########################################
+
+def denoise_l0(v,l0_lambda,rho=1,max_clip=-1):
     rho  = max(min(rho,1),0)
-    th   = np.quantile(data,l0_lambda)
-    rslt = np.minimum(data-th,0)
+    th   = np.quantile(v,l0_lambda)
+    rslt = np.copy(v)
+    rslt[rslt>th] = 0
     if max_clip > 0:
         th   = np.quantile(rslt,max_clip)
         rslt = np.maximum(rslt,th)
     if rho < 1:
-        rslt = rho*rslt + (1-rho)*data
+        rslt = rho*rslt + (1-rho)*v
     return rslt
 
 ###########################################
@@ -165,6 +216,24 @@ def fsc_analyse(fsc,apix=1.0,thres=0.143):
 ###########################################
 
 @jit(nopython=True,cache=True)
+def euDYN_rotm(R,eu):
+    cos_theta = np.cos(eu[2])
+    cos_phi   = np.cos(eu[1])
+    cos_psi   = np.cos(eu[0])
+    sin_theta = np.sin(eu[2])
+    sin_phi   = np.sin(eu[1])
+    sin_psi   = np.sin(eu[0])
+    R[0,0] = cos_theta*cos_psi - cos_phi*sin_theta*sin_psi
+    R[0,1] = -cos_theta*sin_psi - cos_phi*cos_psi*sin_theta
+    R[0,2] = sin_theta*sin_phi
+    R[1,0] = cos_psi*sin_theta + cos_theta*cos_phi*sin_psi
+    R[1,1] = cos_theta*cos_phi*cos_psi - sin_theta*sin_psi
+    R[1,2] = -cos_theta*sin_phi
+    R[2,0] = sin_phi*sin_psi
+    R[2,1] = cos_psi*sin_phi
+    R[2,2] = cos_phi
+
+@jit(nopython=True,cache=True)
 def euZYZ_rotm(R,eu):
     #R = np.zeros((3,3))
     cos_theta = np.cos(eu[0])
@@ -186,17 +255,16 @@ def euZYZ_rotm(R,eu):
 
 @jit(nopython=True,cache=True)
 def rotm_euZYZ(euler, R):
-    #euler = np.zeros(3)
-    if np.abs(R[2,0]) < 1e-5:
-        # gimbal lock
-        euler[0] = np.arctan(R[1,0] / R[0,0])
-        euler[1] =-np.arcsin(R[2,0])
-        euler[2] = 0
-    else:
-        euler[0] = np.arctan( R[1,2] / R[0,2])
-        euler[1] = np.arctan( R[0,2] /(R[2,2] * np.cos(euler[0])))
-        euler[2] = np.arctan(-R[2,1] / R[2,0])
+    euler[0] = np.arctan2(R[1,2],R[0,2])
+    euler[1] = np.arctan2(np.sqrt( 1-(R[2,2]*R[2,2]) ),R[2,2])
+    euler[2] = np.arctan2(R[2,1],-R[2,0])
     #return euler
+
+###########################################
+
+def get_extension(filename):
+    _,ext = split_ext(filename)
+    return ext
 
 def is_extension(filename,extension):
     _,ext = split_ext(filename)
@@ -212,18 +280,24 @@ def force_extension(filename,extension):
         new_ext = '.' + extension
     return base + new_ext
 
+###########################################
+
 def time_now():
     return datetime.datetime.now()
 
-def create_sphere(radius,box_size):
-    N = box_size//2
-    t = np.arange(-N,N)
+###########################################
+
+def create_sphere(r,N):
+    M = N//2
+    t = np.arange(-M,M)
     x,y,z = np.meshgrid(t,t,t)
     rad = np.sqrt( x**2 + y**2 + z**2 )
-    return np.float32((radius-rad).clip(0,1))
+    return np.float32((r-rad).clip(0,1))
 
-def bin_vol(data,bin_level):
+###########################################
+
+def bin_vol(vol,bin_level):
     s = (2**bin_level)
-    v = bandpass(data,data.shape[0]//s-1)
+    v = bandpass(vol,vol.shape[0]//s-1)
     v = v[::s,::s,::s]
     return np.float32(v)

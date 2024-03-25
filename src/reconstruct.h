@@ -273,8 +273,11 @@ protected:
 		
 		while( (current_cmd = worker_cmd->read_command()) >= 0 ) {
 			switch(current_cmd) {
-				case REC_EXEC:
-					crop_loop(stack_buffer,stream);
+                case REC_EXEC:
+                    if(p_info->ignore_ref)
+                        crop_loop_ignore_ref(stack_buffer,stream);
+                    else
+                        crop_loop(stack_buffer,stream);
 					break;
 				default:
 					break;
@@ -315,22 +318,40 @@ protected:
 			if( check_reference(ptr) ) {
 				read_defocus(ptr);
 				crop_substack(ptr);
-				work_progress++;
-				work_accumul++;
-				if( check_substack(ptr) ) {
+                if( check_substack(ptr) ) {
 					upload(ptr,stream.strm);
 					stream.sync();
 					stack_buffer.WO_sync(READY);
 				}
-			}
-			else {
-				work_progress++;
-				work_accumul++;
-			}
+            }
+            work_progress++;
+            work_accumul++;
 		}
 		stack_buffer.WO_sync(DONE);
-	}
-	
+    }
+
+    void crop_loop_ignore_ref(DoubleBufferHandler&stack_buffer,GPU::Stream&stream) {
+        stack_buffer.WO_sync(EMPTY);
+        for(int i=worker_id;i<p_ptcls->n_ptcl;i+=p_info->n_threads) {
+            for(int r=0;r<R;r++) {
+                RecBuffer*ptr = (RecBuffer*)stack_buffer.WO_get_buffer();
+                p_ptcls->get(ptr->ptcl,i);
+                if( check_reference(ptr,r) ) {
+                    read_defocus(ptr);
+                    crop_substack(ptr,r);
+                    if( check_substack(ptr) ) {
+                        upload(ptr,stream.strm);
+                        stream.sync();
+                        stack_buffer.WO_sync(READY);
+                    }
+                }
+            }
+            work_progress++;
+            work_accumul++;
+        }
+        stack_buffer.WO_sync(DONE);
+    }
+
 	void read_defocus(RecBuffer*ptr) {
 		ptr->K = p_tomo->stk_dim.z;
 		
@@ -352,8 +373,10 @@ protected:
 		memcpy( (void**)(ptr->c_def.ptr), (const void**)(ptr->ptcl.def), sizeof(Defocus)*ptr->K  );
 	}
 	
-	bool check_reference(RecBuffer*ptr) {
-		int r = ptr->ptcl.ref_cix();
+    bool check_reference(RecBuffer*ptr,int r=-1) {
+        if(r<0)
+            r = ptr->ptcl.ref_cix();
+
 		if( p_info->rec_halves )
 			ptr->r_ix = 2*r + (ptr->ptcl.half_id()-1);
 		else
@@ -365,11 +388,12 @@ protected:
 			return ( ptr->ptcl.ali_w[r] )>0;
 	}
 	
-	void crop_substack(RecBuffer*ptr) {
+    void crop_substack(RecBuffer*ptr,int r=-1) {
 		V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
-		M33f R_tmp,R_ali,R_stack,R_gpu;
-		
-		int r = ptr->ptcl.ref_cix();
+        M33f R_tmp,R_ali,R_stack,R_gpu;
+
+        if(r<0)
+            r = ptr->ptcl.ref_cix();
 		
 		/// P_tomo = P_ptcl + t_ali
 		pt_tomo(0) = ptr->ptcl.pos().x + ptr->ptcl.ali_t[r].x;
@@ -382,6 +406,8 @@ protected:
 		Math::eZYZ_Rmat(R_ali,eu_ZYZ);
 		
 		for(int k=0;k<ptr->K;k++) {
+            ptr->c_ali.ptr[k].w = 0;
+
 			if( ptr->ptcl.prj_w[k] > 0 ) {
 				
 				/// P_stack = R^k_tomo*P_tomo + t^k_tomo
@@ -414,7 +440,6 @@ protected:
 				ptr->c_ali.ptr[k].t.x = -pt_subpix(0);
 				ptr->c_ali.ptr[k].t.y = -pt_subpix(1);
 				ptr->c_ali.ptr[k].t.z = 0;
-				ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
                 R_gpu = (R_ali)*(R_stack.transpose());
 				Math::set( ptr->c_ali.ptr[k].R, R_gpu );
 				
@@ -447,19 +472,34 @@ protected:
 							if( p_info->norm_type == ZERO_MEAN_W_STD ) {
 								ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
 							}
-							ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
+                            //ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
 						}
-					}
+
+                        /// Set projection weight
+                        if( p_info->wgt_type == WGT_NONE )
+                            ptr->c_ali.ptr[k].w = (ptr->ptcl.prj_w[k] > 0);
+                        if( p_info->wgt_type == WGT_3D )
+                            ptr->c_ali.ptr[k].w = ptr->ptcl.ali_w[r];
+                        if( p_info->wgt_type == WGT_2D )
+                            ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
+                        if( p_info->wgt_type == WGT_3DCC )
+                            ptr->c_ali.ptr[k].w = ptr->ptcl.ali_cc[r];
+                        if( p_info->wgt_type == WGT_2DCC )
+                            ptr->c_ali.ptr[k].w = ptr->ptcl.prj_cc[k];
+
+
+                    } /// if( std < SUSAN_FLOAT_TOL || isnan(std) || isinf(std) )
 					
 				}
 				else {
 					ptr->c_ali.ptr[k].w = 0;
-				}
+                } /// if( ss_cropper.check_point(pt_crop) )
 			}
 			else {
 				ptr->c_ali.ptr[k].w = 0;
-			}
-		}
+            } /// if( ptr->ptcl.prj_w[k] > 0 )
+
+        } /// for(int k=0;k<ptr->K;k++)
 	}
 		
 	bool check_substack(RecBuffer*ptr) {

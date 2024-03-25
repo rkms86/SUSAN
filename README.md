@@ -26,7 +26,6 @@ I started the development of `SUSAN` at the [Independent Research Group (Sofja K
 ## Building and setup instructions
 ### Dependencies
 - `CUDA`.
-- `Eigen`: As this is needed at compilation time only, there is no need to install it in the system. If not provided by the building environment, it can be installed locally following [this](extern/README.md) instructions.
 - `gcc`.
 - `cmake`.
 - `git`.
@@ -42,17 +41,6 @@ We assume that `SUSAN` will be installed in the `LOCAL_SUSAN_PATH` folder (`LOCA
    cd LOCAL_SUSAN_PATH
    git clone https://github.com/rkms86/SUSAN
    ```
-   - **(Optional)** Install `Eigen`:
-     ```
-     cd LOCAL_SUSAN_PATH/SUSAN/extern
-     git clone https://gitlab.com/libeigen/eigen.git eigen
-     cd eigen
-     mkdir build
-     cd build
-     cmake ../ -DCMAKE_INSTALL_PREFIX=../../eigen_lib
-     make install
-     cd LOCAL_SUSAN_PATH/SUSAN
-     ```
 3. Compile `SUSAN`:
    ```
    mkdir bin
@@ -68,14 +56,11 @@ We assume that `SUSAN` will be installed in the `LOCAL_SUSAN_PATH` folder (`LOCA
    ```
    in order to avoid problems with CMake and Cuda.
 
-   **HINT:** You can use ``` cmake ../ -DCMAKE_CUDA_COMPILER=$(which nvcc) ``` in order to avoid problems with CMake and Cuda.
-   
 - **(Optional)** To be able to install `SUSAN` as a `Python` package:
   ```
   make prepare_python
   ```
   This will install the compiled binaries in the `bin` folder of the `Python` package.
-
 ### `Python` setup
 #### Dependencies
 Besides the standard libraries, the `SUSAN` module for `Python` has only two dependencies: [`NumPy`](https://numpy.org/) and [`Numba`](https://numba.pydata.org/). Install them if needed:
@@ -112,38 +97,37 @@ addpath LOCAL_SUSAN_PATH
 ## Installing `SUSAN` in a `conda` environment (for `Python`)
 `SUSAN` can be built and installed inside a [`conda` environment](https://conda.io/projects/conda/en/latest/user-guide/concepts/environments.html):
 
--  **(Optional)** Create a new `conda` environment:
+-  **(Optional)** Create a new `conda` environment and activate it:
    ```
    conda create -n susan_env
-   ```
-1. Activate the working environment, for this example we will use `susan_env`
-   ```
    conda activate susan_env
    ```
-2. Install the packages needed for building `SUSAN`
+1. Install the basic packages needed for building and using `SUSAN`
    ```
-   conda install -c conda-forge git cmake make cxx-compiler eigen cudatoolkit-dev
+   conda install -c conda-forge git cmake make cudatoolkit-dev=11 gxx=10 numpy numba
    ```
 -  **(Optional)** Install `openmpi`:
    ```
-   conda install openmpi
+   conda install -c conda-forge openmpi
    ```
-2. Clone `SUSAN` to `LOCAL_SUSAN_PATH` (For example, `LOCAL_SUSAN_PATH` can be `~/Software/`), compile it and prepare it for the `Python` installation:
+-  **(Optional)** Install packages to run the examples and tutorials:
+   ```
+   conda install -c conda-forge jupyter scipy matplotlib scikit-image
+   ```
+2. Go to the directory `LOCAL_SUSAN_PATH`, where `SUSAN` will be compiled. For example, `LOCAL_SUSAN_PATH` can be `~/Software/`:
    ```
    cd LOCAL_SUSAN_PATH
+   ```
+3. Clone `SUSAN`, compile it and install it:
+   ```
    git clone https://github.com/rkms86/SUSAN
    mkdir SUSAN/bin
    cd SUSAN/bin
    cmake ../
    make -j
-   make prepare_python
-   cd ..
+   pip install ../
    ```
-3. Install the packages in the current environment
-   ```
-   pip install .
-   ```
-After these step the module `susan` should be available.
+After these step the module `susan` should be available on the current environment.
 
 ## Tutorial
 A tutorial is available for `Python` and `Matlab` for the `mixedCTEM` dataset from the [EMPIAR-10064](https://www.ebi.ac.uk/empiar/EMPIAR-10064/). It is assumed that the `wget` and `gunzip` commands and the `IMOD` framework are installed in the system.

@@ -127,8 +127,18 @@ typedef enum {
     NO_NORM=0,
     ZERO_MEAN,
     ZERO_MEAN_W_STD,
-    ZERO_MEAN_1_STD
+    ZERO_MEAN_1_STD,
+    GAT_RAW,
+    GAT_NORMAL
 } NormalizationType_t;
+
+typedef enum {
+    WGT_NONE=0,
+    WGT_3D,
+    WGT_2D,
+    WGT_3DCC,
+    WGT_2DCC
+} WeightingType_t;
 
 typedef enum {
     PAD_ZERO=0,
@@ -136,17 +146,21 @@ typedef enum {
 } PaddingType_t;
 
 typedef enum {
-    ALI_NO_INV=0,
-    ALI_ON_REFERENCE,
-    ALI_ON_SUBSTACK,
-    ALI_ON_SUBSTACK_SSNR,
-    ALI_CUMULATIVE_FSC
+    ALI_CTF_DISABLED=0,
+    ALI_CTF_ON_REFERENCE,
+    ALI_CTF_ON_SUBSTACK,
+    ALI_CTF_ON_SUBSTACK_SSNR
 } CtfAlignmentType_t;
 
 typedef enum {
-    CC_NONE=0,
-    CC_PROB,
-    CC_SIGMA
+    CC_TYPE_BASIC=0,
+    CC_TYPE_CFSC
+} CcType_t;
+
+typedef enum {
+    CC_STATS_NONE=0,
+    CC_STATS_PROB,
+    CC_STATS_SIGMA
 } CcStatsType_t;
 
 typedef enum {

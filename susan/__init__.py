@@ -23,17 +23,17 @@ from . import modules
 from . import project
 
 def read(filename):
-	if utils.is_extension(filename,'mrc') or  utils.is_extension(filename,'map') or utils.is_extension(filename,'ali') or utils.is_extension(filename,'st'):
-		v,_ = io.mrc.read(filename)
-		return v
-	elif utils.is_extension(filename,'ptclsraw'):
-		return data.Particles(filename)
-	elif utils.is_extension(filename,'refstxt'):
-		return data.Reference(filename)
-	elif utils.is_extension(filename,'tomostxt'):
-		return data.Tomograms(filename)
-	else:
-		raise ValueError('Unsupported file.')
+    if utils.get_extension(filename) in ('.mrc','.map','.ali','.st','.rec'):
+        v,_ = io.mrc.read(filename)
+        return v
+    elif utils.is_extension(filename,'ptclsraw'):
+        return data.Particles(filename)
+    elif utils.is_extension(filename,'refstxt'):
+        return data.Reference(filename)
+    elif utils.is_extension(filename,'tomostxt'):
+        return data.Tomograms(filename)
+    else:
+        raise ValueError('Unsupported file.')
 
 def _check_susan_bin_in_path(bin_name='susan_aligner'):
     from shutil import which

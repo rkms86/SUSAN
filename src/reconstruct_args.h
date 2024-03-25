@@ -42,12 +42,14 @@ typedef struct {
 	uint32 pad_size;
 	uint32 pad_type;
 	uint32 ctf_type;
+    uint32 wgt_type;
 	uint32 norm_type;
 	int    w_inv_ite;
 	float  w_inv_std;
 	float  ssnr_F;
 	float  ssnr_S;
 	bool   rec_halves;
+    bool   ignore_ref;
 	bool   norm_output;
 	float  boost_low_fq_scale;
 	float  boost_low_fq_value;
@@ -93,23 +95,25 @@ bool validate(const Info&info) {
 
 bool parse_args(Info&info,int ac,char** av) {
 	/// Default values:
-	info.n_gpu       = 0;
-	info.n_threads   = 1;
-	info.box_size    = 200;
-	info.fpix_min    = 0;
-	info.fpix_max    = 30;
-	info.fpix_roll   = 4;
-	info.pad_size    = 0;
-	info.pad_type    = PAD_ZERO;
-	info.ctf_type    = INV_WIENER;
-	info.norm_type   = NO_NORM;
-	info.w_inv_ite   = 10;
-	info.w_inv_std   = 0.75;
-	info.ssnr_F      = 0;
-	info.ssnr_S      = 1;
-	info.rec_halves  = false;
-	info.norm_output = true;
-	info.verbosity  = 0;
+    info.n_gpu       = 0;
+    info.n_threads   = 1;
+    info.box_size    = 200;
+    info.fpix_min    = 0;
+    info.fpix_max    = 30;
+    info.fpix_roll   = 4;
+    info.pad_size    = 0;
+    info.pad_type    = PAD_ZERO;
+    info.ctf_type    = INV_WIENER;
+    info.wgt_type    = WGT_NONE;
+    info.norm_type   = NO_NORM;
+    info.w_inv_ite   = 10;
+    info.w_inv_std   = 0.75;
+    info.ssnr_F      = 0;
+    info.ssnr_S      = 1;
+    info.rec_halves  = false;
+    info.ignore_ref  = false;
+    info.norm_output = true;
+    info.verbosity   = 0;
 	memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
 	memset(info.out_pfx ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
 	memset(info.ptcls_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
@@ -131,6 +135,7 @@ bool parse_args(Info&info,int ac,char** av) {
 		PAD_TYPE,
 		NORM_TYPE,
 		CTF_TYPE,
+        WGT_TYPE,
 		SSNR,
 		W_INV_ITE,
 		W_INV_STD,
@@ -139,6 +144,7 @@ bool parse_args(Info&info,int ac,char** av) {
 		SYMMETRY,
 		VERBOSITY,
 		REC_HALVES,
+        IGNORE_REF,
 		NORM_OUTPUT,
 		BOOST_LOWFQ
 	};
@@ -155,6 +161,7 @@ bool parse_args(Info&info,int ac,char** av) {
 		{"pad_type",    1, 0, PAD_TYPE  },
 		{"norm_type",   1, 0, NORM_TYPE },
 		{"ctf_type",    1, 0, CTF_TYPE  },
+        {"wgt_type",    1, 0, WGT_TYPE  },
 		{"ssnr_param",  1, 0, SSNR      },
 		{"w_inv_iter",  1, 0, W_INV_ITE },
 		{"w_inv_gstd",  1, 0, W_INV_STD },
@@ -162,6 +169,7 @@ bool parse_args(Info&info,int ac,char** av) {
 		{"rolloff_f",   1, 0, ROLLOFF_F },
 		{"symmetry",    1, 0, SYMMETRY  },
 		{"rec_halves",  1, 0, REC_HALVES},
+        {"ignore_ref",  1, 0, IGNORE_REF},
 		{"norm_output", 1, 0, NORM_OUTPUT},
 		{"boost_lowfq", 1, 0, BOOST_LOWFQ},
 		{"verbosity",   1, 0, VERBOSITY },
@@ -197,10 +205,13 @@ bool parse_args(Info&info,int ac,char** av) {
 			case NORM_TYPE:
 				info.norm_type = ArgParser::get_norm_type(optarg);
 				break;
-			case CTF_TYPE:
-				info.ctf_type = ArgParser::get_inv_ctf_type(optarg);
-				break;
-			case BANDPASS:
+            case CTF_TYPE:
+                info.ctf_type = ArgParser::get_inv_ctf_type(optarg);
+                break;
+            case WGT_TYPE:
+                info.wgt_type = ArgParser::get_weighting_type(optarg);
+                break;
+            case BANDPASS:
 				ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);
 				break;
 			case ROLLOFF_F:
@@ -217,11 +228,14 @@ bool parse_args(Info&info,int ac,char** av) {
 				break;
 			case SYMMETRY:
 				strcpy(info.sym,optarg);
-				break;
-			case REC_HALVES:
-				info.rec_halves = ArgParser::get_bool(optarg);
-				break;
-			case NORM_OUTPUT:
+                break;
+            case REC_HALVES:
+                info.rec_halves = ArgParser::get_bool(optarg);
+                break;
+            case IGNORE_REF:
+                info.ignore_ref = ArgParser::get_bool(optarg);
+                break;
+            case NORM_OUTPUT:
 				info.norm_output = ArgParser::get_bool(optarg);
 				break;
 			case BOOST_LOWFQ:
@@ -308,10 +322,13 @@ void print_full(const Info&info,FILE*fp) {
 	
 	fprintf(fp,"\t\tSymmetry type: %s.\n",info.sym);
 	if( !info.norm_output )
-		fprintf(fp,"\t\tDo not normalizing output.\n");
+        fprintf(fp,"\t\tDo not normalize output.\n");
 	
 	if( info.boost_low_fq_scale > 0 )
 		fprintf(fp,"\t\tBoosting low frequencies (Scale=%.2f, FPix=%.1f, Decay=%.1f).\n",info.boost_low_fq_scale,info.boost_low_fq_value,info.boost_low_fq_decay);
+
+    if( info.ignore_ref )
+        fprintf(fp,"\t\tIgnoring class information. All particles contribute to all classes.\n");
 
 }
 
@@ -376,16 +393,22 @@ void print_minimal(const Info&info,FILE*fp) {
 	if( info.norm_type == ZERO_MEAN_1_STD )
 		fprintf(fp,"Normalization (Mean=0, Std=1).\n");
 	if( info.norm_type == ZERO_MEAN_W_STD )
-		fprintf(fp,"Normalization (Mean=0, Std=PRJ_W).\n");
-	
-	if( !info.norm_output || info.boost_low_fq_scale > 0 )
+        fprintf(fp,"Normalization (Mean=0, Std=PRJ_W).\n");
+
+    if( !info.norm_output || info.boost_low_fq_scale > 0 || info.ignore_ref ) {
 		fprintf(fp,"    - ");
 	
-	if( !info.norm_output )
-		fprintf(fp,"Do not normalizing output. ");
-	
-	if( info.boost_low_fq_scale > 0 )
-		fprintf(fp,"Boosting low frequencies (Scale=%.2f, FPix=%.1f, Decay=%.1f).\n",info.boost_low_fq_scale,info.boost_low_fq_value,info.boost_low_fq_decay);
+        if( !info.norm_output )
+            fprintf(fp,"Do not normalize output. ");
+
+        if( info.boost_low_fq_scale > 0 )
+            fprintf(fp,"Boosting low frequencies (Scale=%.2f, FPix=%.1f, Decay=%.1f). ",info.boost_low_fq_scale,info.boost_low_fq_value,info.boost_low_fq_decay);
+
+        if( info.ignore_ref )
+            fprintf(fp,"All particles to all classes. ");
+
+        fprintf(fp,"\n");
+    }
 }
 
 void print(const Info&info,FILE*fp=stdout) {

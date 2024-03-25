@@ -550,10 +550,13 @@ class Particles:
             raise ValueError('skip_border_pixels must be either a scalar or a 3-element vector')
 
     @staticmethod
-    def grid_2d(tomograms,step_angstroms=None,step_pixels=None,skip_border_pixels=0):
+    def grid_2d(tomograms,step_angstroms=None,step_pixels=None,skip_border_pixels=0,angle_deg_Y=0):
         apix = Particles._validate_tomogram(tomograms)
         step = Particles._get_grid_step(step_angstroms,step_pixels,apix)
         brdr = Particles._get_border_pixels(skip_border_pixels)
+
+        R = _np.eye(3)
+        _euZYZ_rotm(R,_np.deg2rad(_np.array((0,angle_deg_Y,0))))
         
         pts = _np.zeros((0,3),dtype=_np.float32)
         tcx = _np.zeros((0),dtype=_np.uint32)
@@ -566,6 +569,7 @@ class Particles:
             t_y = _np.concatenate( (-t_y[::-1],t_y[1:]) )
             x,y,z = _np.float32(_np.meshgrid(t_x,t_y,(0)))
             pos = _np.stack( (x.flatten(),y.flatten(),z.flatten()), ).transpose()
+            pos = pos@R
             pts = _np.concatenate( (pts,pos) )
             tcx = _np.concatenate( (tcx,_np.repeat(_np.uint32(i),pos.shape[0])) )
             tid = _np.concatenate( (tid,_np.repeat(tomograms.tomo_id[i],pos.shape[0])) )
