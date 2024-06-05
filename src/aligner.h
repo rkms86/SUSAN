@@ -67,8 +67,8 @@ public:
     int r_ix;
     int class_ix;
     int tomo_pos_x;
-	int tomo_pos_y;
-	int tomo_pos_z;
+    int tomo_pos_y;
+    int tomo_pos_z;
 
     float crowther_limit;
 
@@ -90,153 +90,156 @@ public:
 };
 
 class TemplateMatchingReporter {
-	
-	int  tm_type;
-	int  tm_dim;
-	FILE *fp;
-	
-	float *c_cc;
-	int   num_points;
-	int   max_K;
-	int   n_cc;
-	float sigma;
+
+    int  tm_type;
+    int  tm_dim;
+    FILE *fp;
+
+    float *c_cc;
+    int   num_points;
+    int   max_K;
+    int   n_cc;
+    float sigma;
 
     float running_avg;
     float running_std;
     float running_cnt;
-	
+
 public:
-	TemplateMatchingReporter(int n_pts, int K, int dim) {
-		tm_type    = TM_NONE;
-		tm_dim     = dim;
-		num_points = n_pts;
-		max_K      = K;
-		if(dim==2){       //2D alignment
-			n_cc = n_pts * K;
-		}
-		else if (dim==3){ //3D alignment
-			n_cc = n_pts;
-		}
-		c_cc       = new float[n_cc];
-		memset(c_cc, 0, sizeof(float) * n_cc);
-		sigma      = 0;
+    TemplateMatchingReporter(int n_pts, int K, int dim) {
+        tm_type    = TM_NONE;
+        tm_dim     = dim;
+        num_points = n_pts;
+        max_K      = K;
+        if(dim==2){       //2D alignment
+            n_cc = n_pts * K;
+        }
+        else if (dim==3){ //3D alignment
+            n_cc = n_pts;
+        }
+        c_cc       = new float[n_cc];
+        memset(c_cc, 0, sizeof(float) * n_cc);
+        sigma      = 0;
 
         running_avg = 0;
         running_std = 0;
         running_cnt = 0;
-	}
-	
-	~TemplateMatchingReporter() {
-		delete [] c_cc;
-	}
-	
-	void start(int id,const char*type,const char*prefix,const float in_sigma) {
-		sigma = in_sigma;
-		
-		if( strcmp(type,"none") == 0 ) {
-			tm_type = TM_NONE;
-		}
-		else if( strcmp(type,"python") == 0 ) {
-			tm_type = TM_PYTHON;
-		}
-		else if( strcmp(type,"matlab") == 0 ) {
-			tm_type = TM_MATLAB;
-		}
-		else if( strcmp(type,"csv") == 0 ) {
-			tm_type = TM_CSV;
-		}
-		
-		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
-			char tm_file[SUSAN_FILENAME_LENGTH];
-			sprintf(tm_file,"%s_worker%02d.txt",prefix,id);
-			fp = fopen(tm_file,"w");
-			if( tm_type == TM_CSV ) {
-				if (tm_dim == 2){
-					fprintf(fp,"TID,PartID,RID,ProjID,X,Y,CC\n");
-				}
-				else if (tm_dim == 3){
-					fprintf(fp,"TID,PartID,RID,X,Y,Z,CC\n");
-				}
-			}
-		}
-	}
-	
-	void finish() {
-		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
-			fclose(fp);
-		}
-	}
+    }
 
-	void clear_cc() {
-		memset(c_cc,0,n_cc*sizeof(float));
+    ~TemplateMatchingReporter() {
+        delete [] c_cc;
+    }
 
-        running_avg = 0;
-        running_std = 0;
-        running_cnt = 0;
-	}
+    void start(int id,const char*type,const char*prefix,const float in_sigma) {
+        sigma = in_sigma;
 
-	void push_cc(const float*p_cc) {
-        if(tm_type != TM_NONE) {
-            for(int cc_index=0;cc_index<n_cc;cc_index++) {
-                float cc = p_cc[cc_index];
-                c_cc[cc_index] = fmax(c_cc[cc_index],cc);
-                running_avg += cc;
-                running_std += (cc*cc);
-                running_cnt += 1;
+        if( strcmp(type,"none") == 0 ) {
+            tm_type = TM_NONE;
+        }
+        else if( strcmp(type,"python") == 0 ) {
+            tm_type = TM_PYTHON;
+        }
+        else if( strcmp(type,"matlab") == 0 ) {
+            tm_type = TM_MATLAB;
+        }
+        else if( strcmp(type,"csv") == 0 ) {
+            tm_type = TM_CSV;
+        }
+
+        if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
+            char tm_file[SUSAN_FILENAME_LENGTH];
+            sprintf(tm_file,"%s_worker%02d.txt",prefix,id);
+            fp = fopen(tm_file,"w");
+            if( tm_type == TM_CSV ) {
+                if (tm_dim == 2){
+                    fprintf(fp,"TID,PartID,RID,ProjID,ProjW,X,Y,CC\n");
+                }
+                else if (tm_dim == 3){
+                    fprintf(fp,"TID,PartID,RID,X,Y,Z,CC\n");
+                }
             }
         }
-	}
-	
-	void save_cc(int tid,int rid,int pid,int tx,int ty,int tz,const Vec3*c_pts) {
-        if( (tm_type != TM_NONE) && (running_cnt > 0) ) {
-			int x,y,z;
-			
+    }
+
+    void finish() {
+        if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
+            fclose(fp);
+        }
+    }
+
+    void clear_cc() {
+        memset(c_cc,0,n_cc*sizeof(float));
+        running_avg = 0;
+        running_std = 0;
+        running_cnt = 0;
+    }
+
+    void push_cc(const float*p_cc, int number_of_point_2D) {
+        if(tm_type != TM_NONE) {
+            if(tm_dim == 2){
+                memcpy(c_cc, p_cc, number_of_point_2D * sizeof(float));
+            }
+            else if (tm_dim == 3){
+                for(int cc_index=0;cc_index<n_cc;cc_index++) {
+                    float cc = p_cc[cc_index];
+                    c_cc[cc_index] = fmax(c_cc[cc_index],cc);
+                    running_avg += cc;
+                    running_std += (cc*cc);
+                    running_cnt += 1;
+                }
+            }
+        }
+    }
+
+    void save_cc(int tid,int rid,int pid,int tx,int ty,int tz,const Vec3*c_pts, float *prj_w) {
+        if( (tm_type != TM_NONE) ) {
+        //&& (running_cnt > 0)
+            int x,y,z;
             int proj_id, point_id;
+            float proj_w;
 
             running_avg = running_avg/running_cnt;
             running_std = running_std/running_cnt;
             running_std = running_std - (running_avg*running_avg);
             running_std = sqrtf(running_std);
-
             float cc_threshold = running_avg + sigma*running_std;
 
-			for(int cc_index=0;cc_index<n_cc;cc_index++){
-				if (tm_dim == 2){
-					proj_id  = cc_index / num_points;
-					point_id = cc_index % num_points;
-				}
-				else if (tm_dim == 3){
-					proj_id  = 0;
-					point_id = cc_index;
-				}
+            for(int cc_index=0;cc_index<n_cc;cc_index++){
+                if (tm_dim == 2){
+                    proj_id  = cc_index / num_points;
+                    point_id = cc_index % num_points;
+                    proj_w   = prj_w[proj_id];
+                }
+                else if (tm_dim == 3){
+                    proj_id  = 0;
+                    point_id = cc_index;
+                }
 
-				x = (int)roundf(c_pts[point_id].x);
+                x = (int)roundf(c_pts[point_id].x);
                 y = (int)roundf(c_pts[point_id].y);
                 z = (int)roundf(c_pts[point_id].z);
-				
-                if ( ((sigma > 0) && (c_cc[cc_index] > cc_threshold)) || (sigma <= 0) ){
-					if (tm_dim == 2){
-						if( tm_type == TM_PYTHON )
-                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d[%d,%d] = %f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
+
+                //if ( ((sigma > 0) && (c_cc[cc_index] > cc_threshold)) || (sigma <= 0) ){
+                    if (tm_dim == 2){
+                        if( tm_type == TM_PYTHON )
+                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d_w_%f[%d,%d] = %f\n", tid, pid, rid, proj_id, proj_w, x, y, c_cc[cc_index]);
                         else if( tm_type == TM_MATLAB )
-                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d(%d,%d) = %f;\n",tid, pid, rid, proj_id, (x+1), (y+1), c_cc[cc_index]);
+                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d_w_%f(%d,%d) = %f;\n",tid, pid, rid, proj_id, proj_w, (x+1), (y+1), c_cc[cc_index]);
                         else if( tm_type == TM_CSV )
-                                fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
-					}
-					else if (tm_dim == 3){
-						if( tm_type == TM_PYTHON )
+                                fprintf(fp,"%d,%d,%d,%d,%f,%d,%d,%f\n", tid, pid, rid, proj_id, proj_w, x, y, c_cc[cc_index]);
+                    }
+                    else if (tm_dim == 3){
+                        if( tm_type == TM_PYTHON )
                                 fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %f\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
                         else if( tm_type == TM_MATLAB )
                                 fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %f;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
                         else if( tm_type == TM_CSV )
                                 fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index]);
-					}
-				}
-				
-			}
-		}
-	}
-
+                    }
+                //}
+            }
+        }
+    }
 };
 
 class AliGpuWorker : public Worker {
@@ -560,7 +563,7 @@ protected:
                         stream.sync();
                         ali_data.get_max_cc(cc,idx,ali_data.c_cc);
 
-                        tm_rep.push_cc(ali_data.c_cc);
+                        tm_rep.push_cc(ali_data.c_cc, 0);
 
                         if( cc > max_cc ) {
                             max_idx = idx;
@@ -601,7 +604,7 @@ protected:
         }
         
         update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
-        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
+        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts, ptr->ptcl.prj_w);
 	tm_rep.clear_cc();
     }
 
@@ -677,7 +680,7 @@ protected:
             } // SYMMETRY
         } // REFINE
 
-        tm_rep.push_cc(cc_placeholder);
+        tm_rep.push_cc(cc_placeholder, (ptr->K)*(ali_data.n_pts));
 
         single cc_acc=0,wgt_acc=0;
         for(int i=0;i<ptr->K;i++) {
@@ -688,9 +691,8 @@ protected:
             }
         }
         ptr->ptcl.ali_cc[ptr->class_ix] = cc_acc/max(wgt_acc,1.0);
-        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
+        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts, ptr->ptcl.prj_w);
         tm_rep.clear_cc();
-
     }
 
     void update_particle_3D(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int ref_ix,const float apix) {
