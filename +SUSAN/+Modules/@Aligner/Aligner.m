@@ -55,7 +55,7 @@ properties
     padding         uint32  = 32;
     drift           logical = false;
     halfsets        logical = false;
-    cc_sigma        logical = false;
+    %cc_sigma        logical = false;
 end
     
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -70,6 +70,7 @@ properties(SetAccess=private)
     norm_type = 'zero_mean';
     ctf_type  = 'substack';
     symmetry  = 'c1';
+    cc_type   = 'none';
     ssnr      = struct('F',0,'S',1);
 end
     
@@ -391,13 +392,14 @@ methods
         cmd = [cmd ' -ssnr_param ' sprintf('%f,%f',obj.ssnr.F,obj.ssnr.S)];
         cmd = [cmd ' -bandpass '   sprintf('%f,%f',R_range(1),R_range(2))];
         cmd = [cmd ' -rolloff_f '  sprintf('%f',obj.bandpass.rolloff)];
+        cmd = [cmd ' -cc_type '    obj.cc_type];
         cmd = [cmd ' -p_symmetry ' obj.symmetry];
-        
-        if( obj.cc_sigma > 0 )
-            cmd = [cmd ' -use_sigma 1'];
-        else
-            cmd = [cmd ' -use_sigma 0'];
-        end
+
+        %if( obj.cc_sigma > 0 )
+        %    cmd = [cmd ' -use_sigma 1'];
+        %else
+        %    cmd = [cmd ' -use_sigma 0'];
+        %end
 
         if( obj.halfsets > 0 )
             cmd = [cmd ' -ali_halves 1'];

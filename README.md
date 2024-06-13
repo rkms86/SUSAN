@@ -50,6 +50,17 @@ We assume that `SUSAN` will be installed in the `LOCAL_SUSAN_PATH` folder (`LOCA
    ```
    **Note:** The `cmake` procedure detects the availabilty of `OpenMPI` and `Matlab` and compiles their functionalities accordingly.
 
+   **HINT:** You can use
+   ```
+   cmake ../ -DCMAKE_CUDA_COMPILER=$(which nvcc)
+   ```
+   in order to avoid problems with CMake and Cuda.
+
+- **(Optional)** To be able to install `SUSAN` as a `Python` package:
+  ```
+  make prepare_python
+  ```
+  This will install the compiled binaries in the `bin` folder of the `Python` package.
 ### `Python` setup
 #### Dependencies
 Besides the standard libraries, the `SUSAN` module for `Python` has only two dependencies: [`NumPy`](https://numpy.org/) and [`Numba`](https://numba.pydata.org/). Install them if needed:
