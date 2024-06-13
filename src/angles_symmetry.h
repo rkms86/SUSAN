@@ -127,7 +127,7 @@ protected:
 		eu(1) = 0;
 		eu(2) = 0;
 		for(int n=0;n<4;n++) {
-			float angle = M_PI*float(n)/float(4);
+			float angle = 2*M_PI*float(n)/float(4);
 			eu(0) = angle;
 			Math::eZYZ_Rmat(rslt[n],eu);
 		}
