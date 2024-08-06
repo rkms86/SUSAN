@@ -481,6 +481,9 @@ protected:
 
         ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
 
+        if( cc_type == CC_TYPE_CFSC )
+                rad_avgr.calculate_FRC(ss_data.ss_fourier,ptr->K,stream);
+
         switch( ctf_type ) {
             case ALI_CTF_ON_SUBSTACK:
                 ss_data.correct_wiener(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
@@ -493,7 +496,7 @@ protected:
         }
 
         if( cc_type == CC_TYPE_CFSC )
-                rad_avgr.preset_FRC(ss_data.ss_fourier,ptr->K,stream);
+            rad_avgr.apply_FRC(ss_data.ss_fourier,ptr->K,stream);
 
         rad_avgr.normalize_stacks(ss_data.ss_fourier,bandpass,ptr->K,stream);
     }
@@ -534,11 +537,14 @@ protected:
                         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
+                        if( cc_type == CC_TYPE_CFSC )
+                            rad_avgr.calculate_FRC(ali_data.prj_c,ptr->K,stream);
+
                         if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
                         if( cc_type == CC_TYPE_CFSC ) {
-                            rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
+                            rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
                         }
 
                         rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
@@ -635,11 +641,14 @@ protected:
                         ali_data.rotate_pre(Rot,ptr->g_ali,ptr->K,stream);
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
+                        if( cc_type == CC_TYPE_CFSC )
+                            rad_avgr.calculate_FRC(ali_data.prj_c,ptr->K,stream);
+
                         if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
                         if( cc_type == CC_TYPE_CFSC ) {
-                            rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
+                            rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
                         }
 
                         rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
