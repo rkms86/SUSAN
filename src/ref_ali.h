@@ -70,6 +70,23 @@ public:
         GpuKernels::radial_frc_norm<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,rad_wgt.ptr,ss);
     }
 
+    void calculate_FRC(GPU::GArrSingle2&data,int k,GPU::Stream&stream) {
+        rad_avg.clear(stream.strm);
+        rad_wgt.clear(stream.strm);
+        stream.sync();
+        int3 ss = make_int3(M,N,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,M,N,k);
+        GpuKernels::radial_frc_avg<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,data.ptr,ss);
+    }
+
+    void apply_FRC(GPU::GArrSingle2&data,int k,GPU::Stream&stream) {
+        int3 ss = make_int3(M,N,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,M,N,k);
+        GpuKernels::radial_frc_norm<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,rad_wgt.ptr,ss);
+    }
+
     void normalize_stacks(GPU::GArrSingle2&data,float3 bandpass,int k,GPU::Stream&stream) {
         std_acc.clear(stream.strm);
         int3 ss = make_int3(M,N,k);

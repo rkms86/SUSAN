@@ -112,7 +112,7 @@ protected:
             dim3 blk = GPU::get_block_size_2D();
             dim3 grd = GPU::calc_grid_size(blk,M,N,ptr->K);
             GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_ite.ptr,delta,ptr->ctf_vals,ptr->g_def.ptr,ss);
-            GpuKernels::multiply<<<grd,blk,0,stream.strm>>>(data_out.ptr,ctf_ite.ptr,ss);
+            GpuKernels::multiply<<<grd,blk,0,stream.strm>>>(data_out.ptr,prj_buf.ptr,ctf_ite.ptr,ss);
         }
     };
 
@@ -294,6 +294,7 @@ protected:
         ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
 
         ali_data.project(vol.ref,bandpass,ptr->K,stream);
+        rad_avgr.calculate_FRC(ali_data.prj_c,ptr->K,stream);
         ctf_ref.load_buf(ali_data.prj_c,ptr->K,stream);
 
         float dU,dV,dA;
@@ -305,7 +306,7 @@ protected:
                 for( dA=-ang_range; dA<ang_range; dA+=ang_step ) {
                     delta_w.z = dA;
                     ctf_ref.apply_ctf(ali_data.prj_c,delta_w,ptr,stream);
-                    rad_avgr.preset_FRC(ali_data.prj_c,ptr->K,stream);
+                    rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
                     ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
                     ali_data.invert_fourier(ptr->K,stream);
                     stream.sync();
