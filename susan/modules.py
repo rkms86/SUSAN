@@ -45,7 +45,7 @@ class Aligner:
         self.cc_type           = 'basic'
         self.cc_stats_type     = 'none'
         self.pseudo_symmetry   = 'c1'
-        self.ssnr              = _dt.ssnr(1,0.01)
+        self.ssnr              = _dt.ssnr(1,1)
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         self.tm_type           = "none"

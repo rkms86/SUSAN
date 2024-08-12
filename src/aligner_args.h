@@ -444,7 +444,7 @@ void print_full(const Info&info,FILE*fp) {
     if( info.ctf_type == ALI_CTF_ON_SUBSTACK )
         fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion.\n");
     if( info.ctf_type == ALI_CTF_ON_SUBSTACK_SSNR )
-        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with SSNR(f) = (100^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
+        fprintf(fp,"\t\tCTF correction policy: On substack - Wiener inversion with SSNR(f) = (10^(3*%.2f))*e^(-100*%.2f*f).\n",info.ssnr_S,info.ssnr_F);
 
     if( info.cc_type == CC_TYPE_BASIC )
         fprintf(fp,"\t\tAligning using Cross-Correlation. ");
