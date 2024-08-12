@@ -850,6 +850,21 @@ __global__ void multiply(float2*p_out,const double2*p_acc,const double*p_wgt,con
     }
 }
 
+__global__ void multiply(float2*p_out,const float2*p_in,const float*p_wgt,const int3 ss_siz,const double scale=1.0) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+        int idx = get_3d_idx(ss_idx,ss_siz);
+        float2 val = p_in [ idx ];
+        float  wgt = p_wgt[ idx ];
+        float2 rslt;
+        rslt.x = (float)(val.x*wgt*scale);
+        rslt.y = (float)(val.y*wgt*scale);
+        p_out[ idx ] = rslt;
+    }
+}
+
 __global__ void multiply(float2*p_out,const float*p_wgt,const int3 ss_siz,const float scale=1.0) {
 
     int3 ss_idx = get_th_idx();
