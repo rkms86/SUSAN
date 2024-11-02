@@ -85,7 +85,14 @@ void Rmat_eZXZ(V3f&eu_rad,const M33f&R) {
 }
 
 void Rmat_eZYZ(V3f&eu_rad,const M33f&R) {
-    eu_rad = R.eulerAngles(2,1,2);
+    if( fabs(R(2,2)-1) < 1e-6 ) {
+        eu_rad(0) = 0.0f;
+        eu_rad(1) = 0.0f;
+        eu_rad(2) = asin(R(1,0));
+    }
+    else {
+        eu_rad = R.eulerAngles(2,1,2);
+    }
 }
 
 void set(Rot33&Rout,const M33f&Rin) {
