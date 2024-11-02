@@ -118,10 +118,10 @@ class Manager:
     def get_names_mask(self,ite,ref=1):
         if ite == 0:
             refs_info = _ssa_data.Reference(self.initial_reference)
-            mask_name = refs_info.ref[ref-1]
+            mask_name = refs_info.msk[ref-1]
         else:
             refs_info = _ssa_data.Reference(self.get_iteration_dir(ite)+'reference.refstxt')
-            mask_name = refs_info.ref[ref-1]
+            mask_name = refs_info.msk[ref-1]
         return mask_name
 
     def get_names_halfmaps(self,ite,ref=1):
