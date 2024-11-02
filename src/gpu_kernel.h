@@ -446,7 +446,7 @@ __global__ void get_std_from_fourier_stk(float*p_std,const float2*p_data,const f
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-         float R = l2_distance(ss_idx.x,ss_idx.y - ss_siz.y/2);
+        float R = l2_distance(ss_idx.x,ss_idx.y - ss_siz.y/2);
         float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
 
         if( (bp > 0.05) && (R > 0.5) ) {
@@ -455,6 +455,9 @@ __global__ void get_std_from_fourier_stk(float*p_std,const float2*p_data,const f
             val.x *= bp;
             val.y *= bp;
             float acc = cuCabsf(val);
+            acc = acc*acc;
+            if( ss_idx.x > 0 )
+                acc *= 2;
             atomicAdd( local_std , acc );
         }
         __syncthreads();
@@ -472,10 +475,9 @@ __global__ void apply_std_to_fourier_stk(float2*p_data,const float*p_std,const i
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-
         long idx = get_3d_idx(ss_idx,ss_siz);
         float2 val = p_data[idx];
-        float wgt = 2*p_std[ss_idx.z];
+        float wgt = p_std[ss_idx.z];
         wgt   = sqrtf(wgt);
         val.x = val.x/wgt;
         val.y = val.y/wgt;
@@ -707,20 +709,22 @@ __global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wg
 
         if( r < ss_siz.x ) {
             int  idx = r + ss_siz.x*ss_idx.z;
-            float avg = p_avg[idx];
-            float wgt = p_wgt[idx];
+            double avg = p_avg[idx];
+            double wgt = p_wgt[idx];
 
             wgt = max(wgt,1.0);
             avg = avg/wgt;
 
-            if( avg > 1e-7 ) {
+            if( avg > 1e-12 ) {
                 val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
-                avg = sqrt(avg);
-                val.x = val.x/avg;
-                val.y = val.y/avg;
+                avg = sqrt(avg)*ss_siz.y;
+                float w_avg = avg;
+                val.x = val.x/w_avg;
+                val.y = val.y/w_avg;
             }
-            p_data[ get_3d_idx(ss_idx,ss_siz) ] = val;
         }
+
+        p_data[ get_3d_idx(ss_idx,ss_siz) ] = val;
     }
 }
 

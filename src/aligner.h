@@ -90,8 +90,8 @@ public:
 };
 
 class TemplateMatchingReporter {
-	
-	int  tm_type;
+
+    int  tm_type;
 	int  tm_dim;
 	FILE *fp;
 	
@@ -392,12 +392,14 @@ protected:
     }
 
     void exec_fft3(GPU::GArrSingle2&g_fou,GPU::GArrSingle&g_pad,GpuFFT::FFT3D&fft3) {
-        dim3 blk = GPU::get_block_size_2D();
+        dim3 blk  = GPU::get_block_size_2D();
         dim3 grdR = GPU::calc_grid_size(blk,NP,NP,NP);
         dim3 grdC = GPU::calc_grid_size(blk,MP,NP,NP);
+        int3 ss   = make_int3(MP,NP,NP);
         GpuKernels::fftshift3D<<<grdR,blk>>>(g_pad.ptr,NP);
         fft3.exec(g_fou.ptr,g_pad.ptr);
         GpuKernels::fftshift3D<<<grdC,blk>>>(g_fou.ptr,MP,NP);
+        GpuKernels::divide<<<grdC,blk>>>(g_fou.ptr,NP*NP*NP,ss);
     }
 
     void align3D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
@@ -443,6 +445,14 @@ protected:
         stream.sync();
 
         Mrc::write(buffer.ptr,NP,NP,max_K,filename);
+    }
+
+    void debug_ctf_stack(const char*filename,GPU::GArrSingle&g_real,GPU::Stream&stream) {
+        GPU::GHostSingle buffer;
+        buffer.alloc(MP*NP*max_K);
+        GPU::download_async(buffer.ptr,g_real.ptr,MP*NP*max_K,stream.strm);
+        stream.sync();
+        Mrc::write(buffer.ptr,MP,NP,max_K,filename);
     }
 
     void align2D(AliRef*vols,GPU::GArrSingle&ctf_wgt,AliSubstack&ss_data,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
@@ -702,41 +712,39 @@ protected:
 
         ptcl.ali_cc[ref_ix] = cc;
 
-        if( cc > 0 ) {
-            M33f Rprv;
-            V3f eu_prv;
-            eu_prv(0) = ptcl.ali_eu[ref_ix].x;
-            eu_prv(1) = ptcl.ali_eu[ref_ix].y;
-            eu_prv(2) = ptcl.ali_eu[ref_ix].z;
-            Math::eZYZ_Rmat(Rprv,eu_prv);
-            M33f Rnew = Rot*Rprv;
-            Math::Rmat_eZYZ(eu_prv,Rnew);
-            ptcl.ali_eu[ref_ix].x = eu_prv(0);
-            ptcl.ali_eu[ref_ix].y = eu_prv(1);
-            ptcl.ali_eu[ref_ix].z = eu_prv(2);
+        M33f Rprv;
+        V3f eu_prv;
+        eu_prv(0) = ptcl.ali_eu[ref_ix].x;
+        eu_prv(1) = ptcl.ali_eu[ref_ix].y;
+        eu_prv(2) = ptcl.ali_eu[ref_ix].z;
+        Math::eZYZ_Rmat(Rprv,eu_prv);
+        M33f Rnew = Rot*Rprv;
+        Math::Rmat_eZYZ(eu_prv,Rnew);
+        ptcl.ali_eu[ref_ix].x = eu_prv(0);
+        ptcl.ali_eu[ref_ix].y = eu_prv(1);
+        ptcl.ali_eu[ref_ix].z = eu_prv(2);
 
-            V3f tp,tt;
-            tp(0) = t.x;
-            tp(1) = t.y;
-            tp(2) = t.z;
-            tt = Rnew.transpose()*tp;
+        V3f tp,tt;
+        tp(0) = t.x;
+        tp(1) = t.y;
+        tp(2) = t.z;
+        tt = Rnew.transpose()*tp;
 
-            if( drift3D ) {
-                ptcl.ali_t[ref_ix].x += tt(0)*apix;
-                ptcl.ali_t[ref_ix].y += tt(1)*apix;
-                ptcl.ali_t[ref_ix].z += tt(2)*apix;
-            }
-            else {
-                ptcl.ali_t[ref_ix].x = tt(0)*apix;
-                ptcl.ali_t[ref_ix].y = tt(1)*apix;
-                ptcl.ali_t[ref_ix].z = tt(2)*apix;
-            }
+        if( drift3D ) {
+            ptcl.ali_t[ref_ix].x += tt(0)*apix;
+            ptcl.ali_t[ref_ix].y += tt(1)*apix;
+            ptcl.ali_t[ref_ix].z += tt(2)*apix;
+        }
+        else {
+            ptcl.ali_t[ref_ix].x = tt(0)*apix;
+            ptcl.ali_t[ref_ix].y = tt(1)*apix;
+            ptcl.ali_t[ref_ix].z = tt(2)*apix;
         }
     }
 
     void update_particle_2D(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int prj_ix,const float apix) {
 
-        if( ptcl.prj_w[prj_ix] > 0 && cc > 0 ) {
+        if( ptcl.prj_w[prj_ix] > 0 ) {
             ptcl.prj_cc[prj_ix] = cc;
 
             M33f Rprv;
@@ -904,7 +912,7 @@ protected:
         gpu_worker.ctf_type   = p_info->ctf_type;
         gpu_worker.max_K      = max_K;
         gpu_worker.bandpass.x = max(bp_scale*p_info->fpix_min-bp_pad,0.0);
-        gpu_worker.bandpass.y = min(bp_scale*p_info->fpix_max+bp_pad,(float)NP);
+        gpu_worker.bandpass.y = min(bp_scale*p_info->fpix_max+bp_pad,((float)NP)/2);
         gpu_worker.bandpass.z = sqrt(p_info->fpix_roll);
         gpu_worker.ssnr.x     = p_info->ssnr_F;
         gpu_worker.ssnr.y     = p_info->ssnr_S;

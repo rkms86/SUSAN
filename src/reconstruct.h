@@ -303,7 +303,7 @@ protected:
 		gpu_worker.c_acc      = c_acc;
 		gpu_worker.c_wgt      = c_wgt;
 		gpu_worker.bandpass.x = max(bp_scale*p_info->fpix_min-bp_pad,0.0);
-		gpu_worker.bandpass.y = min(bp_scale*p_info->fpix_max+bp_pad,(float)NP);
+		gpu_worker.bandpass.y = min(bp_scale*p_info->fpix_max+bp_pad,((float)NP)/2);
 		gpu_worker.bandpass.z = sqrt(p_info->fpix_roll);
 		gpu_worker.ssnr.x     = p_info->ssnr_F;
 		gpu_worker.ssnr.y     = p_info->ssnr_S;

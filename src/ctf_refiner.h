@@ -275,6 +275,7 @@ protected:
 
         ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
         rad_avgr.preset_FRC(ss_data.ss_fourier,ptr->K,stream);
+        rad_avgr.normalize_stacks(ss_data.ss_fourier,bandpass,ptr->K,stream);
     }
 
     void search_ctf(AliRef&vol,AliSubstack&ss_data,Refine&ctf_ref,CtfRefBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
@@ -307,6 +308,7 @@ protected:
                     delta_w.z = dA;
                     ctf_ref.apply_ctf(ali_data.prj_c,delta_w,ptr,stream);
                     rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
+                    rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
                     ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
                     ali_data.invert_fourier(ptr->K,stream);
                     stream.sync();
@@ -442,7 +444,7 @@ protected:
         gpu_worker.pad_type   = pad_type;
         gpu_worker.max_K      = max_K;
         gpu_worker.bandpass.x = max(bp_scale*p_info->fpix_min-bp_pad,0.0);
-        gpu_worker.bandpass.y = min(bp_scale*p_info->fpix_max+bp_pad,(float)NP);
+        gpu_worker.bandpass.y = min(bp_scale*p_info->fpix_max+bp_pad,((float)NP)/2);
         gpu_worker.bandpass.z = sqrt(p_info->fpix_roll);
         gpu_worker.def_range  = p_info->def_range;
         gpu_worker.def_step   = p_info->def_step;

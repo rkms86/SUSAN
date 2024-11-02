@@ -165,7 +165,7 @@ public:
         for(int j=0;j<num_proj;j++) {
             float cur_ang = Math::get_Y_angle_rad(R[j]);
             if( j>0 ) {
-                angle_step += (cur_ang-prv_ang);
+                angle_step += fabs(cur_ang-prv_ang);
                 angle_count++;
             }
             prv_ang = cur_ang;

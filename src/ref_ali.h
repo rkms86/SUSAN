@@ -89,11 +89,15 @@ public:
 
     void normalize_stacks(GPU::GArrSingle2&data,float3 bandpass,int k,GPU::Stream&stream) {
         std_acc.clear(stream.strm);
-        int3 ss = make_int3(M,N,k);
+        int3 ss  = make_int3(M,N,k);
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,M,N,k);
+        float scale = N;
+        scale  = N / (2 * bandpass.y );
+        scale *= scale;
         GpuKernels::get_std_from_fourier_stk<<<grd,blk,0,stream.strm>>>(std_acc.ptr,data.ptr,bandpass,ss);
         GpuKernels::apply_std_to_fourier_stk<<<grd,blk,0,stream.strm>>>(data.ptr,std_acc.ptr,ss);
+        GpuKernels::divide<<<grd,blk,0,stream.strm>>>(data.ptr,scale,ss);
     }
 };
 
