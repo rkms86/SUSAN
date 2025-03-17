@@ -68,7 +68,7 @@ __device__ void SN2(float&a,float&b,float&tmp) {
 }
 
 __device__ int3 get_th_idx() {
-	return make_int3(threadIdx.x + blockIdx.x*blockDim.x,threadIdx.y + blockIdx.y*blockDim.y,threadIdx.z + blockIdx.z*blockDim.z);
+    return make_int3(threadIdx.x + blockIdx.x*blockDim.x,threadIdx.y + blockIdx.y*blockDim.y,threadIdx.z + blockIdx.z*blockDim.z);
 }
 
 __device__ bool first_thread_in_block() {
@@ -76,11 +76,11 @@ __device__ bool first_thread_in_block() {
 }
 
 __device__ long get_2d_idx(const int x,const int y,const int3&ss_siz) {
-	return x + y*ss_siz.x;
+    return x + y*ss_siz.x;
 }
 
 __device__ long get_2d_idx(const int3&ss_idx,const int3&ss_siz) {
-	return get_2d_idx(ss_idx.x,ss_idx.y,ss_siz);
+    return get_2d_idx(ss_idx.x,ss_idx.y,ss_siz);
 }
 
 __device__ long get_3d_idx(const int x,const int y,const int z,const int X,const int Y) {
@@ -112,18 +112,18 @@ __device__ float l2_distance(const float x, const float y, const float z) {
 }
 
 __device__ void get_xyR(float&x,float&y,float&R,const float in_x,const float in_y) {
-	x = in_x;
-	y = in_y;
-	R = l2_distance(x,y);
+    x = in_x;
+    y = in_y;
+    R = l2_distance(x,y);
 }
 
 __device__ void get_xyR_unit(float&x,float&y,float&R,const float in_x,const float in_y) {
-	x = in_x;
-	y = in_y;
-	R = l2_distance(x,y);
-	if( R<0.5 ) R = 1;
-	x = x/R;
-	y = y/R;
+    x = in_x;
+    y = in_y;
+    R = l2_distance(x,y);
+    if( R<0.5 ) R = 1;
+    x = x/R;
+    y = y/R;
 }
 
 __device__ float get_bp_wgt(const float min_R,const float max_R,const float rolloff,const float R) {
@@ -132,18 +132,34 @@ __device__ float get_bp_wgt(const float min_R,const float max_R,const float roll
     ang = (R-max_R)/roll_w;
     ang = M_PI*min(max(ang,0.0),1.0);
     wgt_lp = 0.5*cosf(ang) + 0.5;
-    
+
     ang = (min_R-R)/roll_w;
     ang = M_PI*min(max(ang,0.0),1.0);
     wgt_hp = 0.5*cosf(ang) + 0.5;
-    
-	return wgt_lp*wgt_hp;
+
+    return wgt_lp*wgt_hp;
 }
 
 /// HOST FUNCTIONS:
+__global__ void rotate_180_stk(float*p_out,const float*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        long ix_in  = get_3d_idx(ss_idx,ss_siz);
+        ss_idx.x    = ss_siz.x - ss_idx.x;
+        ss_idx.y    = ss_siz.y - ss_idx.y;
+        long ix_out = get_3d_idx(ss_idx,ss_siz);
+
+        float val = p_in[ix_in];
+        p_out[ix_out] = val;
+    }
+}
+
 __global__ void fftshift2D(float*p_work,const int3 ss_siz) {
 
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
     int Xh = ss_siz.x/2;
     int Yh = ss_siz.y/2;
@@ -165,7 +181,7 @@ __global__ void fftshift2D(float*p_work,const int3 ss_siz) {
 
 __global__ void fftshift2D(float2*p_work,const int3 ss_siz) {
 
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
     int Yh = ss_siz.y/2;
 
@@ -191,16 +207,16 @@ __global__ void fftshift3D(float*p_work, const int N) {
 
     if( ss_idx.x < center && ss_idx.y < N && ss_idx.z < N ) {
 
-		int3 ss_siz = make_int3(N,N,N);
-		long ix_A = get_3d_idx(ss_idx,ss_siz);
-		ss_idx.x = ss_idx.x + center;
+        int3 ss_siz = make_int3(N,N,N);
+        long ix_A = get_3d_idx(ss_idx,ss_siz);
+        ss_idx.x = ss_idx.x + center;
         ss_idx.y = fftshift_idx(ss_idx.y,center);
         ss_idx.z = fftshift_idx(ss_idx.z,center);
         long ix_B = get_3d_idx(ss_idx,ss_siz);
 
         float val_A = p_work[ ix_A ];
         float val_B = p_work[ ix_B ];
-        
+
         p_work[ ix_A ] = val_B;
         p_work[ ix_B ] = val_A;
 
@@ -215,15 +231,15 @@ __global__ void fftshift3D(float2*p_work, const int M,const int N) {
 
     if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < center ) {
 
-		int3 ss_siz = make_int3(M,N,N);
-		long ix_A = get_3d_idx(ss_idx,ss_siz);
+        int3 ss_siz = make_int3(M,N,N);
+        long ix_A = get_3d_idx(ss_idx,ss_siz);
         ss_idx.y = fftshift_idx(ss_idx.y,center);
         ss_idx.z = fftshift_idx(ss_idx.z,center);
         long ix_B = get_3d_idx(ss_idx,ss_siz);
 
         float2 val_A = p_work[ ix_A ];
         float2 val_B = p_work[ ix_B ];
-        
+
         p_work[ ix_A ] = val_B;
         p_work[ ix_B ] = val_A;
 
@@ -237,6 +253,136 @@ __global__ void load_surf(cudaSurfaceObject_t out_surf,const float*p_in,const in
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
         float v = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+        surf2DLayeredwrite<float>(v,out_surf,ss_idx.x*sizeof(float), ss_idx.y, ss_idx.z);
+    }
+}
+
+__global__ void load_surf_dilate_1(cudaSurfaceObject_t out_surf,const float*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float v = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+
+        if( (ss_idx.x > 0) && (ss_idx.x < (ss_siz.x-1)) ) {
+            if( (ss_idx.y > 0) && (ss_idx.y < (ss_siz.y-1)) ) {
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+            }
+        }
+
+        surf2DLayeredwrite<float>(v,out_surf,ss_idx.x*sizeof(float), ss_idx.y, ss_idx.z);
+    }
+}
+
+__global__ void load_surf_dilate_2(cudaSurfaceObject_t out_surf,const float*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float v = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+
+        if( (ss_idx.x > 1) && (ss_idx.x < (ss_siz.x-2)) ) {
+            if( (ss_idx.y > 1) && (ss_idx.y < (ss_siz.y-2)) ) {
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y-2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y-2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y-2,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-2,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+2,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-2,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+2,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-2,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+2,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y+2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y+2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y+2,ss_idx.z,ss_siz) ]);
+            }
+        }
+
+        surf2DLayeredwrite<float>(v,out_surf,ss_idx.x*sizeof(float), ss_idx.y, ss_idx.z);
+    }
+}
+
+__global__ void load_surf_dilate_3(cudaSurfaceObject_t out_surf,const float*p_in,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float v = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+
+        if( (ss_idx.x > 2) && (ss_idx.x < (ss_siz.x-3)) ) {
+            if( (ss_idx.y > 2) && (ss_idx.y < (ss_siz.y-3)) ) {
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y-3,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y-3,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y-3,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-2,ss_idx.y-2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y-2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y-2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y-2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+2,ss_idx.y-2,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-3,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-2,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+2,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+3,ss_idx.y-1,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-3,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-2,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+2,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+3,ss_idx.y  ,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-3,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-2,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+2,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+3,ss_idx.y+1,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-2,ss_idx.y+2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y+2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y+2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y+2,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+2,ss_idx.y+2,ss_idx.z,ss_siz) ]);
+
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x-1,ss_idx.y+3,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x  ,ss_idx.y+3,ss_idx.z,ss_siz) ]);
+                v = fmaxf(v,p_in[ get_3d_idx(ss_idx.x+1,ss_idx.y+3,ss_idx.z,ss_siz) ]);
+            }
+        }
+
         surf2DLayeredwrite<float>(v,out_surf,ss_idx.x*sizeof(float), ss_idx.y, ss_idx.z);
     }
 }
@@ -420,18 +566,18 @@ __global__ void stk_medfilt(float*p_out,const float*p_in,const int3 ss_siz) {
 }
 
 __global__ void get_avg_std(float*p_std, float*p_avg, const float*p_in, const int3 ss_siz) {
-    
+
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float N = ss_siz.x*ss_siz.y;
-		long idx = get_3d_idx(ss_idx,ss_siz);
-		float val = p_in[idx];
-		float avg = val/N;
-		float std = val*avg;
-		atomicAdd(p_avg+ss_idx.z,avg);
-		atomicAdd(p_std+ss_idx.z,std);
+        float N = ss_siz.x*ss_siz.y;
+        long idx = get_3d_idx(ss_idx,ss_siz);
+        float val = p_in[idx];
+        float avg = val/N;
+        float std = val*avg;
+        atomicAdd(p_avg+ss_idx.z,avg);
+        atomicAdd(p_std+ss_idx.z,std);
     }
 }
 
@@ -486,17 +632,17 @@ __global__ void apply_std_to_fourier_stk(float2*p_data,const float*p_std,const i
 }
 
 __global__ void zero_avg_one_std(float*p_in, const float*p_std, const float*p_avg, const int3 ss_siz) {
-    
+
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		float avg = p_avg[ss_idx.z];
-		float std = sqrtf( p_std[ss_idx.z] - p_avg[ss_idx.z]*p_avg[ss_idx.z] );
+        float avg = p_avg[ss_idx.z];
+        float std = sqrtf( p_std[ss_idx.z] - p_avg[ss_idx.z]*p_avg[ss_idx.z] );
 
-		long idx = get_3d_idx(ss_idx,ss_siz);
-		float val = p_in[idx];
-		p_in[idx] = (val-avg)/std;
+        long idx = get_3d_idx(ss_idx,ss_siz);
+        float val = p_in[idx];
+        p_in[idx] = (val-avg)/std;
     }
 }
 
@@ -506,25 +652,25 @@ __global__ void expand_ps_hermitian(float*p_out,const float*p_in,const int3 ss_s
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-            int Nh = ss_siz.y/2;
-            int x = ss_idx.x - Nh;
-            int y = ss_idx.y - Nh;
+        int Nh = ss_siz.y/2;
+        int x = ss_idx.x - Nh;
+        int y = ss_idx.y - Nh;
 
-            if( x<0 ) {
-                    x = -x;
-                    y = -y;
-            }
+        if( x<0 ) {
+            x = -x;
+            y = -y;
+        }
 
-            x = x+Nh;
-            y = y+Nh;
+        x = x+Nh;
+        y = y+Nh;
 
-            if(x<0) x = Nh+x;
-            if(y<0) y = ss_siz.y+y;
+        if(x<0) x = Nh+x;
+        if(y<0) y = ss_siz.y+y;
 
-            if(x>=Nh) x = x-Nh;
-            if(y>=ss_siz.y) y = y-ss_siz.y;
+        if(x>=Nh) x = x-Nh;
+        if(y>=ss_siz.y) y = y-ss_siz.y;
 
-            float val = p_in[ x + y*(Nh+1) + ss_idx.z*ss_siz.y*(Nh+1) ];
+        float val = p_in[ x + y*(Nh+1) + ss_idx.z*ss_siz.y*(Nh+1) ];
 
         p_out[get_3d_idx(ss_idx,ss_siz)] = val;
     }
@@ -566,8 +712,8 @@ __global__ void stk_scale(float*p_data,const float2*p_bp,const int3 ss_siz) {
 }
 
 __global__ void load_abs(float*p_out,const float2*p_in,const int3 ss_siz) {
-	
-	int3 ss_idx = get_th_idx();
+
+    int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
@@ -579,7 +725,7 @@ __global__ void load_abs(float*p_out,const float2*p_in,const int3 ss_siz) {
 }
 
 __global__ void radial_ps_avg(float*p_avg,float*p_wgt,const float*p_in,const int3 ss_siz) {
-	
+
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
@@ -675,7 +821,7 @@ __global__ void radial_ps_norm(float2*p_data,const float*p_avg,const float*p_wgt
     }
 }
 
-__global__ void radial_frc_avg(float*p_avg,float*p_wgt,const float2*p_in,const int3 ss_siz) {
+__global__ void radial_frc_avg(float*p_avg,float*p_wgt,const float2*p_in,const float3 bandpass,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
 
@@ -683,19 +829,20 @@ __global__ void radial_frc_avg(float*p_avg,float*p_wgt,const float2*p_in,const i
 
         float2 val = p_in[ get_3d_idx(ss_idx,ss_siz) ];
         float  x = ss_idx.x;
-        float  y = ss_idx.y-ss_siz.y/2;
+        float  y = ss_idx.y-(ss_siz.y/2);
         float  R = l2_distance(x,y);
+        float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
         int    r = (int)roundf(R);
         int  idx = r + ss_siz.x*ss_idx.z;
-        float out = val.x*val.x + val.y*val.y;
-        if( r < ss_siz.x ) {
+        float out = (val.x*val.x) + (val.y*val.y);
+        if( (r < ss_siz.x) && (bp > 0.02) && (cuCabsf(val)>1e-8) ) {
             atomicAdd(p_avg + idx,out);
             atomicAdd(p_wgt + idx,1.0);
         }
     }
 }
 
-__global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wgt,const int3 ss_siz) {
+__global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wgt,const float ssnr_F,const float ssnr_S,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
 
@@ -712,15 +859,20 @@ __global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wg
             double avg = p_avg[idx];
             double wgt = p_wgt[idx];
 
-            wgt = max(wgt,1.0);
-            avg = avg/wgt;
+            if( avg > 0 ) {
 
-            if( avg > 1e-12 ) {
-                val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
-                avg = sqrt(avg)*ss_siz.y;
-                float w_avg = avg;
-                val.x = val.x/w_avg;
-                val.y = val.y/w_avg;
+                wgt = max(wgt,1.0);
+                avg = avg/wgt;
+                avg = sqrt(avg);
+
+                if( avg > 1e-10 ) {
+                    val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
+                    float w_avg = avg;
+                    if(ssnr_S>1)
+                        w_avg += (1/(ssnr_S*exp(R*ssnr_F)));
+                    val.x = val.x/w_avg;
+                    val.y = val.y/w_avg;
+                }
             }
         }
 
@@ -729,7 +881,7 @@ __global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wg
 }
 
 __global__ void divide(float*p_avg,const float*p_wgt,const int3 ss_siz) {
-	
+
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
@@ -797,50 +949,50 @@ __global__ void load_pad(float*p_out,const float*p_in,const int3 half_pad,const 
 }
 
 __global__ void remove_pad_vol(float*p_out,const float*p_in,const int half_pad,const int3 ss_raw,const int3 ss_pad) {
-	
-	int3 ss_idx = get_th_idx();
-	
+
+    int3 ss_idx = get_th_idx();
+
     if( ss_idx.x < ss_raw.x && ss_idx.y < ss_raw.y && ss_idx.z < ss_raw.z ) {
 
-		long idx_in  = get_3d_idx(ss_idx.x+half_pad,ss_idx.y+half_pad,ss_idx.z+half_pad,ss_pad);
-		long idx_out = get_3d_idx(ss_idx,ss_raw);
-		float data = p_in[idx_in];
-		p_out[idx_out] = data;
-	}
-		
+        long idx_in  = get_3d_idx(ss_idx.x+half_pad,ss_idx.y+half_pad,ss_idx.z+half_pad,ss_pad);
+        long idx_out = get_3d_idx(ss_idx,ss_raw);
+        float data = p_in[idx_in];
+        p_out[idx_out] = data;
+    }
+
 }
 
 __global__ void subpixel_shift(float2*p_data,const Proj2D*g_ali,const int3 ss_siz) {
-	
-	int3 ss_idx = get_th_idx();
-	
+
+    int3 ss_idx = get_th_idx();
+
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		int idx  = get_3d_idx(ss_idx,ss_siz);
+        int idx  = get_3d_idx(ss_idx,ss_siz);
 
-		float x,y,R;
-		get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+        float x,y,R;
+        get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
 
-		float2 data = p_data[idx];
-		
-		float phase_shift = x*g_ali[ss_idx.z].t.x + y*g_ali[ss_idx.z].t.y;
-		float sin_cos_arg = -2*M_PI*phase_shift/ss_siz.y;
-		
-		/// exp(-ix) = cos(x) - i sin(x);
-		float tmp_real = data.x;
-		float tmp_imag = data.y;
-		float c = cos(sin_cos_arg);
-		float s = sin(sin_cos_arg);
-		data.x = tmp_real*c + tmp_imag*s;
-		data.y = tmp_imag*c - tmp_real*s;
-		
-		p_data[idx] = data;
-	}
-		
+        float2 data = p_data[idx];
+
+        float phase_shift = x*g_ali[ss_idx.z].t.x + y*g_ali[ss_idx.z].t.y;
+        float sin_cos_arg = -2*M_PI*phase_shift/ss_siz.y;
+
+        /// exp(-ix) = cos(x) - i sin(x);
+        float tmp_real = data.x;
+        float tmp_imag = data.y;
+        float c = cos(sin_cos_arg);
+        float s = sin(sin_cos_arg);
+        data.x = tmp_real*c + tmp_imag*s;
+        data.y = tmp_imag*c - tmp_real*s;
+
+        p_data[idx] = data;
+    }
+
 }
 
 __global__ void multiply(float2*p_out,const double2*p_acc,const double*p_wgt,const int3 ss_siz,const double scale=1.0) {
-	
+
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
@@ -874,14 +1026,13 @@ __global__ void multiply(float2*p_out,const float*p_wgt,const int3 ss_siz,const 
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
-
-                int idx = get_3d_idx(ss_idx,ss_siz);
-                float2 val = p_out[ idx ];
-                float  wgt = p_wgt[ idx ];
-                float2 rslt;
-                rslt.x = (val.x*wgt*scale);
-                rslt.y = (val.y*wgt*scale);
-                p_out[ idx ] = rslt;
+        int idx = get_3d_idx(ss_idx,ss_siz);
+        float2 val = p_out[ idx ];
+        float  wgt = p_wgt[ idx ];
+        float2 rslt;
+        rslt.x = (val.x*wgt*scale);
+        rslt.y = (val.y*wgt*scale);
+        p_out[ idx ] = rslt;
     }
 }
 
@@ -890,13 +1041,28 @@ __global__ void multiply(float2*p_out,const float2*p_in,const int3 ss_siz) {
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+        int idx = get_3d_idx(ss_idx,ss_siz);
+        float2 val = p_out[ idx ];
+        float2 wgt = p_in [ idx ];
+        float2 rslt;
+        rslt = cuCmulf(val,wgt);
+        p_out[ idx ] = rslt;
+    }
+}
 
-                int idx = get_3d_idx(ss_idx,ss_siz);
-                float2 val = p_out[ idx ];
-                float2 wgt = p_in [ idx ];
-                float2 rslt;
-                rslt = cuCmulf(val,wgt);
-                p_out[ idx ] = rslt;
+__global__ void print_proj2D(Proj2D*g_tlt,const int in_K) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x == 0 && ss_idx.y == 0 && ss_idx.z == 0 ) {
+        for( int z=0; z<in_K; z++ ) {
+            //if( (z == 11) || (z == 21) || (z == 31) ) {
+            if( z == 20 ) {
+                printf("R[%d,0,:] = (%f,%f,%f)\n",z,g_tlt[z].R.xx,g_tlt[z].R.xy,g_tlt[z].R.xz);
+                printf("R[%d,1,:] = (%f,%f,%f)\n",z,g_tlt[z].R.yx,g_tlt[z].R.yy,g_tlt[z].R.yz);
+                printf("R[%d,2,:] = (%f,%f,%f)\n",z,g_tlt[z].R.zx,g_tlt[z].R.zy,g_tlt[z].R.zz);
+            }
+        }
     }
 }
 
@@ -977,6 +1143,8 @@ __global__ void apply_radial_wgt(float2*p_data,const float w_total,float crowthe
         float w = ss_idx.x;
         w = fminf(w/crowther_limit,1.0);
         w = (1-w_off)*w + w_off;
+        if( (ss_idx.x == 0) || (ss_idx.x+1 == ss_siz.x) )
+            w /= 2;
         val.x = w*val.x;
         val.y = w*val.y;
 

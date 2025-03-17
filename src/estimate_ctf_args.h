@@ -51,59 +51,59 @@ typedef struct {
 } Info;
 
 bool validate(const Info&info) {
-	bool rslt = true;
-	if( info.res_min <= info.res_max ) {
-		fprintf(stderr,"Invalid resolution range: %f - %f.\n",info.res_min,info.res_max);
-		rslt = false;
-	}
-	if( info.def_max <= info.def_min ) {
-		fprintf(stderr,"Invalid defocus range: %f - %f.\n",info.def_min,info.def_max);
-		rslt = false;
-	}
-	if( !IO::exists(info.ptcls_in) ) {
-		fprintf(stderr,"Particles file %s does not exist.\n",info.ptcls_in);
-		rslt = false;
-	}
-	if( !IO::exists(info.tomos_in) ) {
-		fprintf(stderr,"Tomos file %s does not exist.\n",info.tomos_in);
-		rslt = false;
-	}
-	IO::create_dir(info.out_dir);
-	if( !IO::exist_dir(info.out_dir) ) {
-		fprintf(stderr,"Output folder %s cannot be created.\n",info.out_dir);
-		rslt = false;
+    bool rslt = true;
+    if( info.res_min <= info.res_max ) {
+        fprintf(stderr,"Invalid resolution range: %f - %f.\n",info.res_min,info.res_max);
+        rslt = false;
+    }
+    if( info.def_max <= info.def_min ) {
+        fprintf(stderr,"Invalid defocus range: %f - %f.\n",info.def_min,info.def_max);
+        rslt = false;
+    }
+    if( !IO::exists(info.ptcls_in) ) {
+        fprintf(stderr,"Particles file %s does not exist.\n",info.ptcls_in);
+        rslt = false;
+    }
+    if( !IO::exists(info.tomos_in) ) {
+        fprintf(stderr,"Tomos file %s does not exist.\n",info.tomos_in);
+        rslt = false;
+    }
+    IO::create_dir(info.out_dir);
+    if( !IO::exist_dir(info.out_dir) ) {
+        fprintf(stderr,"Output folder %s cannot be created.\n",info.out_dir);
+        rslt = false;
     }
     if( !GPU::check_gpu_id_list(info.n_gpu,info.p_gpu) ) {
         fprintf(stderr,"Error with CUDA devices.\n");
         rslt = false;
     }
 
-	return rslt;
+    return rslt;
 };
 
 bool parse_args(Info&info,int ac,char** av) {
-	/// Default values:
-	info.n_threads = 1;
-	info.box_size  = 512;
-	info.binning   = 0;
+    /// Default values:
+    info.n_threads = 1;
+    info.box_size  = 512;
+    info.binning   = 0;
     info.res_thres = 0.5;
-	info.res_min   = 0;
-	info.res_max   = 0;
-	info.def_min   = 0;
-	info.def_max   = 0;
-	info.tlt_range = 2000;
-	info.ref_range = 2000;
-	info.ref_step  = 100;
-	info.bfac_max  = 700;
-	info.n_gpu     = 0;
-	info.verbose   = 0;
-	memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
-	memset(info.out_dir ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
-	memset(info.ptcls_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
-	memset(info.tomos_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
-	
-	/// Parse inputs:
-	enum {
+    info.res_min   = 0;
+    info.res_max   = 0;
+    info.def_min   = 0;
+    info.def_max   = 0;
+    info.tlt_range = 2000;
+    info.ref_range = 2000;
+    info.ref_step  = 100;
+    info.bfac_max  = 700;
+    info.n_gpu     = 0;
+    info.verbose   = 0;
+    memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
+    memset(info.out_dir ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
+    memset(info.ptcls_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
+    memset(info.tomos_in,0,SUSAN_FILENAME_LENGTH*sizeof(char));
+
+    /// Parse inputs:
+    enum {
         TOMOS_IN,
         DATA_OUT,
         RES_RANGE,

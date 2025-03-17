@@ -45,6 +45,8 @@ typedef struct {
     float  def_step;
     float  ang_range;
     float  ang_step;
+    float  ssnr_F;
+    float  ssnr_S;
     bool   est_dose;
     bool   use_halves;
 
@@ -110,7 +112,9 @@ bool parse_args(Info&info,int ac,char** av) {
     info.def_step   = 100;
     info.ang_range  = 20;
     info.ang_step   = 5;
-    info.verbosity     = 0;
+    info.verbosity  = 0;
+    info.ssnr_F     = 0;
+    info.ssnr_S     = 0;
     info.est_dose   = false;
     info.use_halves = false;
 
@@ -132,6 +136,7 @@ bool parse_args(Info&info,int ac,char** av) {
         PAD_SIZE,
         PAD_TYPE,
         NORM_TYPE,
+        SSNR,
         BANDPASS,
         ROLLOFF_F,
         USE_HALVES,
@@ -153,6 +158,7 @@ bool parse_args(Info&info,int ac,char** av) {
         {"pad_size",   1, 0, PAD_SIZE  },
         {"pad_type",   1, 0, PAD_TYPE  },
         {"norm_type",  1, 0, NORM_TYPE },
+        {"ssnr_param", 1, 0, SSNR      },
         {"bandpass",   1, 0, BANDPASS  },
         {"rolloff_f",  1, 0, ROLLOFF_F },
         {"def_search", 1, 0, DEF_SEARCH},
@@ -194,6 +200,9 @@ bool parse_args(Info&info,int ac,char** av) {
                 break;
             case NORM_TYPE:
                 info.norm_type = ArgParser::get_norm_type(optarg);
+                break;
+            case SSNR:
+                ArgParser::get_single_pair(info.ssnr_F,info.ssnr_S,optarg);
                 break;
             case BANDPASS:
                 ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);

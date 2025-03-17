@@ -45,12 +45,13 @@ class Aligner:
         self.cc_type           = 'basic'
         self.cc_stats_type     = 'none'
         self.pseudo_symmetry   = 'c1'
-        self.ssnr              = _dt.ssnr(1,0.01)
+        self.ssnr              = _dt.ssnr(0,0.001)
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         self.tm_type           = "none"
         self.tm_prefix         = "template_matching"
         self.tm_sigma          = 0
+        self.dilate            = 0
         
     def set_angular_search(self,c_r=0,c_s=1,i_r=0,i_s=1):
         self.cone.span    = c_r
@@ -89,8 +90,8 @@ class Aligner:
         if not self.ctf_correction in ['none','on_reference','on_substack','wiener_ssnr','cfsc']:
             raise ValueError('Invalid ctf correction type. Only "none", "on_reference", "on_substack" or "wiener_ssnr" are valid')
         
-        if not self.cc_stats_type in ['none','probability','sigma']:
-            raise ValueError('Invalid cc statistic method. Only "none", "probability" or "sigma" are valid')
+        if not self.cc_stats_type in ['none','probability','sigma','wgt_avg']:
+            raise ValueError('Invalid cc statistic method. Only "none", "probability", "sigma" or "wgt_avg" are valid')
         
         if not self.offset.step > 0 or not self.cone.step > 0 or not self.inplane.step > 0:
             raise ValueError('The steps values must be larger than 0')
@@ -140,6 +141,7 @@ class Aligner:
         args = args + ' -off_type '        + self.offset.kind
         args = args + ' -off_params %f,%f,%f,%f' % (self.offset.span[0],self.offset.span[1],self.offset.span[2],self.offset.step)
         args = args + ' -type %d'          % self.dimensionality
+        args = args + ' -dilate %d'        % self.dilate
         args = args + ' -verbosity %d'     % self.verbosity
         args = args + ' -tm_type '         + self.tm_type
         args = args + ' -tm_prefix '       + self.tm_prefix
@@ -368,6 +370,7 @@ class CtfRefiner:
         self.estimate_dose_wgt = False
         self.defocus_angstroms = _dt.search_params(1000,100)
         self.angles            = _dt.search_params(2,1)
+        self.ssnr              = _dt.ssnr(0,0.001)
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         
@@ -381,10 +384,10 @@ class CtfRefiner:
         if not self.defocus_angstroms.step > 0 or not self.angles.step > 0:
             raise ValueError('The steps values must be larger than 0')
         
-        if self.defocus_angstroms.span < self.defocus_angstroms.step:
+        if self.defocus_angstroms.span > 0 and self.defocus_angstroms.span < self.defocus_angstroms.step:
             raise ValueError('Defocus (Angstroms): Step cannot be larger than Range/Span')
 
-        if self.angles.span < self.angles.step:
+        if self.angles.span > 0 and self.angles.span < self.angles.step:
             raise ValueError('Angles (degrees): Step cannot be larger than Range/Span')
 
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
@@ -401,6 +404,7 @@ class CtfRefiner:
         args = args + ' -pad_size %d'      % self.extra_padding
         args = args + ' -pad_type '        + self.padding_type
         args = args + ' -norm_type '       + self.normalize_type
+        args = args + ' -ssnr_param %f,%f' % (self.ssnr.F,self.ssnr.S)
         args = args + ' -bandpass %f,%f'   % (self.bandpass.highpass,self.bandpass.lowpass)
         args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
         args = args + ' -def_search %f,%f' % (self.defocus_angstroms.span,self.defocus_angstroms.step)

@@ -65,6 +65,7 @@ namespace ArgParser {
         check_arg_and_set(type,all_ok,arg,"none"       ,CC_STATS_NONE);
         check_arg_and_set(type,all_ok,arg,"probability",CC_STATS_PROB);
         check_arg_and_set(type,all_ok,arg,"sigma"      ,CC_STATS_SIGMA);
+        check_arg_and_set(type,all_ok,arg,"wgt_avg"    ,CC_STATS_WGT_AVG);
 
         if( !all_ok )
             fprintf(stderr,"Invalid cc statistics type %s. Options are: none, probability or sigma. Defaulting to none.\n",arg);
@@ -151,6 +152,19 @@ namespace ArgParser {
         return type;
     }
 
+    OffsetSpace_t get_offset_space(const char*arg) {
+        OffsetSpace_t type = REFERENCE_SPACE;
+        bool all_ok = false;
+
+        check_arg_and_set(type,all_ok,arg,"reference",REFERENCE_SPACE);
+        check_arg_and_set(type,all_ok,arg,"tomogram" ,TOMOGRAM_SPACE );
+
+        if( !all_ok )
+            fprintf(stderr,"Invalid offset space %s. Options are: reference or tomogram. Defaulting to reference.\n",arg);
+
+        return type;
+    }
+
     int get_even_number(const char*arg) {
         int rslt = atoi(arg);
         return rslt + (0x01&rslt); /// Force to be even number.
@@ -177,21 +191,21 @@ namespace ArgParser {
         }
     }
 
-	void get_single_trio(float&val_a,float&val_b,float&val_c,const char*arg) {
-			int len_arg = strlen(arg);
-			char buffer[len_arg+1];
-			for(int i=0;i<len_arg;i++){
-				buffer[i] = arg[i];
-				if(arg[i]==',')
-					buffer[i] = ' ';
-			}
-			buffer[len_arg] = 0;
-			int validate = sscanf(buffer,"%f %f %f",&val_a,&val_b,&val_c);
-			if( validate != 3 ) {
-				fprintf(stderr,"Error parsing single trio: %s\n",arg);
-				exit(1);
-			}
-		}
+    void get_single_trio(float&val_a,float&val_b,float&val_c,const char*arg) {
+            int len_arg = strlen(arg);
+            char buffer[len_arg+1];
+            for(int i=0;i<len_arg;i++){
+                buffer[i] = arg[i];
+                if(arg[i]==',')
+                    buffer[i] = ' ';
+            }
+            buffer[len_arg] = 0;
+            int validate = sscanf(buffer,"%f %f %f",&val_a,&val_b,&val_c);
+            if( validate != 3 ) {
+                fprintf(stderr,"Error parsing single trio: %s\n",arg);
+                exit(1);
+            }
+        }
     
     void get_single_quad(float&val_a,float&val_b,float&val_c,float&val_d,const char*arg) {
         int len_arg = strlen(arg);
@@ -243,3 +257,4 @@ namespace ArgParser {
         return rslt;
     }
 }
+

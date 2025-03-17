@@ -89,11 +89,11 @@ public:
         }
         fprintf(fp,"  </g>\n");
     }
-	
+
     void create_title(const int n_proj,const float def) {
         fprintf(fp,"  <text x=\"400\" y=\"20\" dominant-baseline=\"middle\" text-anchor=\"middle\" style=\"fill:black;stroke:none;font-weight:bold;font-size:20px\">Average Defocus for projection %d: %.2fÅ</text>\n",n_proj,def);
     }
-	
+
     void add_avg(const float*ptr,const float M) {
         add_signal(ptr,M,SUSAN_SVG_FG_A);
         has_avg = true;
@@ -124,7 +124,7 @@ public:
         fprintf(fp,"  </g>\n");
         has_est = true;
     }
-	
+
     void create_legend() {
         fprintf(fp,"  <g>\n");
         fprintf(fp,"    <rect x=\"60\" y=\"495\" width=\"720\" height=\"25\"/>\n");
@@ -139,7 +139,7 @@ public:
         }
         fprintf(fp,"  </g>\n");
     }
-	
+
 protected:
     FILE*fp;
     float apix;

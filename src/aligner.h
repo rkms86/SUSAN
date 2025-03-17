@@ -38,20 +38,24 @@
 #include "aligner_args.h"
 #include "progress.h"
 
+#include "Eigen/Geometry"
+#include <Eigen/Eigenvalues>
+using namespace Eigen;
+
 typedef enum {
-	ALI_3D=1,
-	ALI_2D
+    ALI_3D=1,
+    ALI_2D
 } AliCmd;
 
 typedef enum {
-	TM_NONE=0,
-	TM_PYTHON,
-	TM_MATLAB,
-	TM_CSV
+    TM_NONE=0,
+    TM_PYTHON,
+    TM_MATLAB,
+    TM_CSV
 } TEMPLATE_MATCHING_OUTPUT;
 
 class AliBuffer {
-	
+
 public:
     GPU::GHostSingle  c_stk;
     GPU::GHostFloat2  c_pad;
@@ -67,8 +71,8 @@ public:
     int r_ix;
     int class_ix;
     int tomo_pos_x;
-	int tomo_pos_y;
-	int tomo_pos_z;
+    int tomo_pos_y;
+    int tomo_pos_z;
 
     float crowther_limit;
 
@@ -86,160 +90,476 @@ public:
 
     ~AliBuffer() {
     }
-	
+
+    void set_tomo_pos(const V3f&pos_tomo,const V3f&tomo_center,const float pix_size) {
+        V3f tmp = (pos_tomo/pix_size) + tomo_center;
+        tomo_pos_x = (int)roundf( tmp(0) );
+        tomo_pos_y = (int)roundf( tmp(1) );
+        tomo_pos_z = (int)roundf( tmp(2) );
+    }
 };
 
 class TemplateMatchingReporter {
 
     int  tm_type;
-	int  tm_dim;
-	FILE *fp;
-	
-	float *c_cc;
-	int   num_points;
-	int   max_K;
-	int   n_cc;
-	float sigma;
+    int  tm_dim;
+    FILE *fp;
 
-    float running_avg;
-    float running_std;
-    float running_cnt;
-	
+    float *c_cc;
+    int   num_points;
+    int   max_K;
+    int   n_cc;
+    float sigma;
+
+    float *p_avg;
+    float *p_std;
+    float *p_cnt;
+
+    int *p_x;
+    int *p_y;
+    int *p_z;
+
+    int block_id;
+
 public:
-	TemplateMatchingReporter(int n_pts, int K, int dim) {
-		tm_type    = TM_NONE;
-		tm_dim     = dim;
-		num_points = n_pts;
-		max_K      = K;
-		if(dim==2){       //2D alignment
-			n_cc = n_pts * K;
-		}
-		else if (dim==3){ //3D alignment
-			n_cc = n_pts;
-		}
-		c_cc       = new float[n_cc];
-		sigma      = 0;
+    TemplateMatchingReporter(const Vec3*c_pts,int n_pts, int K, int dim, const float in_sigma=0) {
+        tm_type    = TM_NONE;
+        tm_dim     = dim;
+        num_points = n_pts;
+        max_K      = K;
 
-        running_avg = 0;
-        running_std = 0;
-        running_cnt = 0;
-	}
-	
-	~TemplateMatchingReporter() {
-		delete [] c_cc;
-	}
-	
-	void start(int id,const char*type,const char*prefix,const float in_sigma) {
-		sigma = in_sigma;
-		
-		if( strcmp(type,"none") == 0 ) {
-			tm_type = TM_NONE;
-		}
-		else if( strcmp(type,"python") == 0 ) {
-			tm_type = TM_PYTHON;
-		}
-		else if( strcmp(type,"matlab") == 0 ) {
-			tm_type = TM_MATLAB;
-		}
-		else if( strcmp(type,"csv") == 0 ) {
-			tm_type = TM_CSV;
-		}
-		
-		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
-			char tm_file[SUSAN_FILENAME_LENGTH];
-			sprintf(tm_file,"%s_worker%02d.txt",prefix,id);
-			fp = fopen(tm_file,"w");
-			if( tm_type == TM_CSV ) {
-				if (tm_dim == 2){
-					fprintf(fp,"TID,PartID,RID,ProjID,X,Y,CC\n");
-				}
-				else if (tm_dim == 3){
-					fprintf(fp,"TID,PartID,RID,X,Y,Z,CC\n");
-				}
-			}
-		}
-	}
-	
-	void finish() {
-		if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
-			fclose(fp);
-		}
-	}
+        if(dim==2){       //2D alignment
+            n_cc = n_pts * K;
+        }
+        else if (dim==3){ //3D alignment
+            n_cc = n_pts;
+        }
 
-	void clear_cc() {
-		memset(c_cc,0,n_cc*sizeof(float));
+        c_cc  = new float[n_cc];
+        p_avg = new float[n_cc];
+        p_std = new float[n_cc];
+        p_cnt = new float[n_cc];
+        sigma = in_sigma;
 
-        running_avg = 0;
-        running_std = 0;
-        running_cnt = 0;
-	}
+        p_x = new int[n_pts];
+        p_y = new int[n_pts];
+        p_z = new int[n_pts];
 
-	void push_cc(const float*p_cc) {
-        if(tm_type != TM_NONE) {
-            for(int cc_index=0;cc_index<n_cc;cc_index++) {
-                float cc = p_cc[cc_index];
-                c_cc[cc_index] = fmax(c_cc[cc_index],cc);
-                running_avg += cc;
-                running_std += (cc*cc);
-                running_cnt += 1;
+        for(int i=0;i<n_pts;i++) {
+            p_x[i] = (int)roundf(c_pts[i].x);
+            p_y[i] = (int)roundf(c_pts[i].y);
+            p_z[i] = (int)roundf(c_pts[i].z);
+        }
+    }
+
+    ~TemplateMatchingReporter() {
+        delete [] c_cc;
+        delete [] p_avg;
+        delete [] p_std;
+        delete [] p_cnt;
+        delete [] p_x;
+        delete [] p_y;
+        delete [] p_z;
+    }
+
+    void start(int id,const char*type,const char*prefix) {
+        if( strcmp(type,"none") == 0 ) {
+            tm_type = TM_NONE;
+        }
+        else if( strcmp(type,"python") == 0 ) {
+            tm_type = TM_PYTHON;
+        }
+        else if( strcmp(type,"matlab") == 0 ) {
+            tm_type = TM_MATLAB;
+        }
+        else if( strcmp(type,"csv") == 0 ) {
+            tm_type = TM_CSV;
+        }
+
+        if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
+            char tm_file[SUSAN_FILENAME_LENGTH];
+            sprintf(tm_file,"%s_worker%02d.txt",prefix,id);
+            fp = fopen(tm_file,"w");
+            if( tm_type == TM_CSV ) {
+                if (tm_dim == 2){
+                    fprintf(fp,"TID,PartID,RID,ProjID,X,Y,CC\n");
+                }
+                else if (tm_dim == 3){
+                    fprintf(fp,"TID,PartID,RID,X,Y,Z,CC,BlockID\n");
+                    block_id = 0;
+                }
             }
         }
-	}
-	
-	void save_cc(int tid,int rid,int pid,int tx,int ty,int tz,const Vec3*c_pts) {
-        if( (tm_type != TM_NONE) && (running_cnt > 0) ) {
-			int x,y,z;
-			
-            int proj_id, point_id;
+    }
 
-            running_avg = running_avg/running_cnt;
-            running_std = running_std/running_cnt;
-            running_std = running_std - (running_avg*running_avg);
-            running_std = sqrtf(running_std);
+    void finish() {
+        if( tm_type == TM_PYTHON || tm_type == TM_MATLAB || tm_type == TM_CSV ) {
+            fclose(fp);
+        }
+    }
 
-            float cc_threshold = running_avg + sigma*running_std;
+    void clear_cc() {
+        memset(c_cc ,0,n_cc*sizeof(float));
+        memset(p_avg,0,n_cc*sizeof(float));
+        memset(p_std,0,n_cc*sizeof(float));
+        memset(p_cnt,0,n_cc*sizeof(float));
+    }
 
-			for(int cc_index=0;cc_index<n_cc;cc_index++){
-				if (tm_dim == 2){
-					proj_id  = cc_index / num_points;
-					point_id = cc_index % num_points;
-				}
-				else if (tm_dim == 3){
-					proj_id  = 0;
-					point_id = cc_index;
-				}
+    void push_cc(const float*p_cc) {
+        if( tm_type == TM_NONE )
+            return;
 
-				x = (int)roundf(c_pts[point_id].x);
-                y = (int)roundf(c_pts[point_id].y);
-                z = (int)roundf(c_pts[point_id].z);
-				
-                if ( ((sigma > 0) && (c_cc[cc_index] > cc_threshold)) || (sigma <= 0) ){
-					if (tm_dim == 2){
-						if( tm_type == TM_PYTHON )
-                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d[%d,%d] = %f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
-                        else if( tm_type == TM_MATLAB )
-                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d(%d,%d) = %f;\n",tid, pid, rid, proj_id, (x+1), (y+1), c_cc[cc_index]);
-                        else if( tm_type == TM_CSV )
-                                fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
-					}
-					else if (tm_dim == 3){
-						if( tm_type == TM_PYTHON )
-                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %f\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
-                        else if( tm_type == TM_MATLAB )
-                                fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %f;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
-                        else if( tm_type == TM_CSV )
-                                fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index]);
-					}
-				}
-				
-			}
-		}
+        for(int cc_index=0;cc_index<n_cc;cc_index++) {
+            float cc = p_cc[cc_index];
+            c_cc [cc_index] = fmax(c_cc[cc_index],cc);
+            p_avg[cc_index] += cc;
+            p_std[cc_index] += (cc*cc);
+            p_cnt[cc_index] += 1;
+        }
+    }
+
+    void save_cc(int tid,int rid,int pid,int tx,int ty,int tz,bool save_sigma=false) {
+        if( tm_type == TM_NONE )
+            return;
+
+        int x,y,z;
+
+        int proj_id, point_id;
+
+        for(int cc_index=0;cc_index<n_cc;cc_index++){
+            if( p_cnt[cc_index] == 0 )
+                continue;
+
+            if (tm_dim == 2){
+                proj_id  = cc_index / num_points;
+                point_id = cc_index % num_points;
+            }
+            else if (tm_dim == 3){
+                proj_id  = 0;
+                point_id = cc_index;
+            }
+
+            x = p_x[point_id];
+            y = p_y[point_id];
+            z = p_z[point_id];
+
+            if(save_sigma) {
+                float cc_avg = p_avg[cc_index]/p_cnt[cc_index];
+                float cc_std = p_std[cc_index]/p_cnt[cc_index];
+                cc_std = cc_std - (cc_avg*cc_avg);
+                cc_std = sqrtf(cc_std);
+                c_cc[cc_index] = (c_cc[cc_index]-cc_avg)/cc_std;
+            }
+
+            if( c_cc[cc_index] > 0 ){
+                if (tm_dim == 2){
+                    if( tm_type == TM_PYTHON )
+                            fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d[%d,%d] = %f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
+                    else if( tm_type == TM_MATLAB )
+                            fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d(%d,%d) = %f;\n",tid, pid, rid, proj_id, (x+1), (y+1), c_cc[cc_index]);
+                    else if( tm_type == TM_CSV )
+                            fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
+                }
+                else if (tm_dim == 3){
+                    if( tm_type == TM_PYTHON )
+                            fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %f\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
+                    else if( tm_type == TM_MATLAB )
+                            fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %f;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
+                    else if( tm_type == TM_CSV ) {
+                            fprintf(fp,"%d,%d,%d,%d,%d,%d,%f,%d\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index],block_id);
+                    }
+                }
+            }
+
+        }
+        block_id++;
 	}
 
 };
 
+class CcStatsTracker {
+
+protected:
+    single running_sum;
+    single running_sqsum;
+    single running_count;
+
+    single current_cc;
+
+    Vec3 current_vec;
+    M33f current_rot;
+    Eigen::Matrix4f weighted_rotation;
+    int type;
+
+protected:
+    static void get_max_argmax_sum_sqsum(single&max_val,int&max_idx,single&sum_val,single&sqsum_val,const single*p_data,const int n_data,bool allow_negative=false) {
+        max_idx = 0;
+        max_val = p_data[max_idx];
+        sum_val = 0;
+        sqsum_val = 0;
+        for(int i=0;i<n_data;i++) {
+            float cur_val = p_data[i];
+            if(!allow_negative){
+                cur_val = fmax(cur_val,0.0);
+            }
+            sum_val += cur_val;
+            sqsum_val += (cur_val*cur_val);
+            if( max_val < cur_val ) {
+                max_val = cur_val;
+                max_idx = i;
+            }
+        }
+    }
+
+    bool check_stats_failed() {
+        if( type == CC_STATS_NONE ) {
+            return isinf(current_cc);
+        }
+
+        if( type == CC_STATS_PROB ) {
+            return isinf(current_cc) || (current_cc>running_sum);
+        }
+
+        if( type == CC_STATS_SIGMA ) {
+            return isinf(current_cc) || (current_cc>running_sum) || (running_count<1);
+        }
+
+        if( type == CC_STATS_WGT_AVG ) {
+            return isinf(current_cc) || (current_cc>running_sum) || (running_count<1);
+        }
+
+        return isinf(current_cc) || (current_cc>running_sum) || (running_count<1);
+    }
+
+public:
+    CcStatsTracker(int cc_stats_type=CC_STATS_NONE) {
+        type = cc_stats_type;
+        clear();
+    }
+
+    ~CcStatsTracker() {
+
+    }
+
+    void clear() {
+        current_cc  = -INFINITY;
+        running_sum = 0;
+        running_sqsum = 0;
+        running_count = 0;
+        current_rot = Eigen::MatrixXf::Identity(3,3);
+        current_vec.x = 0;
+        current_vec.y = 0;
+        current_vec.z = 0;
+        weighted_rotation = Eigen::Matrix4f::Zero();
+
+    }
+
+    void push( const Vec3*p_pts,const float*p_cc,const int n_pts,const M33f&Rot) {
+        single max_val;
+        int    max_idx;
+        single sum_val;
+        single sqsum_val;
+        get_max_argmax_sum_sqsum(max_val,max_idx,sum_val,sqsum_val,p_cc,n_pts,type == CC_STATS_NONE);
+
+        if( type == CC_STATS_NONE ) {
+            if( current_cc < max_val ) {
+                current_cc    = max_val;
+                current_vec.x = p_pts[max_idx].x;
+                current_vec.y = p_pts[max_idx].y;
+                current_vec.z = p_pts[max_idx].z;
+                current_rot   = Rot;
+            }
+        }
+
+        if( type == CC_STATS_PROB ) {
+            if( current_cc < max_val ) {
+                current_cc     = max_val;
+                current_vec.x  = p_pts[max_idx].x;
+                current_vec.y  = p_pts[max_idx].y;
+                current_vec.z  = p_pts[max_idx].z;
+                current_rot    = Rot;
+            }
+            running_sum   += sum_val;
+        }
+
+        if( type == CC_STATS_SIGMA ) {
+            if( current_cc < max_val ) {
+                current_cc     = max_val;
+                current_vec.x  = p_pts[max_idx].x;
+                current_vec.y  = p_pts[max_idx].y;
+                current_vec.z  = p_pts[max_idx].z;
+                current_rot    = Rot;
+            }
+            running_sum   += sum_val;
+            running_sqsum += sqsum_val;
+            running_count += n_pts;
+        }
+
+        if( type == CC_STATS_WGT_AVG ) {
+            if( current_cc  < max_val ) {
+                current_cc  = max_val;
+                current_rot = Rot;
+            }
+            running_sum   += sum_val;
+            running_sqsum += sqsum_val;
+            running_count += n_pts;
+
+            for(int i=0;i<n_pts;i++) {
+                single wgt = fmax(p_cc[i],0.0);
+                current_vec.x += wgt*p_pts[i].x;
+                current_vec.y += wgt*p_pts[i].y;
+                current_vec.z += wgt*p_pts[i].z;
+            }
+
+            Eigen::Quaternionf quat(Rot);
+            Eigen::Vector4f q;
+            if( quat.w() < 0 )
+                q = -quat.coeffs();
+            else
+                q = quat.coeffs();
+            weighted_rotation = q*q.adjoint()*sum_val + weighted_rotation;
+        }
+    }
+
+    single get_cc() {
+        if( check_stats_failed() )
+            return 0;
+
+        if( type == CC_STATS_NONE )
+            return current_cc;
+
+        if( (type == CC_STATS_PROB) || (type==CC_STATS_WGT_AVG) ){
+            return current_cc / running_sum;
+        }
+
+        if( type==CC_STATS_SIGMA ) {
+            single avg = running_sum   / running_count;
+            single std = running_sqsum / running_count;
+            std = std - (avg*avg);
+            std = sqrtf( fmax( std, 0.0 ) );
+            return fmax( (current_cc - avg) / std, 0.0 );
+        }
+
+        return 0;
+    }
+
+    Vec3 get_vec() {
+        if( check_stats_failed() ) {
+            current_vec.x = 0;
+            current_vec.y = 0;
+            current_vec.z = 0;
+            return current_vec;
+        }
+
+
+        if( (type==CC_STATS_NONE) || (type==CC_STATS_PROB) || (type==CC_STATS_SIGMA) )
+            return current_vec;
+
+        if( type == CC_STATS_WGT_AVG ) {
+            current_vec.x = current_vec.x / running_sum;
+            current_vec.y = current_vec.y / running_sum;
+            current_vec.z = current_vec.z / running_sum;
+            return current_vec;
+        }
+        return current_vec;
+    }
+
+    M33f get_rot() {
+        if( check_stats_failed() ) {
+            return Eigen::MatrixXf::Identity(3,3);
+        }
+
+        if( (type==CC_STATS_NONE) || (type==CC_STATS_PROB) || (type==CC_STATS_SIGMA) )
+            return current_rot;
+
+        if( type == CC_STATS_WGT_AVG ) {
+            weighted_rotation = (1/running_sum) * weighted_rotation;
+            Eigen::SelfAdjointEigenSolver<Matrix4f> eig(weighted_rotation);
+            Eigen::Vector4f q = eig.eigenvectors().col(3);
+            Eigen::Quaternionf quat(q);
+            current_rot = quat.toRotationMatrix();
+            return current_rot;
+        }
+        return current_rot;
+    }
+
+    M33f get_lvl_rot() {
+        return current_rot;
+    }
+
+    void print_stats() {
+        if( type == CC_STATS_NONE ) {
+            printf("CC: %e\n",current_cc);
+        }
+
+        if( type == CC_STATS_PROB ) {
+            printf("CC: %e\nsum_cc: %e\n",current_cc,running_sum);
+        }
+
+        if( type == CC_STATS_SIGMA ) {
+            printf("CC: %e\nsum_cc: %e\n",current_cc,running_sum);
+            printf("sqsum: %e\ncount: %.0f\n",running_sqsum,running_count);
+
+        }
+
+        if( type == CC_STATS_WGT_AVG ) {
+            printf("WGT_CC: %e\nsum_cc: %e\n",current_cc,running_sum);
+            printf("sqsum: %e\ncount: %.0f\n",running_sqsum,running_count);
+        }
+    }
+};
+
+class CcStatsTrackerArr {
+
+public:
+    CcStatsTracker**cc_stats_arr;
+protected:
+    int numel;
+
+public:
+    CcStatsTrackerArr(int cc_stats_type,const int k) {
+        numel = k;
+        cc_stats_arr = new CcStatsTracker*[numel];
+        for(int i=0;i<numel;i++) {
+            cc_stats_arr[i] = new CcStatsTracker(cc_stats_type);
+        }
+    }
+
+    ~CcStatsTrackerArr() {
+        for(int i=0;i<numel;i++) {
+            delete cc_stats_arr[i];
+        }
+        delete [] cc_stats_arr;
+    }
+
+    void clear() {
+        for(int i=0;i<numel;i++) {
+            cc_stats_arr[i]->clear();
+        }
+    }
+
+    void push( const Vec3*p_pts,const float*p_cc,const int n_pts,const M33f&Rot) {
+        for(int i=0;i<numel;i++) {
+            int off = i*n_pts;
+            cc_stats_arr[i]->push(p_pts,p_cc+off,n_pts,Rot);
+        }
+    }
+
+    single get_cc(int idx) {
+        return cc_stats_arr[idx]->get_cc();
+    }
+
+    Vec3 get_vec(int idx) {
+        return cc_stats_arr[idx]->get_vec();
+    }
+
+    M33f get_rot(int idx) {
+        return cc_stats_arr[idx]->get_rot();
+    }
+};
+
 class AliGpuWorker : public Worker {
-	
+
 public:
     int gpu_ix;
     int N;
@@ -251,6 +571,7 @@ public:
     int cc_type;
     int cc_stats;
     int max_K;
+    int dilate;
     bool ali_halves;
     float3  bandpass;
     float2  ssnr; /// x=F; y=S;
@@ -263,6 +584,7 @@ public:
     uint32 ref_level;
     uint32 ref_factor;
     uint32 off_type;
+    uint32 off_space;
     float4 off_par;
 
     bool drift2D;
@@ -299,8 +621,8 @@ protected:
 
         AliData ali_data(MP,NP,max_K,off_par,off_type,stream);
         
-        TemplateMatchingReporter tm_rep(ali_data.n_pts,max_K,tm_dim);
-        tm_rep.start(worker_id,tm_type,tm_prefix,tm_sigma);
+        TemplateMatchingReporter tm_rep(ali_data.c_pts,ali_data.n_pts,max_K,tm_dim,tm_sigma);
+        tm_rep.start(worker_id,tm_type,tm_prefix);
 
         RadialAverager rad_avgr(MP,NP,max_K);
 
@@ -409,7 +731,7 @@ protected:
                 AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
                 create_ctf(ctf_wgt,ptr,stream);
                 add_data(ss_data,ctf_wgt,ptr,rad_avgr,stream);
-                add_rec_weight(ss_data,ptr,stream);
+                // add_rec_weight(ss_data,ptr,stream);
                 angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,rad_avgr,tm_rep,stream);
                 stream.sync();
             }
@@ -491,9 +813,6 @@ protected:
 
         ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
 
-        if( cc_type == CC_TYPE_CFSC )
-                rad_avgr.calculate_FRC(ss_data.ss_fourier,ptr->K,stream);
-
         switch( ctf_type ) {
             case ALI_CTF_ON_SUBSTACK:
                 ss_data.correct_wiener(ptr->ctf_vals,ctf_wgt,ptr->g_def,bandpass,ptr->K,stream);
@@ -505,8 +824,10 @@ protected:
                 break;
         }
 
-        if( cc_type == CC_TYPE_CFSC )
-            rad_avgr.apply_FRC(ss_data.ss_fourier,ptr->K,stream);
+        if( cc_type == CC_TYPE_CFSC ) {
+            rad_avgr.calculate_FRC(ss_data.ss_fourier,bandpass,ptr->K,stream);
+            rad_avgr.apply_FRC(ss_data.ss_fourier,ptr->ctf_vals,ssnr,ptr->K,stream);
+        }
 
         rad_avgr.normalize_stacks(ss_data.ss_fourier,bandpass,ptr->K,stream);
     }
@@ -519,127 +840,156 @@ protected:
         ss_data.apply_radial_wgt(w_total,ptr->crowther_limit,ptr->K,stream);
     }
 
+    void print_R(GPU::GArrProj2D&g_ali,int k,GPU::Stream&stream) {
+        dim3 blk;
+        dim3 grd;
+        blk.x = 1024;
+        blk.y = 1;
+        blk.z = 1;
+        grd.x = GPU::div_round_up(9*k,1024);
+        grd.y = 1;
+        grd.z = 1;
+        GpuKernels::print_proj2D<<<grd,blk,0,stream.strm>>>(g_ali.ptr,k);
+        stream.sync();
+    }
+
     void angular_search_3D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
 
-        Rot33 Rot;
-        single max_cc=0,cc;
-        int max_idx=0,idx;
-        M33f max_R,R_ite,R_tmp;
-        M33f R_lvl = Eigen::MatrixXf::Identity(3,3);
+        M33f max_R;
 
-        single running_avg = 0;
-        single running_std = 0;
-        single running_cnt = 0;
+        Rot33 Rot;
+        M33f R_lvl = Eigen::MatrixXf::Identity(3,3);
+        M33f R_ite,R_tmp,R_ali;
+
+        CcStatsTracker cc_tracker(cc_stats);
+
+        Math::eZYZ_Rmat(R_ali,ptr->ptcl.ali_eu[ptr->class_ix]);
 
         tm_rep.clear_cc();
 
         // DEBUG
-        //debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
+        // debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
+
+        /*if( ptr->ptcl.ptcl_id() == 2 ) {
+            printf("\n\nR_ali = np.zeros((3,3)) #%d\n",ptr->K);
+            printf("R_ali[0,:] = (%f,%f,%f)\n",R_ali(0,0),R_ali(0,1),R_ali(0,2));
+            printf("R_ali[1,:] = (%f,%f,%f)\n",R_ali(1,0),R_ali(1,1),R_ali(1,2));
+            printf("R_ali[2,:] = (%f,%f,%f)\n",R_ali(2,0),R_ali(2,1),R_ali(2,2));
+            //print_R(ptr->g_ali,ptr->K,stream);
+        }*/
 
         for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
+            //if( ptr->ptcl.ptcl_id() == 2 ) printf("Level ======\n");
             for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
                 for( ang_prov.cone_init(); ang_prov.cone_available(); ang_prov.cone_next() ) {
                     for( ang_prov.inplane_init(); ang_prov.inplane_available(); ang_prov.inplane_next() ) {
 
+                        //if( ptr->ptcl.ptcl_id() == 2 ) ang_prov.print_curr_angles();
+
                         ang_prov.get_current_R(R_ite);
-                        R_tmp = R_ite*R_lvl;
+                        R_tmp = R_ali*R_lvl*R_ite;
                         Math::set(Rot,R_tmp);
-                        ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
+
+                        ali_data.rotate_reference(Rot,ptr->g_ali,ptr->K,stream);
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
-                        if( cc_type == CC_TYPE_CFSC )
-                            rad_avgr.calculate_FRC(ali_data.prj_c,ptr->K,stream);
+                        /*if( ptr->ptcl.ptcl_id() == 2 ) {
+                            stream.sync();
+                            printf("\nR_ite = np.zeros((3,3)) #%d\n",ptr->K);
+                            printf("R_ite[0,:] = (%f,%f,%f)\n",R_tmp(0,0),R_tmp(0,1),R_tmp(0,2));
+                            printf("R_ite[1,:] = (%f,%f,%f)\n",R_tmp(1,0),R_tmp(1,1),R_tmp(1,2));
+                            printf("R_ite[2,:] = (%f,%f,%f)\n",R_tmp(2,0),R_tmp(2,1),R_tmp(2,2));
+                            //print_R(ali_data.g_ali,ptr->K,stream);
+                        }*/
+
+                        if( cc_type == CC_TYPE_CFSC ) {
+                            rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
+                            rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
+                        }
 
                         if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
-                        if( cc_type == CC_TYPE_CFSC ) {
-                            rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
-                        }
+                        // if( cc_type == CC_TYPE_CFSC )
+                        //     rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
 
                         rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
 
                         // DEBUG
-                        //debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
+                        // debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
-                        if( cc_type == CC_TYPE_CFSC )
-                            ali_data.apply_bandpass(bandpass,ptr->K,stream);
+                        ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
                         // DEBUG
-                        //debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
-
+                        // debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
+                        /*if( ptr->ptcl.ptcl_id() == 2 ) {
+                            debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
+                        }*/
                         ali_data.invert_fourier(ptr->K,stream);
 
-                        ali_data.sparse_reconstruct(ptr->g_ali,ptr->K,stream);
+                        ali_data.sparse_reconstruct(ptr->g_ali,dilate,ptr->K,stream);
                         stream.sync();
-                        ali_data.get_max_cc(cc,idx,ali_data.c_cc);
 
-                        tm_rep.push_cc(ali_data.c_cc);
+                        cc_tracker.push(ali_data.c_pts,ali_data.c_cc,ali_data.n_pts,R_lvl*R_ite);
 
-                        if( cc > max_cc ) {
-                            max_idx = idx;
-                            max_cc  = cc;
-                            max_R   = R_tmp;
-                        }
-                        if( cc_stats == CC_STATS_SIGMA ) {
-                            running_avg += cc;
-                            running_std += (cc*cc);
-                            running_cnt += 1;
-                        }
-                        if( cc_stats == CC_STATS_PROB ) {
-                            running_avg += ali_data.get_sum_cc(ali_data.c_cc);
-                        }
-                        
+                        //if( ptr->ptcl.ptcl_id() == 2 ) printf("cc = %f\n",cc);
+
+                        tm_rep.push_cc(ali_data.c_cc);                        
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
-            R_lvl = max_R;
+            //R_lvl = max_R;
+            R_lvl = cc_tracker.get_lvl_rot();
         } // REFINE
 
-        if( cc_stats == CC_STATS_SIGMA ) {
-            if( (running_cnt > 0) || (running_std<SUSAN_FLOAT_TOL) ) {
-                running_avg = running_avg/running_cnt;
-                running_std = running_std/running_cnt;
-                running_std = running_std - (running_avg*running_avg);
-                running_std = sqrtf(running_std);
-                max_cc = (max_cc - running_avg) / running_std;
-                max_cc = fmax(max_cc,0.0);
-            }
-            else {
-                max_cc  = 0;
-                max_idx = (ali_data.n_pts/2);
-            }
-        }
-        if( cc_stats == CC_STATS_PROB ) {
-            max_cc = max_cc/running_avg;
-        }
-        
-        update_particle_3D(ptr->ptcl,max_R,ali_data.c_pts[max_idx],max_cc,ptr->class_ix,ptr->ctf_vals.apix);
-        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
+        update_particle_3D( ptr->ptcl,
+                           cc_tracker.get_rot(),cc_tracker.get_vec(),cc_tracker.get_cc(),
+                           ptr->class_ix,ptr->ctf_vals.apix);
+        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,cc_stats==CC_STATS_SIGMA);
     }
 
     void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
         
         Rot33 Rot;
-        M33f  R_ite;
+        M33f  R_ite,R_tmp,R_ali;
 
-        single max_cc[ptr->K];
-        single ite_cc[ptr->K];
+        CcStatsTrackerArr cc_tracker_arr(cc_stats,ptr->K);
+
+        single max_cc [ptr->K];
+        single ite_cc [ptr->K];
         int    max_idx[ptr->K];
         int    ite_idx[ptr->K];
-        M33f   max_R[ptr->K];
+        M33f   max_R  [ptr->K];
         // single := float //
         single cc_placeholder[(ptr->K)*(ali_data.n_pts)];
 
-        memset(max_cc,         0, sizeof(single)*ptr->K);
+        Math::eZYZ_Rmat(R_ali,ptr->ptcl.ali_eu[ptr->class_ix]);
+
+        for(int i=0;i<ptr->K;i++) max_cc[i] = -INFINITY;
         memset(max_idx,        0, sizeof(single)*ptr->K);
         memset(cc_placeholder, 0, sizeof(single)*(ptr->K)*(ali_data.n_pts));
 
         tm_rep.clear_cc();
 
         // DEBUG
-        //debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
+        /*int it = 0;
+        long int cur_time = time(NULL);
+        char name[2048];
+        if( ptr->ptcl.ptcl_id() == 295 ) {
+            sprintf(name,"sus_%ld.mrc",cur_time);
+            debug_fourier_stack(name,ss_data.ss_fourier,stream);
+        }*/
+        Math::set(Rot,R_ali);
+        ali_data.pre_rotate_reference(Rot,ptr->g_ali,ptr->K,stream);
+
+        /*if( ptr->ptcl.ptcl_id() == 44 ) {
+            printf("\n\nR_ali = np.zeros((3,3)) #%d\n",ptr->K);
+            printf("R_ali[0,:] = (%f,%f,%f)\n",R_ali(0,0),R_ali(0,1),R_ali(0,2));
+            printf("R_ali[1,:] = (%f,%f,%f)\n",R_ali(1,0),R_ali(1,1),R_ali(1,2));
+            printf("R_ali[2,:] = (%f,%f,%f)\n",R_ali(2,0),R_ali(2,1),R_ali(2,2));
+            print_R(ptr->g_ali,ptr->K,stream);
+        }*/
 
         for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
             for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
@@ -648,35 +998,62 @@ protected:
 
                         ang_prov.get_current_R(R_ite);
                         Math::set(Rot,R_ite);
-                        ali_data.rotate_pre(Rot,ptr->g_ali,ptr->K,stream);
+
+                        //R_tmp = R_ali*R_ite;
+                        //Math::set(Rot,R_tmp);
+
+                        ali_data.rotate_projections(Rot,ptr->g_ali,ptr->K,stream);
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
-                        if( cc_type == CC_TYPE_CFSC )
-                            rad_avgr.calculate_FRC(ali_data.prj_c,ptr->K,stream);
+                        /*if( ptr->ptcl.ptcl_id() == 44 ) {
+                            stream.sync();
+                            printf("\nR_ite = np.zeros((3,3)) #%d\n",ptr->K);
+                            printf("R_ite[0,:] = (%f,%f,%f)\n",R_ite(0,0),R_ite(0,1),R_ite(0,2));
+                            printf("R_ite[1,:] = (%f,%f,%f)\n",R_ite(1,0),R_ite(1,1),R_ite(1,2));
+                            printf("R_ite[2,:] = (%f,%f,%f)\n",R_ite(2,0),R_ite(2,1),R_ite(2,2));
+                            print_R(ali_data.g_ali,ptr->K,stream);
+                        }*/
+
+                        if( cc_type == CC_TYPE_CFSC ) {
+                            rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
+                            rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
+                        }
 
                         if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
-                        if( cc_type == CC_TYPE_CFSC ) {
-                            rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
-                        }
-
                         rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
 
                         // DEBUG
-                        //debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
+                        /*if( ptr->ptcl.ptcl_id() == 295 ) {
+                            sprintf(name,"prj_%ld_%03d.mrc",cur_time,it);
+                            debug_fourier_stack(name,ali_data.prj_c,stream);
+                        }*/
 
-                        if( cc_type == CC_TYPE_CFSC )
-                            ali_data.apply_bandpass(bandpass,ptr->K,stream);
+                        ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
                         // DEBUG
-                        //debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
+                        /*if( ptr->ptcl.ptcl_id() == 295 ) {
+                            sprintf(name,"cc_%ld_%03d.mrc",cur_time,it);
+                            debug_fourier_stack(name,ali_data.prj_c,stream);
+                        }*/
 
                         ali_data.invert_fourier(ptr->K,stream);
                         stream.sync();
 
                         ali_data.extract_cc(ite_cc,ite_idx,ptr->g_ali,ptr->K,stream);
+
+                        cc_tracker_arr.push(ali_data.c_pts,ali_data.c_cc,ali_data.n_pts,R_ite);
+
+                        /*if( ptr->ptcl.ptcl_id() == 295 ) {
+                            printf("\n\nCC_ARR = np.array((\n");
+                            for(int j=0;j<ali_data.n_pts;j++){
+                                printf("\t%e,\n",ali_data.c_cc[(14*ali_data.n_pts)+j]);
+                            }
+                            printf("))\n");
+                            cc_tracker_arr.cc_stats_arr[14]->print_stats();
+                        }*/
 
                         for(int i=0;i<ptr->K;i++) {
                             if( ite_cc[i] > max_cc[i] ) {
@@ -687,8 +1064,20 @@ protected:
                                 for(int j=0;j<ali_data.n_pts;j++){
                                     cc_placeholder[i*ali_data.n_pts + j] = ali_data.c_cc[i*ali_data.n_pts + j];
                                 }
+                                /*if( i == 20 ) {
+                                    if( ptr->ptcl.ptcl_id() == 44 ) {
+                                        stream.sync();
+                                        printf("\nR_ite = np.zeros((3,3)) #%d\n",ptr->K);
+                                        printf("R_ite[0,:] = (%f,%f,%f)\n",R_ite(0,0),R_ite(0,1),R_ite(0,2));
+                                        printf("R_ite[1,:] = (%f,%f,%f)\n",R_ite(1,0),R_ite(1,1),R_ite(1,2));
+                                        printf("R_ite[2,:] = (%f,%f,%f)\n",R_ite(2,0),R_ite(2,1),R_ite(2,2));
+                                        printf("cc = %f; it = %d\n",ite_cc[i],it);
+                                        print_R(ali_data.g_ali,ptr->K,stream);
+                                    }
+                                }*/
                             }
                         }
+                        //it++;
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
@@ -696,16 +1085,19 @@ protected:
 
         tm_rep.push_cc(cc_placeholder);
 
-        single cc_acc=0,wgt_acc=0;
+        single cc_acc=0,wgt_acc=0,cc_cur=0;
         for(int i=0;i<ptr->K;i++) {
-            update_particle_2D(ptr->ptcl,max_R[i],ali_data.c_pts[max_idx[i]],max_cc[i],i,ptr->ctf_vals.apix);
-            if( max_cc[i] > 0 && ptr->ptcl.prj_w[i] > 0 ) {
-                cc_acc += max_cc[i];
+            if( ptr->ptcl.prj_w[i] > 0 ) {
+                cc_cur  = cc_tracker_arr.get_cc(i);
+                cc_acc += cc_cur;
                 wgt_acc += ptr->ptcl.prj_w[i];
+                update_particle_2D(ptr->ptcl,
+                                   cc_tracker_arr.get_rot(i),cc_tracker_arr.get_vec(i),cc_cur,
+                                   i,ptr->ctf_vals.apix);
             }
         }
         ptr->ptcl.ali_cc[ptr->class_ix] = cc_acc/max(wgt_acc,1.0);
-        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ali_data.c_pts);
+        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z);
     }
 
     void update_particle_3D(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int ref_ix,const float apix) {
@@ -713,32 +1105,37 @@ protected:
         ptcl.ali_cc[ref_ix] = cc;
 
         M33f Rprv;
-        V3f eu_prv;
-        eu_prv(0) = ptcl.ali_eu[ref_ix].x;
-        eu_prv(1) = ptcl.ali_eu[ref_ix].y;
-        eu_prv(2) = ptcl.ali_eu[ref_ix].z;
-        Math::eZYZ_Rmat(Rprv,eu_prv);
-        M33f Rnew = Rot*Rprv;
-        Math::Rmat_eZYZ(eu_prv,Rnew);
-        ptcl.ali_eu[ref_ix].x = eu_prv(0);
-        ptcl.ali_eu[ref_ix].y = eu_prv(1);
-        ptcl.ali_eu[ref_ix].z = eu_prv(2);
+        Math::eZYZ_Rmat(Rprv,ptcl.ali_eu[ref_ix]);
+        M33f Rnew = Rprv*Rot;
 
-        V3f tp,tt;
-        tp(0) = t.x;
-        tp(1) = t.y;
-        tp(2) = t.z;
-        tt = Rnew.transpose()*tp;
+        /*if( ptcl.ptcl_id() == 2 ) {
+            printf("\nRSLT ========\n");
+            printf("\n Rprv = np.zeros((3,3))\n");
+            printf("Rprv[0,:] = (%f,%f,%f)\n",Rprv(0,0),Rprv(0,1),Rprv(0,2));
+            printf("Rprv[1,:] = (%f,%f,%f)\n",Rprv(1,0),Rprv(1,1),Rprv(1,2));
+            printf("Rprv[2,:] = (%f,%f,%f)\n",Rprv(2,0),Rprv(2,1),Rprv(2,2));
+            printf("\n Rot = np.zeros((3,3))\n");
+            printf("Rot[0,:] = (%f,%f,%f)\n",Rot(0,0),Rot(0,1),Rot(0,2));
+            printf("Rot[1,:] = (%f,%f,%f)\n",Rot(1,0),Rot(1,1),Rot(1,2));
+            printf("Rot[2,:] = (%f,%f,%f)\n",Rot(2,0),Rot(2,1),Rot(2,2));
+            printf("\n Rnew = np.zeros((3,3))\n");
+            printf("Rnew[0,:] = (%f,%f,%f)\n",Rnew(0,0),Rnew(0,1),Rnew(0,2));
+            printf("Rnew[1,:] = (%f,%f,%f)\n",Rnew(1,0),Rnew(1,1),Rnew(1,2));
+            printf("Rnew[2,:] = (%f,%f,%f)\n",Rnew(2,0),Rnew(2,1),Rnew(2,2));
+            printf("cc = %f\n",cc);
+        }*/
+
+        Math::Rmat_eZYZ(ptcl.ali_eu[ref_ix],Rnew);
 
         if( drift3D ) {
-            ptcl.ali_t[ref_ix].x += tt(0)*apix;
-            ptcl.ali_t[ref_ix].y += tt(1)*apix;
-            ptcl.ali_t[ref_ix].z += tt(2)*apix;
+            ptcl.ali_t[ref_ix].x += t.x*apix;
+            ptcl.ali_t[ref_ix].y += t.y*apix;
+            ptcl.ali_t[ref_ix].z += t.z*apix;
         }
         else {
-            ptcl.ali_t[ref_ix].x = tt(0)*apix;
-            ptcl.ali_t[ref_ix].y = tt(1)*apix;
-            ptcl.ali_t[ref_ix].z = tt(2)*apix;
+            ptcl.ali_t[ref_ix].x = t.x*apix;
+            ptcl.ali_t[ref_ix].y = t.y*apix;
+            ptcl.ali_t[ref_ix].z = t.z*apix;
         }
     }
 
@@ -748,30 +1145,32 @@ protected:
             ptcl.prj_cc[prj_ix] = cc;
 
             M33f Rprv;
-            V3f eu_prv;
-            eu_prv(0) = ptcl.prj_eu[prj_ix].x;
-            eu_prv(1) = ptcl.prj_eu[prj_ix].y;
-            eu_prv(2) = ptcl.prj_eu[prj_ix].z;
-            Math::eZYZ_Rmat(Rprv,eu_prv);
+            Math::eZYZ_Rmat(Rprv,ptcl.prj_eu[prj_ix]);
             M33f Rnew = Rot*Rprv;
-            Math::Rmat_eZYZ(eu_prv,Rnew);
-            ptcl.prj_eu[prj_ix].x = eu_prv(0);
-            ptcl.prj_eu[prj_ix].y = eu_prv(1);
-            ptcl.prj_eu[prj_ix].z = eu_prv(2);
+            Math::Rmat_eZYZ(ptcl.prj_eu[prj_ix],Rnew);
 
-            V3f tp,tt;
-            tp(0) = t.x;
-            tp(1) = t.y;
-            tp(2) = t.z;
-            tt = Rot.transpose()*tp;
+            /*if( ptcl.ptcl_id() == 44 && prj_ix == 20 ) {
+                printf("\nRprv = np.zeros((3,3))\n");
+                printf("Rprv[0,:] = (%f,%f,%f)\n",Rprv(0,0),Rprv(0,1),Rprv(0,2));
+                printf("Rprv[1,:] = (%f,%f,%f)\n",Rprv(1,0),Rprv(1,1),Rprv(1,2));
+                printf("Rprv[2,:] = (%f,%f,%f)\n",Rprv(2,0),Rprv(2,1),Rprv(2,2));
+                printf("\nRot = np.zeros((3,3))\n");
+                printf("Rot[0,:] = (%f,%f,%f)\n",Rot(0,0),Rot(0,1),Rot(0,2));
+                printf("Rot[1,:] = (%f,%f,%f)\n",Rot(1,0),Rot(1,1),Rot(1,2));
+                printf("Rot[2,:] = (%f,%f,%f)\n",Rot(2,0),Rot(2,1),Rot(2,2));
+                printf("\nRnew = np.zeros((3,3))\n");
+                printf("Rnew[0,:] = (%f,%f,%f)\n",Rnew(0,0),Rnew(0,1),Rnew(0,2));
+                printf("Rnew[1,:] = (%f,%f,%f)\n",Rnew(1,0),Rnew(1,1),Rnew(1,2));
+                printf("Rnew[2,:] = (%f,%f,%f)\n",Rnew(2,0),Rnew(2,1),Rnew(2,2));
+            }*/
 
             if( drift2D ) {
-                ptcl.prj_t[prj_ix].x += tt(0)*apix;
-                ptcl.prj_t[prj_ix].y += tt(1)*apix;
+                ptcl.prj_t[prj_ix].x += t.x*apix;
+                ptcl.prj_t[prj_ix].y += t.y*apix;
             }
             else {
-                ptcl.prj_t[prj_ix].x = tt(0)*apix;
-                ptcl.prj_t[prj_ix].y = tt(1)*apix;
+                ptcl.prj_t[prj_ix].x = t.x*apix;
+                ptcl.prj_t[prj_ix].y = t.y*apix;
             }
         }
     }
@@ -792,7 +1191,7 @@ protected:
 };
 
 class AliRdrWorker : public Worker {
-	
+
 public:
     ArgsAli::Info   *p_info;
     float           *p_stack;
@@ -821,7 +1220,7 @@ public:
 
     ~AliRdrWorker() {
     }
-	
+
     void setup_global_data(int id,RefMap*in_p_refs,int in_R,int in_max_K,ArgsAli::Info*info,WorkerCommand*in_worker_cmd) {
         worker_id  = id;
         worker_cmd = in_worker_cmd;
@@ -849,7 +1248,7 @@ public:
         if( info->type == 2 && !info->drift ) drift2D = false;
         if( info->type == 3 && !info->drift ) drift3D = false;
     }
-	
+
     void setup_working_data(float*stack,ParticlesSubset*ptcls,Tomogram*tomo) {
         p_stack = stack;
         p_ptcls = ptcls;
@@ -857,7 +1256,7 @@ public:
         ss_cropper.setup(tomo,N);
         work_progress=0;
     }
-	
+
 protected:
     void main() {
 
@@ -925,6 +1324,7 @@ protected:
         gpu_worker.ref_factor = p_info->refine_factor;
         gpu_worker.ref_level  = p_info->refine_level;
         gpu_worker.off_type   = p_info->off_type;
+        gpu_worker.off_space  = p_info->off_space;
         gpu_worker.off_par.x  = p_info->off_x;
         gpu_worker.off_par.y  = p_info->off_y;
         gpu_worker.off_par.z  = p_info->off_z;
@@ -934,6 +1334,7 @@ protected:
         gpu_worker.tm_prefix  = p_info->tm_pfx;
         gpu_worker.tm_dim     = p_info->type;
         gpu_worker.tm_sigma   = p_info->tm_sigma;
+        gpu_worker.dilate     = p_info->dilate;
         gpu_worker.start();
     }
 
@@ -997,77 +1398,50 @@ protected:
     }
 
     void crop_substack(AliBuffer*ptr,const int ref_cix=-1) {
-        V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
-        M33f R_tmp,R_ali,R_stack,R_gpu;
+        V3f pt_tomo,pt_crop;
+        M33f R_2D,R_base,R_gpu;
 
-        int r = ref_cix;
-        if(ref_cix<0)
-            r = ptr->ptcl.ref_cix();
-        ptr->class_ix = r;
+        ptr->class_ix = (ref_cix<0)?
+                            ptr->ptcl.ref_cix(): // True
+                            ref_cix;             // False
 
-        if( p_info->ali_halves )
-            ptr->r_ix = 2*r + (ptr->ptcl.half_id()-1);
-        else
-            ptr->r_ix = r;
+        ptr->r_ix = (p_info->ali_halves)?
+                        2*ptr->class_ix + (ptr->ptcl.half_id()-1): // True
+                        ptr->class_ix;                             // False
 
-        /// P_tomo = P_ptcl + t_ali
-        if( drift3D ) {
-            pt_tomo(0) = ptr->ptcl.pos().x + ptr->ptcl.ali_t[r].x;
-            pt_tomo(1) = ptr->ptcl.pos().y + ptr->ptcl.ali_t[r].y;
-            pt_tomo(2) = ptr->ptcl.pos().z + ptr->ptcl.ali_t[r].z;
-        }
-        else {
-            pt_tomo(0) = ptr->ptcl.pos().x;
-            pt_tomo(1) = ptr->ptcl.pos().y;
-            pt_tomo(2) = ptr->ptcl.pos().z;
-        }
-        
-        ptr->tomo_pos_x = (int)roundf( (pt_tomo(0)/p_tomo->pix_size) + p_tomo->tomo_center(0) );
-        ptr->tomo_pos_y = (int)roundf( (pt_tomo(1)/p_tomo->pix_size) + p_tomo->tomo_center(1) );
-        ptr->tomo_pos_z = (int)roundf( (pt_tomo(2)/p_tomo->pix_size) + p_tomo->tomo_center(2) );
-
-        eu_ZYZ(0) = ptr->ptcl.ali_eu[r].x;
-        eu_ZYZ(1) = ptr->ptcl.ali_eu[r].y;
-        eu_ZYZ(2) = ptr->ptcl.ali_eu[r].z;
-        Math::eZYZ_Rmat(R_ali,eu_ZYZ);
+        pt_tomo = get_tomo_position(ptr->ptcl.pos(),ptr->ptcl.ali_t[ptr->class_ix],drift3D);
+        ptr->set_tomo_pos(pt_tomo,p_tomo->tomo_center,p_tomo->pix_size);
 
         for(int k=0;k<ptr->K;k++) {
             if( ptr->ptcl.prj_w[k] > 0 ) {
 
-                /// P_stack = R^k_tomo*P_tomo + t^k_tomo
-                pt_stack = p_tomo->R[k]*pt_tomo + p_tomo->t[k];
+                Math::eZYZ_Rmat(R_2D,ptr->ptcl.prj_eu[k]);
+                R_base = R_2D * p_tomo->R[k];
 
-                /// P_crop = R^k_prj*P_stack + t^k_prj
-                eu_ZYZ(0) = ptr->ptcl.prj_eu[k].x;
-                eu_ZYZ(1) = ptr->ptcl.prj_eu[k].y;
-                eu_ZYZ(2) = ptr->ptcl.prj_eu[k].z;
-                Math::eZYZ_Rmat(R_tmp,eu_ZYZ);
-                //pt_crop = R_tmp*pt_stack;
-                pt_crop = pt_stack;
-                if( drift2D ) {
-                    pt_crop(0) += ptr->ptcl.prj_t[k].x;
-                    pt_crop(1) += ptr->ptcl.prj_t[k].y;
-                }
+                /*if( (ptr->ptcl.ptcl_id() == 44) && (k==20) ) {
+                    printf("\nR_2D = np.zeros((3,3))\n");
+                    printf("R_2D[0,:] = (%f,%f,%f)\n",R_2D(0,0),R_2D(0,1),R_2D(0,2));
+                    printf("R_2D[1,:] = (%f,%f,%f)\n",R_2D(1,0),R_2D(1,1),R_2D(1,2));
+                    printf("R_2D[2,:] = (%f,%f,%f)\n",R_2D(2,0),R_2D(2,1),R_2D(2,2));
+                    printf("\nRtlt = np.zeros((3,3))\n");
+                    printf("Rtlt[0,:] = (%f,%f,%f)\n",p_tomo->R[k](0,0),p_tomo->R[k](0,1),p_tomo->R[k](0,2));
+                    printf("Rtlt[1,:] = (%f,%f,%f)\n",p_tomo->R[k](1,0),p_tomo->R[k](1,1),p_tomo->R[k](1,2));
+                    printf("Rtlt[2,:] = (%f,%f,%f)\n",p_tomo->R[k](2,0),p_tomo->R[k](2,1),p_tomo->R[k](2,2));
+                    printf("\nR_base = np.zeros((3,3))\n");
+                    printf("R_base[0,:] = (%f,%f,%f)\n",R_base(0,0),R_base(0,1),R_base(0,2));
+                    printf("R_base[1,:] = (%f,%f,%f)\n",R_base(1,0),R_base(1,1),R_base(1,2));
+                    printf("R_base[2,:] = (%f,%f,%f)\n",R_base(2,0),R_base(2,1),R_base(2,2));
+                }*/
 
-                /// R_stack = R^k_prj*R^k_tomo
-                R_stack = R_tmp*p_tomo->R[k];
+                pt_crop = project_tomo_position(pt_tomo,p_tomo->R[k],p_tomo->t[k],ptr->ptcl.prj_t[k],drift2D);
+                pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center; /// Angstroms -> pixels
 
-                /// Angstroms -> pixels
-                pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center;
-
-                /// Get subpixel shift
-                V3f pt_tmp;
-                pt_tmp(0) = pt_crop(0) - floor(pt_crop(0));
-                pt_tmp(1) = pt_crop(1) - floor(pt_crop(1));
-                pt_tmp(2) = 0;
-                pt_subpix = R_stack.transpose()*pt_tmp;
-
-                /// Setup data for upload to GPU
-                ptr->c_ali.ptr[k].t.x = -pt_subpix(0);
-                ptr->c_ali.ptr[k].t.y = -pt_subpix(1);
+                /// Get subpixel shift and setup data for upload to GPU
+                ptr->c_ali.ptr[k].t.x = -(pt_crop(0) - floor(pt_crop(0)));
+                ptr->c_ali.ptr[k].t.y = -(pt_crop(1) - floor(pt_crop(1)));
                 ptr->c_ali.ptr[k].t.z = 0;
                 ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
-                R_gpu = (R_ali)*(R_stack.transpose());
+                R_gpu = R_base.transpose();
                 Math::set( ptr->c_ali.ptr[k].R, R_gpu );
 
                 /// Crop
@@ -1132,6 +1506,35 @@ protected:
         return rslt;
     }
 
+    static V3f get_tomo_position(const Vec3&pos_base,const Vec3&shift,bool drift) {
+        V3f pos_tomo;
+        if (drift) {
+            pos_tomo(0) = pos_base.x + shift.x;
+            pos_tomo(1) = pos_base.y + shift.y;
+            pos_tomo(2) = pos_base.z + shift.z;
+        }
+        else {
+            pos_tomo(0) = pos_base.x;
+            pos_tomo(1) = pos_base.y;
+            pos_tomo(2) = pos_base.z;
+        }
+        return pos_tomo;
+    }
+
+    static V3f project_tomo_position(const V3f &pos_tomo,
+                                     const M33f&R_tomo,
+                                     const V3f &shift_tomo,
+                                     const Vec2&shift_2D,
+                                     bool drift)
+    {
+        V3f pos_stack = R_tomo * pos_tomo + shift_tomo;
+        if(drift) {
+            pos_stack(0) += shift_2D.x;
+            pos_stack(1) += shift_2D.y;
+        }
+        return pos_stack;
+    }
+
     void upload(AliBuffer*ptr,cudaStream_t&strm) {
         GPU::upload_async(ptr->g_stk.ptr,ptr->c_stk.ptr,N*N*max_K,strm);
         GPU::upload_async(ptr->g_pad.ptr,ptr->c_pad.ptr,max_K    ,strm);
@@ -1180,7 +1583,7 @@ public:
         delete [] p_refs;
         delete [] workers;
     }
-	
+
 protected:
     void load_references(References*in_p_refs) {
         R = in_p_refs->num_refs;
@@ -1214,7 +1617,7 @@ protected:
         w_cmd.send_command(WorkerCommand::BasicCommands::CMD_IDLE);
 
     }
-	
+
     void coord_end() {
         show_done();
         w_cmd.send_command(WorkerCommand::BasicCommands::CMD_END);
@@ -1222,7 +1625,7 @@ protected:
             workers[i].wait();
         }
     }
-	
+
     long count_progress() {
         long count = 0;
         for(int i=0;i<p_info->n_threads;i++) {
@@ -1230,7 +1633,7 @@ protected:
         }
         return count;
     }
-	
+
     long count_accumul() {
         long count = 0;
         for(int i=0;i<p_info->n_threads;i++) {
@@ -1251,7 +1654,7 @@ protected:
             sleep(2);
         }
     }
-	
+
     virtual void show_done() {
         progress.finish();
     }

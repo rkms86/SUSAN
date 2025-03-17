@@ -60,8 +60,8 @@ using namespace Eigen;
 namespace Math {
 
 float get_lambda(const float kv) {
-	float volt = kv*1000;
-	return sqrt( 150.4 / ( volt*(1+(volt/1022000)) ) );
+    float volt = kv*1000;
+    return sqrt( 150.4 / ( volt*(1+(volt/1022000)) ) );
 }
 
 bool should_use_avx2(const uint32 length) {
@@ -80,12 +80,24 @@ void eZYZ_Rmat(M33f&R,const V3f&eu_rad) {
       * AngleAxisf(eu_rad(2), Vector3f::UnitZ());
 }
 
+void eZXZ_Rmat(M33f&R,const Vec3&eu_rad) {
+    R = AngleAxisf(eu_rad.x, Vector3f::UnitZ())
+      * AngleAxisf(eu_rad.y, Vector3f::UnitX())
+      * AngleAxisf(eu_rad.z, Vector3f::UnitZ());
+}
+
+void eZYZ_Rmat(M33f&R,const Vec3&eu_rad) {
+    R = AngleAxisf(eu_rad.x, Vector3f::UnitZ())
+      * AngleAxisf(eu_rad.y, Vector3f::UnitY())
+      * AngleAxisf(eu_rad.z, Vector3f::UnitZ());
+}
+
 void Rmat_eZXZ(V3f&eu_rad,const M33f&R) {
     eu_rad = R.eulerAngles(2,0,2);
 }
 
 void Rmat_eZYZ(V3f&eu_rad,const M33f&R) {
-    if( fabs(R(2,2)-1) < 1e-6 ) {
+    if( fabs(R(2,2)-1) < 1e-5 ) {
         eu_rad(0) = 0.0f;
         eu_rad(1) = 0.0f;
         eu_rad(2) = asin(R(1,0));
@@ -93,6 +105,22 @@ void Rmat_eZYZ(V3f&eu_rad,const M33f&R) {
     else {
         eu_rad = R.eulerAngles(2,1,2);
     }
+}
+
+void Rmat_eZXZ(Vec3&eu_rad,const M33f&R) {
+    V3f tmp;
+    Rmat_eZXZ(tmp,R);
+    eu_rad.x = tmp(0);
+    eu_rad.y = tmp(1);
+    eu_rad.z = tmp(2);
+}
+
+void Rmat_eZYZ(Vec3&eu_rad,const M33f&R) {
+    V3f tmp;
+    Rmat_eZYZ(tmp,R);
+    eu_rad.x = tmp(0);
+    eu_rad.y = tmp(1);
+    eu_rad.z = tmp(2);
 }
 
 void set(Rot33&Rout,const M33f&Rin) {
@@ -237,29 +265,29 @@ void mul(float*out,const float*in,const uint32 length) {
 
 float get_max(const float*ptr,const uint32 length) {
 
-	float rslt = 0;
-	
-	uint32 i;
-	for(i=0;i<length;i++) {
-		rslt = fmax(ptr[i],rslt);
-	}
-	
-	return rslt;
+    float rslt = 0;
+
+    uint32 i;
+    for(i=0;i<length;i++) {
+        rslt = fmax(ptr[i],rslt);
+    }
+
+    return rslt;
 }
 
 void fit_ellipsoid(float&U,float&V,float&ang,const MatrixXf&points) {
-	float scale = sqrt(2/((float)(points.cols())));
-	Eigen::JacobiSVD<MatrixXf> svd(points, Eigen::ComputeThinU | Eigen::ComputeThinV);
-	U = scale*svd.singularValues()(0);
-	V = scale*svd.singularValues()(1);
-	
-	Eigen::Matrix2f tmp;
-	float sign_correction = svd.matrixU()(0,0)/svd.matrixU()(1,1);
-	tmp << svd.matrixU()(0,0), sign_correction*svd.matrixU()(0,1), svd.matrixU()(1,0), sign_correction*svd.matrixU()(1,1);
-	Eigen::Rotation2D<float> rot2d(tmp);
-	ang = rot2d.angle();
-	if(ang<-M_PI/2) ang += M_PI;
-	if(ang> M_PI/2) ang -= M_PI;
+    float scale = sqrt(2/((float)(points.cols())));
+    Eigen::JacobiSVD<MatrixXf> svd(points, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    U = scale*svd.singularValues()(0);
+    V = scale*svd.singularValues()(1);
+
+    Eigen::Matrix2f tmp;
+    float sign_correction = svd.matrixU()(0,0)/svd.matrixU()(1,1);
+    tmp << svd.matrixU()(0,0), sign_correction*svd.matrixU()(0,1), svd.matrixU()(1,0), sign_correction*svd.matrixU()(1,1);
+    Eigen::Rotation2D<float> rot2d(tmp);
+    ang = rot2d.angle();
+    if(ang<-M_PI/2) ang += M_PI;
+    if(ang> M_PI/2) ang -= M_PI;
 }
 
 float sum_vec(const float*ptr,const uint32 length) {
@@ -469,7 +497,7 @@ bool normalize(float*ptr,const uint32 length, const float avg, const float old_s
     
     if(old_std < SUSAN_FLOAT_TOL || std::isnan(old_std) || std::isinf(old_std) )
         return false;
-		
+
     float scale_factor = new_std/old_std;
 
     uint32 i;
@@ -592,8 +620,8 @@ void anscombe_transform(float*ptr,const uint32 length) {
 }
 
 void generalized_anscombe_transform_zero_mean(float*ptr,const uint32 length) {
-	/// Modified from: https://doi.org/10.1109/TIP.2012.2202675
-	/// TODO: Speed this up!
+    /// Modified from: https://doi.org/10.1109/TIP.2012.2202675
+    /// TODO: Speed this up!
     //vv = vv + (3.0/8.0) + 1
     //vv = 2*np.sqrt( np.maximum(vv,0.0) )
 
@@ -754,52 +782,52 @@ void denoise_l0(float*p_out,const float*p_in,const uint32 length,const float lam
 
 class Timing {
 protected:
-	struct timeval starting_time;
-	
+    struct timeval starting_time;
+
 public:
-	Timing() {
-		tic();
-	}
-	
-	void tic() {
-		gettimeofday(&starting_time, NULL);
-	}
-	
-	uint32 toc() {
-		struct timeval current_time;
-		gettimeofday(&current_time, NULL);
-		return current_time.tv_sec - starting_time.tv_sec;
-	}
+    Timing() {
+        tic();
+    }
+
+    void tic() {
+        gettimeofday(&starting_time, NULL);
+    }
+
+    uint32 toc() {
+        struct timeval current_time;
+        gettimeofday(&current_time, NULL);
+        return current_time.tv_sec - starting_time.tv_sec;
+    }
 
     void get_etc(int&days,int&hours,int&mins,int&secs,const int processed,const int total) {
-		if( processed > 0 ) {
-			if( total == processed ) {
-				days =0;
-				hours=0;
-				mins =0;
-				secs =0;
-			}
-			else {
+        if( processed > 0 ) {
+            if( total == processed ) {
+                days =0;
+                hours=0;
+                mins =0;
+                secs =0;
+            }
+            else {
                 float scale = (float)(total-processed)/(float)(processed);
-				float total_secs = scale*(float)toc();
-				days = (int)floor(total_secs/(86400.0));
-				total_secs = total_secs - 86400.0*days;
-				hours = (int)floor(total_secs/(3600.0));
-				total_secs = total_secs - 3600.0*hours;
-				mins = (int)floor(total_secs/(60.0));
-				secs = ceil(total_secs) - 60.0*mins;
-				if(secs > 59)
-					secs = 59;
-			}
-		}
-		else {
-			days =99;
-			hours=23;
-			mins =59;
-			secs =59;
-		}
-	}
-	
+                float total_secs = scale*(float)toc();
+                days = (int)floor(total_secs/(86400.0));
+                total_secs = total_secs - 86400.0*days;
+                hours = (int)floor(total_secs/(3600.0));
+                total_secs = total_secs - 3600.0*hours;
+                mins = (int)floor(total_secs/(60.0));
+                secs = ceil(total_secs) - 60.0*mins;
+                if(secs > 59)
+                    secs = 59;
+            }
+        }
+        else {
+            days =99;
+            hours=23;
+            mins =59;
+            secs =59;
+        }
+    }
+
 };
 
 }

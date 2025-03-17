@@ -81,11 +81,11 @@ public:
         fft2.alloc(MP,NP,maxK);
         fft2.set_stream(stream.strm);
     }
-	
+
     void pad_zero(GPU::Stream&stream) {
         ss_padded.clear(stream.strm);
     }
-	
+
     void pad_normal(GPU::GArrSingle2&g_avg_std,int k,GPU::Stream&stream) {
         int3 ss_pad = make_int3(NP,NP,k);
         rand.gen_normal(ss_padded.ptr,g_avg_std.ptr,ss_pad,stream.strm);
@@ -120,7 +120,7 @@ public:
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
         GpuKernelsCtf::ctf_stk_phase_flip<<<grd,blk,0,stream.strm>>>(ss_tex.surface,ss_ctf.surface,ss_fourier.ptr,ctf_const,g_def.ptr,bandpass,ss);
     }
-	
+
     void set_wiener(const CtfConst ctf_const,GPU::GArrDefocus&g_def,float3 bandpass,int k,GPU::Stream&stream) {
         int3 ss = make_int3(MP,NP,k);
         dim3 blk = GPU::get_block_size_2D();
@@ -137,11 +137,11 @@ public:
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
         GpuKernelsCtf::ctf_stk_wiener_ssnr<<<grd,blk,0,stream.strm>>>(ss_tex.surface,ss_ctf.surface,ss_fourier.ptr,ctf_const,g_def.ptr,ssnr_f,ssnr_s,bandpass,ss);
     }
-	
+
 };
 
 class RecAcc {
-	
+
 public:
     int maxK;
     int NP;
@@ -213,7 +213,7 @@ public:
         create_kernel();
         alloc();
     }
-	
+
     void invert(GPU::GArrDouble&vol_wgt) {
         if( inv_iter > 0 ) {
             /// gWgt = gVolWgt;
@@ -234,7 +234,7 @@ public:
         else
             GpuKernelsVol::invert_wgt<<<grd,blk>>>(vol_wgt.ptr,siz);
     }
-	
+
 protected:
     void create_kernel() {
         if( inv_iter > 0 ) {
@@ -322,7 +322,7 @@ public:
 };
 
 class RecSym {
-	
+
 public:
     int N;
     int M;

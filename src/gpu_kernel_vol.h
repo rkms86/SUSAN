@@ -68,44 +68,44 @@ __device__ void  rot_inv_pt_XY(float&x,float&y,const Rot33&R,const Vec3&in) {
 }
 
 __device__ bool  get_mirror_index(int&x,int&y,int&z,const int M,const int N) {
-	if( x < 0 ) {
-		x = -x; 
-		y = N - y; if( y >= N ) y = 0;
-		z = N - z; if( z >= N ) z = 0;
-	}
-	
-	if( y>=0 && z >= 0 && x<M && y<N && z<N )
-		return true;
-	else
-		return false;
+    if( x < 0 ) {
+        x = -x;
+        y = N - y; if( y >= N ) y = 0;
+        z = N - z; if( z >= N ) z = 0;
+    }
+
+    if( y>=0 && z >= 0 && x<M && y<N && z<N )
+        return true;
+    else
+        return false;
 }
 
 __device__ bool  get_mirror_index(int&x,int&y,int&z,bool&was_inverted,const int M,const int N) {
-	was_inverted = (x<0) ? true : false;
-	return get_mirror_index(x,y,z,M,N);
+    was_inverted = (x<0) ? true : false;
+    return get_mirror_index(x,y,z,M,N);
 }
 
 __device__ int get_ix_3d(bool&should_read,bool&should_conj,const int x,const int y,const int z,const int M,const int N) {
-	int wx=x;
-	int wy=y;
-	int wz=z;
-	should_conj = false;
+    int wx=x;
+    int wy=y;
+    int wz=z;
+    should_conj = false;
         should_read = false;
-	
-	if(x<0) {
-		wx = -wx;
-		wy = -wy;
-		wz = -wz;
-		should_conj = true;
-	}
-	
-	wy += N/2;
-	wz += N/2;
+
+    if(x<0) {
+        wx = -wx;
+        wy = -wy;
+        wz = -wz;
+        should_conj = true;
+    }
+
+    wy += N/2;
+    wz += N/2;
 
         if( wx < M && wy < N && wz < N )
             should_read = true;
-	
-	return wx + wy*M + wz*M*N;
+
+    return wx + wy*M + wz*M*N;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -114,8 +114,8 @@ __global__ void insert_stk(double2*p_acc,double*p_wgt,
                            cudaTextureObject_t ss_stk, cudaTextureObject_t ss_wgt, const Proj2D*pTlt,
                            const float3 bandpass,const int M, const int N, const int K)
 {
-	int3 ss_idx = get_th_idx();
-	
+    int3 ss_idx = get_th_idx();
+
     if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < N ) {
 
         Vec3 pt;
@@ -176,130 +176,130 @@ __global__ void insert_stk_atomic(double2*p_acc,double*p_wgt,
                                   cudaTextureObject_t ss_stk, cudaTextureObject_t ss_wgt, const Proj2D*pTlt,
                                   const float3 bandpass,const int M, const int N, const int K)
 {
-	int3 ss_idx = get_th_idx();
-	
-	if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < K ) {
-		
-		if( pTlt[ss_idx.z].w > 0 ) {
-			Vec3 pt;
-			pt.x = ss_idx.x;
-			pt.y = ss_idx.y - N/2;
-			pt.z = 0;
+    int3 ss_idx = get_th_idx();
 
-			float R = sqrt( pt.x*pt.x + pt.y*pt.y );
-			float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < K ) {
 
-			if( bp > 0.025 ) {
-				
-				float2 val = tex2DLayered<float2>(ss_stk, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
-				float  wgt = tex2DLayered<float >(ss_wgt, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
-				float x,y,z;
+        if( pTlt[ss_idx.z].w > 0 ) {
+            Vec3 pt;
+            pt.x = ss_idx.x;
+            pt.y = ss_idx.y - N/2;
+            pt.z = 0;
+
+            float R = sqrt( pt.x*pt.x + pt.y*pt.y );
+            float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+
+            if( bp > 0.025 ) {
+
+                float2 val = tex2DLayered<float2>(ss_stk, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
+                float  wgt = tex2DLayered<float >(ss_wgt, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
+                float x,y,z;
                 val.x *= bp*pTlt[ss_idx.z].w;
                 val.y *= bp*pTlt[ss_idx.z].w;
                 wgt   *= bp*pTlt[ss_idx.z].w;
-				
-				rot_pt(x,y,z,pTlt[ss_idx.z].R,pt);
-				if( x < 0 ) {
-					x = -x;
-					y = -y;
-					z = -z;
-					val.y = -val.y;
-				}
-				
-				y += N/2;
-				z += N/2;
 
-				int x0 = int( floor(x) );
-				int y0 = int( floor(y) );
-				int z0 = int( floor(z) );
-				int x1 = x0 + 1;
-				int y1 = y0 + 1;
-				int z1 = z0 + 1;
-				
-				float wx1 = x - floor(x);
-				float wy1 = y - floor(y);
-				float wz1 = z - floor(z);
-				float wx0 = 1 - wx1;
-				float wy0 = 1 - wy1;
-				float wz0 = 1 - wz1;
-				
-				bool bx0 = x0 < M;
-				bool bx1 = x1 < M;
-				bool by0 = (y0>=0) && (y0<N);
-				bool by1 = (y1>=0) && (y1<N);
-				bool bz0 = (z0>=0) && (z0<N);
-				bool bz1 = (z1>=0) && (z1<N);
-				
-				long idx;
-				double w_wgt;
-				
-				if( bx0 && by0 && bz0 ) {
-					idx = x0 + y0*M + z0*M*N;
-					w_wgt = wx0*wy0*wz0;
-					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
-					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
-					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
-				}
-				
-				if( bx1 && by0 && bz0 ) {
-					idx = x1 + y0*M + z0*M*N;
-					w_wgt = wx1*wy0*wz0;
-					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
-					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
-					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
-				}
-				
-				if( bx0 && by1 && bz0 ) {
-					idx = x0 + y1*M + z0*M*N;
-					w_wgt = wx0*wy1*wz0;
-					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
-					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
-					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
-				}
-				
-				if( bx1 && by1 && bz0 ) {
-					idx = x1 + y1*M + z0*M*N;
-					w_wgt = wx1*wy1*wz0;
-					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
-					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
-					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
-				}
-				
-				if( bx0 && by0 && bz1 ) {
-					idx = x0 + y0*M + z1*M*N;
-					w_wgt = wx0*wy0*wz1;
-					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
-					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
-					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
-				}
-				
-				if( bx1 && by0 && bz1 ) {
-					idx = x1 + y0*M + z1*M*N;
-					w_wgt = wx1*wy0*wz1;
-					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
-					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
-					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
-				}
-				
-				if( bx0 && by1 && bz1 ) {
-					idx = x0 + y1*M + z1*M*N;
-					w_wgt = wx0*wy1*wz1;
-					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
-					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
-					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
-				}
-				
-				if( bx1 && by1 && bz1 ) {
-					idx = x1 + y1*M + z1*M*N;
-					w_wgt = wx1*wy1*wz1;
-					atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
-					atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
-					atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
-				}
-			
-			}
-		}
-	}
+                rot_pt(x,y,z,pTlt[ss_idx.z].R,pt);
+                if( x < 0 ) {
+                    x = -x;
+                    y = -y;
+                    z = -z;
+                    val.y = -val.y;
+                }
+
+                y += N/2;
+                z += N/2;
+
+                int x0 = int( floor(x) );
+                int y0 = int( floor(y) );
+                int z0 = int( floor(z) );
+                int x1 = x0 + 1;
+                int y1 = y0 + 1;
+                int z1 = z0 + 1;
+
+                float wx1 = x - floor(x);
+                float wy1 = y - floor(y);
+                float wz1 = z - floor(z);
+                float wx0 = 1 - wx1;
+                float wy0 = 1 - wy1;
+                float wz0 = 1 - wz1;
+
+                bool bx0 = x0 < M;
+                bool bx1 = x1 < M;
+                bool by0 = (y0>=0) && (y0<N);
+                bool by1 = (y1>=0) && (y1<N);
+                bool bz0 = (z0>=0) && (z0<N);
+                bool bz1 = (z1>=0) && (z1<N);
+
+                long idx;
+                double w_wgt;
+
+                if( bx0 && by0 && bz0 ) {
+                    idx = x0 + y0*M + z0*M*N;
+                    w_wgt = wx0*wy0*wz0;
+                    atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+                    atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+                    atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
+                }
+
+                if( bx1 && by0 && bz0 ) {
+                    idx = x1 + y0*M + z0*M*N;
+                    w_wgt = wx1*wy0*wz0;
+                    atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+                    atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+                    atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
+                }
+
+                if( bx0 && by1 && bz0 ) {
+                    idx = x0 + y1*M + z0*M*N;
+                    w_wgt = wx0*wy1*wz0;
+                    atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+                    atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+                    atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
+                }
+
+                if( bx1 && by1 && bz0 ) {
+                    idx = x1 + y1*M + z0*M*N;
+                    w_wgt = wx1*wy1*wz0;
+                    atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+                    atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+                    atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
+                }
+
+                if( bx0 && by0 && bz1 ) {
+                    idx = x0 + y0*M + z1*M*N;
+                    w_wgt = wx0*wy0*wz1;
+                    atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+                    atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+                    atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
+                }
+
+                if( bx1 && by0 && bz1 ) {
+                    idx = x1 + y0*M + z1*M*N;
+                    w_wgt = wx1*wy0*wz1;
+                    atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+                    atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+                    atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
+                }
+
+                if( bx0 && by1 && bz1 ) {
+                    idx = x0 + y1*M + z1*M*N;
+                    w_wgt = wx0*wy1*wz1;
+                    atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+                    atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+                    atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
+                }
+
+                if( bx1 && by1 && bz1 ) {
+                    idx = x1 + y1*M + z1*M*N;
+                    w_wgt = wx1*wy1*wz1;
+                    atomic_Add( &(p_acc[idx].x) , w_wgt*val.x );
+                    atomic_Add( &(p_acc[idx].y) , w_wgt*val.y );
+                    atomic_Add( &(p_wgt[idx]  ) , w_wgt*wgt   );
+                }
+
+            }
+        }
+    }
 }
 
 __global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pTlt,
@@ -337,8 +337,8 @@ __global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pT
                 if( should_conjugate )
                     val.y = -val.y;
 
-                val.x *= bp;
-                val.y *= bp;
+                //val.x *= bp;
+                //val.y *= bp;
 
             }
         }
@@ -399,9 +399,9 @@ __global__ void inv_wgt_ite_sphere(double*p_vol_wgt,const int3 ss_siz) {
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		int center = ss_siz.y/2;
+        int center = ss_siz.y/2;
 
-		float R = l2_distance(ss_idx.x,ss_idx.y-center,ss_idx.z-center);
+        float R = l2_distance(ss_idx.x,ss_idx.y-center,ss_idx.z-center);
 
         double out = (R < center) ? 1.0 : 0.0;
         p_vol_wgt[ get_3d_idx(ss_idx,ss_siz) ] = out;
@@ -437,7 +437,7 @@ __global__ void inv_wgt_ite_convolve(double*p_conv,const double*p_tmp,const floa
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
-		
+
         double out = 0;
 
         for(int i=0; i<n_krnl; i++ ) {
@@ -450,7 +450,7 @@ __global__ void inv_wgt_ite_convolve(double*p_conv,const double*p_tmp,const floa
                 out += w*p_tmp[ get_3d_idx(x,y,z,ss_siz) ];
             }
         }
-		
+
         p_conv[ get_3d_idx(ss_idx,ss_siz) ] = out;
     }
 }
@@ -493,23 +493,23 @@ __global__ void boost_low_freq(float2*p_out,
                                const float scale, const float value, const float decay,
                                const int3 ss_siz)
 {
-	int3 ss_idx = get_th_idx();
+    int3 ss_idx = get_th_idx();
 
-	if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
-		long ix = ss_idx.x + ss_idx.y*ss_siz.x + ss_idx.z*ss_siz.x*ss_siz.y;
-		int center = ss_siz.y/2;
-		float R = l2_distance(ss_idx.x,ss_idx.y-center,ss_idx.z-center);
-		
-		float2 val = p_out[ix];
-		
-		float bp = get_bp_wgt(0,value,decay,R);
-		bp = ((scale*bp)+1)/(scale+1);
-		val.x *= bp;
-		val.y *= bp;
-		
-		p_out[ ix ] = val;
-	}
+        long ix = ss_idx.x + ss_idx.y*ss_siz.x + ss_idx.z*ss_siz.x*ss_siz.y;
+        int center = ss_siz.y/2;
+        float R = l2_distance(ss_idx.x,ss_idx.y-center,ss_idx.z-center);
+
+        float2 val = p_out[ix];
+
+        float bp = get_bp_wgt(0,value,decay,R);
+        bp = ((scale*bp)+1)/(scale+1);
+        val.x *= bp;
+        val.y *= bp;
+
+        p_out[ ix ] = val;
+    }
 }
 
 __global__ void add_symmetry(double2*p_val,double*p_wgt,
@@ -517,7 +517,7 @@ __global__ void add_symmetry(double2*p_val,double*p_wgt,
                              Rot33 Rsym, const int M, const int N)
 {
     int3 ss_idx = get_th_idx();
-	
+
     if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < N ) {
 
         Vec3 pt;
@@ -667,7 +667,6 @@ __global__ void reconstruct_pts(float*p_cc,const Proj2D*pTlt,cudaTextureObject_t
 
     }
 
-
 }
 
 
@@ -687,7 +686,6 @@ __global__ void extract_pts(float*p_cc,const float*p_data,const Proj2D*pTlt,cons
         p_cc[ss_idx.x + n_pts*ss_idx.z] = pTlt[ss_idx.z].w*cc;
 
     }
-
 
 }
 
@@ -756,7 +754,6 @@ __global__ void extract_pts(float*p_cc,const float*p_data,const Vec3*p_pts,const
         p_cc[ss_idx.x] = cc;
 
     }
-
 
 }
 

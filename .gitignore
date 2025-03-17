@@ -1,5 +1,6 @@
 # Ignore bins
-bin/
+bin/*
+!bin/.gitkeep
 # Ignore build with eigen
 build/
 # Ignore mexa64 files

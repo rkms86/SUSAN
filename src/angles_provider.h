@@ -135,10 +135,10 @@ public:
     }
 
     bool sym_available() {
-		if( curr_lvl > 0 )
-			return ( curr_sym < 1 );
-		else
-			return ( curr_sym < pseudo_sym_length );
+        if( curr_lvl > 0 )
+            return ( curr_sym < 1 );
+        else
+            return ( curr_sym < pseudo_sym_length );
     }
 
     void sym_next() {

@@ -48,6 +48,7 @@ typedef struct {
     uint32 cc_type;
     uint32 cc_stats;
     uint32 type;
+    uint32 dilate;
     float  ssnr_F;
     float  ssnr_S;
     bool   ali_halves;
@@ -60,6 +61,7 @@ typedef struct {
     uint32 refine_level;
     uint32 refine_factor;
     uint32 off_type;
+    uint32 off_space;
     float  off_x;
     float  off_y;
     float  off_z;
@@ -81,7 +83,7 @@ typedef struct {
 
 bool validate(const Info&info) {
     bool rslt = true;
-    if( info.type < 2 || info.type > 3 ) {
+    if( (info.type < 2) || (info.type > 3) ) {
         fprintf(stderr,"Invalid type %d. Use 3 for 3D alignment or 2 for 2D.\n",info.type);
         rslt = false;
     }
@@ -142,8 +144,9 @@ bool parse_args(Info&info,int ac,char** av) {
     info.ctf_type      = ALI_CTF_ON_REFERENCE;
     info.norm_type     = NO_NORM;
     info.type          = 3;
+    info.dilate        = 0;
     info.ssnr_F        = 0;
-    info.ssnr_S        = 1;
+    info.ssnr_S        = 0;
     info.ali_halves    = false;
     info.ignore_ref    = false;
     info.cc_type       = CC_TYPE_BASIC;
@@ -156,6 +159,7 @@ bool parse_args(Info&info,int ac,char** av) {
     info.refine_level  = 0;
     info.refine_factor = 1;
     info.off_type      = ELLIPSOID;
+    info.off_space     = REFERENCE_SPACE;
     info.off_x         = 0;
     info.off_y         = 0;
     info.off_z         = 0;
@@ -188,6 +192,7 @@ bool parse_args(Info&info,int ac,char** av) {
         CC_STATS,
         SSNR,
         BANDPASS,
+        DILATE,
         ROLLOFF_F,
         SYMMETRY,
         ALI_HALVES,
@@ -197,6 +202,7 @@ bool parse_args(Info&info,int ac,char** av) {
         INPLANE,
         REFINE,
         OFF_TYPE,
+        OFF_SPACE,
         OFF_PARAM,
         VERBOSITY,
         TM_TYPE,
@@ -231,11 +237,13 @@ bool parse_args(Info&info,int ac,char** av) {
         {"inplane",     1, 0, INPLANE   },
         {"refine",      1, 0, REFINE    },
         {"off_type",    1, 0, OFF_TYPE  },
+        {"off_space",   1, 0, OFF_SPACE },
         {"off_params",  1, 0, OFF_PARAM },
         {"verbosity",   1, 0, VERBOSITY },
         {"tm_type",     1, 0, TM_TYPE   },
         {"tm_prefix",   1, 0, TM_PREFIX },
-        {"tm_sigma",    1, 0, TM_SIGMA },
+        {"tm_sigma",    1, 0, TM_SIGMA  },
+        {"dilate",      1, 0, DILATE    },
         {"type",        1, 0, TYPE },
         {0, 0, 0, 0}
     };
@@ -317,11 +325,17 @@ bool parse_args(Info&info,int ac,char** av) {
             case OFF_TYPE:
                 info.off_type = ArgParser::get_offset_type(optarg);
                 break;
+            case OFF_SPACE:
+                info.off_space = ArgParser::get_offset_space(optarg);
+                break;
             case OFF_PARAM:
                 ArgParser::get_single_quad(info.off_x,info.off_y,info.off_z,info.off_s,optarg);
                 break;
             case VERBOSITY:
                 info.verbosity = atoi(optarg);
+                break;
+            case DILATE:
+                info.dilate = atoi(optarg);
                 break;
             case TYPE:
                 info.type = atoi(optarg);

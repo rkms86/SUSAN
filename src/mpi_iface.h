@@ -63,7 +63,7 @@ protected:
 public:
     MpiProgress(int num_nodes) {
         MPI_Win_allocate(num_nodes*sizeof(unsigned int), sizeof(unsigned int), MPI_INFO_NULL, MPI_COMM_WORLD, &shared_buffer, &win);
-	MPI_Win_fence(0, win);
+        MPI_Win_fence(0, win);
     }
 
     void put(int ix, unsigned int value) {
@@ -72,7 +72,7 @@ public:
 
     unsigned int get(int ix) {
         unsigned int value;
-        MPI_Get(&value,1,MPI_UNSIGNED,ix,ix,1,MPI_UNSIGNED,win);
+        MPI_Get(&value,1,MPI_UNSIGNED,i x,ix,1,MPI_UNSIGNED,win);
         return value;
     }
 

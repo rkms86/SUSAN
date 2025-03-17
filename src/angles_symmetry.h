@@ -121,58 +121,58 @@ protected:
     
     static M33f*cuboctahedral() {
         M33f*rslt = new M33f[24];
-		V3f eu;
-		M33f tmp;
-		eu(0) = 0;
-		eu(1) = 0;
-		eu(2) = 0;
-		for(int n=0;n<4;n++) {
-			float angle = 2*M_PI*float(n)/float(4);
-			eu(0) = angle;
-			Math::eZYZ_Rmat(rslt[n],eu);
-		}
-		
-		eu(0) = 0;
-		eu(1) = M_PI/2;
-		eu(2) = 0;
-		Math::eZYZ_Rmat(tmp,eu);
-		for(int n=0;n<4;n++) {
-			rslt[n+ 4] = tmp*rslt[n];
-		}
-		
-		eu(0) = 0;
-		eu(1) = -M_PI/2;
-		eu(2) = 0;
-		Math::eZYZ_Rmat(tmp,eu);
-		for(int n=0;n<4;n++) {
-			rslt[n+ 8] = tmp*rslt[n];
-		}
-		
-		eu(0) = 0;
-		eu(1) = M_PI/2;
-		eu(2) = 0;
-		Math::eZXZ_Rmat(tmp,eu);
-		for(int n=0;n<4;n++) {
-			rslt[n+12] = tmp*rslt[n];
-		}
-		
-		eu(0) = 0;
-		eu(1) = -M_PI/2;
-		eu(2) = 0;
-		Math::eZXZ_Rmat(tmp,eu);
-		for(int n=0;n<4;n++) {
-			rslt[n+16] = tmp*rslt[n];
-		}
-		
-		eu(0) = 0;
-		eu(1) = M_PI;
-		eu(2) = 0;
-		Math::eZYZ_Rmat(tmp,eu);
-		for(int n=0;n<4;n++) {
-			rslt[n+20] = tmp*rslt[n];
-		}
-		
-		return rslt;
+        V3f eu;
+        M33f tmp;
+        eu(0) = 0;
+        eu(1) = 0;
+        eu(2) = 0;
+        for(int n=0;n<4;n++) {
+            float angle = 2*M_PI*float(n)/float(4);
+            eu(0) = angle;
+            Math::eZYZ_Rmat(rslt[n],eu);
+        }
+
+        eu(0) = 0;
+        eu(1) = M_PI/2;
+        eu(2) = 0;
+        Math::eZYZ_Rmat(tmp,eu);
+        for(int n=0;n<4;n++) {
+            rslt[n+ 4] = tmp*rslt[n];
+        }
+
+        eu(0) = 0;
+        eu(1) = -M_PI/2;
+        eu(2) = 0;
+        Math::eZYZ_Rmat(tmp,eu);
+        for(int n=0;n<4;n++) {
+            rslt[n+ 8] = tmp*rslt[n];
+        }
+
+        eu(0) = 0;
+        eu(1) = M_PI/2;
+        eu(2) = 0;
+        Math::eZXZ_Rmat(tmp,eu);
+        for(int n=0;n<4;n++) {
+            rslt[n+12] = tmp*rslt[n];
+        }
+
+        eu(0) = 0;
+        eu(1) = -M_PI/2;
+        eu(2) = 0;
+        Math::eZXZ_Rmat(tmp,eu);
+        for(int n=0;n<4;n++) {
+            rslt[n+16] = tmp*rslt[n];
+        }
+
+        eu(0) = 0;
+        eu(1) = M_PI;
+        eu(2) = 0;
+        Math::eZYZ_Rmat(tmp,eu);
+        for(int n=0;n<4;n++) {
+            rslt[n+20] = tmp*rslt[n];
+        }
+
+        return rslt;
     }
 };
 

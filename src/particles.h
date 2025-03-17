@@ -32,7 +32,7 @@
 #include "memory.h"
 
 class Particle {
-	
+
 public:
     PtclInf *info;
     Vec3    *ali_eu;  /// radians
@@ -47,7 +47,7 @@ public:
 
     uint32  n_proj;
     uint32  n_refs;
-	
+
 public:
     Particle() {
         info   = NULL;
@@ -182,7 +182,7 @@ public:
 };
 
 class Particles {
-	
+
 public:
     uint32 n_ptcl;
     uint32 n_proj;
@@ -207,7 +207,7 @@ public:
         }
         return false;
     }
-	
+
 public:
     static bool check_signature(const char*filename) {
         bool rslt = true;
@@ -229,7 +229,7 @@ public:
 
         return rslt;
     }
-	
+
 protected:
     void allocate(uint32 ptcl,uint32 proj,uint32 refs) {
         n_bytes = sizeof(PtclInf)
@@ -237,7 +237,7 @@ protected:
                 + proj*(sizeof(Vec3)+sizeof(Vec2)+sizeof(float)+sizeof(float)) /// 2D ALIGNMENT PER PROJECTION
                 + proj*(sizeof(Defocus));                                      /// DEFOCUS PER PROJECTION
 
-	size_t total_bytes = n_bytes;
+        size_t total_bytes = n_bytes;
         total_bytes *= ptcl;
 
         p_raw = (uint8*)malloc(total_bytes);
@@ -247,11 +247,11 @@ protected:
         }
         memset(p_raw,0,total_bytes);
     }
-	
+
 };
 
 class ParticlesRW : public Particles {
-	
+
 public:
     ParticlesRW(const char*filename) {
 
@@ -303,15 +303,15 @@ public:
         fwrite(p_raw,n_bytes,n_ptcl,fp);
         fclose(fp);
     }
-	
+
 };
 
 class ParticlesInStream : public Particles {
-	
+
 protected:
     FILE   *fp;
     uint32 counter;
-	
+
 public:
     ParticlesInStream(const char*filename) {
 
@@ -341,12 +341,12 @@ public:
 
         counter = 0;
     }
-	
+
     ~ParticlesInStream() {
         fclose(fp);
         free(p_raw);
     }
-	
+
     bool get(Particle&ptcl,uint32 ix=0) {
         if( ix < 1 ) {
             ptcl.set(p_raw,n_proj,n_refs);
@@ -354,7 +354,7 @@ public:
         }
         return false;
     }
-	
+
     bool read_buffer() {
         if( counter < n_ptcl ) {
             if( IO::check_fread(p_raw,n_bytes,1,fp) ) {
@@ -367,15 +367,15 @@ public:
         }
         return true;
     }
-		
+
 };
 
 class ParticlesOutStream : public Particles {
-	
+
 protected:
     FILE   *fp;
     uint32 counter;
-	
+
 public:
     ParticlesOutStream(const char*filename,uint32 proj,uint32 refs) {
         n_ptcl = 1;
@@ -395,19 +395,19 @@ public:
 
         counter = 0;
     }
-	
+
     ~ParticlesOutStream() {
         fseek(fp,8,SEEK_SET);
         fwrite(&counter,sizeof(uint32),1,fp);
         fclose(fp);
         free(p_raw);
     }
-	
+
     void write_buffer() {
         fwrite(p_raw,n_bytes,1,fp);
         counter++;
     }
-	
+
 };
 
 class ParticlesMem : public Particles {
@@ -431,9 +431,9 @@ public:
         n_refs  = ptcls_in.n_refs;
         n_bytes = ptcls_in.n_bytes;
 
-	uint64 w_offset = n_bytes;
+        uint64 w_offset = n_bytes;
         w_offset *= offset;
-	p_raw   = ptcls_in.p_raw + w_offset;
+        p_raw   = ptcls_in.p_raw + w_offset;
 
         if( offset < ptcls_in.n_ptcl ) {
             uint32 w_length = offset + length;

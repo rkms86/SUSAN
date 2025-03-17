@@ -160,7 +160,8 @@ typedef enum {
 typedef enum {
     CC_STATS_NONE=0,
     CC_STATS_PROB,
-    CC_STATS_SIGMA
+    CC_STATS_SIGMA,
+    CC_STATS_WGT_AVG
 } CcStatsType_t;
 
 typedef enum {
@@ -176,6 +177,11 @@ typedef enum {
     CIRCLE,
     CUBOID,
 } OffsetType_t;
+
+typedef enum {
+    TOMOGRAM_SPACE,
+    REFERENCE_SPACE,
+} OffsetSpace_t;
 
 
 

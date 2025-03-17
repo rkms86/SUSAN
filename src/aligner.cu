@@ -67,7 +67,7 @@ int main(int ac, char** av) {
         fprintf(stderr,"Error parsing input arguments.\n");
         exit(1);
     }
-	
+
     return 0;
 }
 

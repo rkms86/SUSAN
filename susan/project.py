@@ -75,6 +75,7 @@ class Manager:
         
         self.max_2d_delta_angstroms  = 0
         self.max_tilt_reconstruction = -1
+        self.reweight_classification = False
         
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
@@ -294,6 +295,8 @@ class Manager:
         # Classify
         if ptcls_in.n_refs > 1 :
             ptcls_in.ref_cix = _np.argmax(ptcls_in.ali_cc,axis=0)
+            if self.reweight_classification:
+                ptcls_in.ali_cc = ptcls_in.ali_cc/ptcls_in.ali_cc.sum(axis=0)
             ptcls_in.save(cur.ptcl_rslt)
         
         # Select particles for reconstruction

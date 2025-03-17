@@ -146,15 +146,15 @@ public:
     }
     
     bool check() {
-		bool rslt = check_exists();
-		
-		if( rslt ) {
-			rslt &= check_size();
-			rslt &= check_mode();
-			rslt &= check_apix();
-		}
-		
-		return rslt;
+        bool rslt = check_exists();
+
+        if( rslt ) {
+            rslt &= check_size();
+            rslt &= check_mode();
+            rslt &= check_apix();
+        }
+
+        return rslt;
     }
 
     float get_angle_step_rad() {
@@ -183,39 +183,39 @@ protected:
     }
     
     bool check_exists() {
-		if( ~IO::exists(stk_name) ) {
-			fprintf(stderr,"File %s not found or cannot be read.\n",stk_name);
-			return false;
-		}
-		return true;
-	}
-	
-	bool check_size() {
-		uint32 x,y,z;
-		Mrc::read_size(x,y,z,stk_name);
-		if( x != stk_dim.x || y != stk_dim.y || z != stk_dim.z ) {
-			fprintf(stderr,"file %s: Different size (%d,%d,%d) != (%d,%d,%d).\n",stk_name,x,y,z,stk_dim.x,stk_dim.y,stk_dim.z);
-			return false;
-		}
-		return true;
-	}
-	
-	bool check_mode() {
-		if( !Mrc::is_mode_float(stk_name) ) {
-			fprintf(stderr,"file %s: Unsupported MRC mode.\n",stk_name);
-			return false;
-		}
-		return true;
-	}
-	
-	bool check_apix() {
-		float stk_pix_size = Mrc::get_apix(stk_name);
-		if( abs(stk_pix_size-pix_size) < SUSAN_FLOAT_TOL ) {
-			fprintf(stderr,"file %s: Different pixel size %f != %f.\n",stk_name,stk_pix_size,pix_size);
-			return false;
-		}
-		return true;
-	}
+        if( ~IO::exists(stk_name) ) {
+            fprintf(stderr,"File %s not found or cannot be read.\n",stk_name);
+            return false;
+        }
+        return true;
+    }
+
+    bool check_size() {
+        uint32 x,y,z;
+        Mrc::read_size(x,y,z,stk_name);
+        if( x != stk_dim.x || y != stk_dim.y || z != stk_dim.z ) {
+            fprintf(stderr,"file %s: Different size (%d,%d,%d) != (%d,%d,%d).\n",stk_name,x,y,z,stk_dim.x,stk_dim.y,stk_dim.z);
+            return false;
+        }
+        return true;
+    }
+
+    bool check_mode() {
+        if( !Mrc::is_mode_float(stk_name) ) {
+            fprintf(stderr,"file %s: Unsupported MRC mode.\n",stk_name);
+            return false;
+        }
+        return true;
+    }
+
+    bool check_apix() {
+        float stk_pix_size = Mrc::get_apix(stk_name);
+        if( abs(stk_pix_size-pix_size) < SUSAN_FLOAT_TOL ) {
+            fprintf(stderr,"file %s: Different pixel size %f != %f.\n",stk_name,stk_pix_size,pix_size);
+            return false;
+        }
+        return true;
+    }
 };
 
 class Tomograms {
@@ -270,8 +270,8 @@ public:
     }
     
     bool check() {
-		bool rslt = true;
-		for(int i=0;i<num_tomo;i++) {
+        bool rslt = true;
+        for(int i=0;i<num_tomo;i++) {
             rslt &= tomos[i].check();
         }
         return rslt;

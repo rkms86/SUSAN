@@ -207,7 +207,7 @@ bool parse_args(Info&info,int ac,char** av) {
 }
 
 void print_angles(const Info&info) {
-	
+
     AnglesProvider angles;
     angles.cone_range    = info.cone_range;
     angles.cone_step     = info.cone_step;
@@ -256,7 +256,7 @@ void print(const Info&info,FILE*fp=stdout) {
     fprintf(stdout,"\t\tInplane search: Range=%.3f, Step=%.3f.\n",info.inplane_range,info.inplane_step);
     fprintf(stdout,"\t\tAngle refinement: Levels=%d, Factor=%d.\n",info.refine_level,info.refine_factor);
     print_angles(info);
-	
+
     uint32_t total_points=0;
     if( info.off_type == ELLIPSOID ) {
         Vec3*pt = PointsProvider::ellipsoid(total_points,info.off_x,info.off_y,info.off_z,info.off_s);
@@ -268,7 +268,7 @@ void print(const Info&info,FILE*fp=stdout) {
         fprintf(stdout,"\t\tCylindrical offset search (3D): ");
         delete [] pt;
     }
-	
+
     fprintf(stdout,"Range=[%.2f,%.2f,%.2f], Step=%.2f. Total points: %d\n",info.off_x,info.off_y,info.off_z,info.off_s,total_points);
 }
 

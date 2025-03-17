@@ -30,30 +30,30 @@
 #include "refs_aligner_args.h"
 
 void print_data_info(Particles&ptcls) {
-	printf("\t\tAvailable particles:  %d.\n",ptcls.n_ptcl);
-        printf("\t\tNumber of classes:    %d.\n",ptcls.n_refs);
+    printf("\t\tAvailable particles:  %d.\n",ptcls.n_ptcl);
+    printf("\t\tNumber of classes:    %d.\n",ptcls.n_refs);
 }
 
 int main(int ac, char** av) {
 
-        ArgsRefsAli::Info info;
+    ArgsRefsAli::Info info;
 
-        if( ArgsRefsAli::parse_args(info,ac,av) ) {
-                ArgsRefsAli::print(info);
-                ParticlesRW ptcls(info.ptcls_in);
-		References refs(info.refs_file);
-                print_data_info(ptcls);
+    if( ArgsRefsAli::parse_args(info,ac,av) ) {
+        ArgsRefsAli::print(info);
+        ParticlesRW ptcls(info.ptcls_in);
+        References refs(info.refs_file);
+        print_data_info(ptcls);
 
-                RefsAligner aligner(&info,&refs);
-                aligner.align();
-                aligner.update_ptcls(ptcls);
-                ptcls.save(info.ptcls_out);
-	}
-	else {
-		fprintf(stderr,"Error parsing input arguments.\n");
-		exit(1);
-	}
-	
+        RefsAligner aligner(&info,&refs);
+        aligner.align();
+        aligner.update_ptcls(ptcls);
+        ptcls.save(info.ptcls_out);
+    }
+    else {
+        fprintf(stderr,"Error parsing input arguments.\n");
+        exit(1);
+    }
+
     return 0;
 }
 

@@ -131,6 +131,7 @@ public:
     bool  est_dose;
     bool  use_halves;
     float3  bandpass;
+    float2  ssnr; /// x=F; y=S;
 
     DoubleBufferHandler *p_buffer;
     RefMap              *p_refs;
@@ -274,57 +275,111 @@ protected:
         }
 
         ss_data.add_data(ptr->g_stk,ptr->g_ali,ptr->K,stream);
-        rad_avgr.preset_FRC(ss_data.ss_fourier,ptr->K,stream);
+
+        rad_avgr.calculate_FRC(ss_data.ss_fourier,bandpass,ptr->K,stream);
+        rad_avgr.apply_FRC(ss_data.ss_fourier,ptr->ctf_vals,ssnr,ptr->K,stream);
         rad_avgr.normalize_stacks(ss_data.ss_fourier,bandpass,ptr->K,stream);
     }
 
     void search_ctf(AliRef&vol,AliSubstack&ss_data,Refine&ctf_ref,CtfRefBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
 
-        single max_cc[ptr->K];
-        single ite_cc[ptr->K];
-        int ite_idx[ptr->K];
-        Defocus def_rslt[ptr->K];
-
-        memset(max_cc,0,sizeof(single)*ptr->K);
-        memset(def_rslt,0,sizeof(Defocus)*ptr->K);
-
         Rot33 Rot;
-        M33f  R_eye = Eigen::MatrixXf::Identity(3,3);
+        single max_cc[ptr->K];
+        single sum_cc[ptr->K];
+        single ite_cc[ptr->K];
+        int    ite_idx[ptr->K];
+        Defocus def_rslt[ptr->K];
+        //int count = 0;
 
+        for(int i=0;i<ptr->K;i++) max_cc[i] = -INFINITY;
+        memset(def_rslt,0,sizeof(Defocus)*ptr->K);
+        memset(sum_cc  ,0,sizeof(single )*ptr->K);
+
+        // Apply 3D alignment
+        M33f  R_ite,R_tmp,R_ali;
+        V3f eu_ZYZ;
+        eu_ZYZ(0) = ptr->ptcl.ali_eu[ptr->class_ix].x;
+        eu_ZYZ(1) = ptr->ptcl.ali_eu[ptr->class_ix].y;
+        eu_ZYZ(2) = ptr->ptcl.ali_eu[ptr->class_ix].z;
+        Math::eZYZ_Rmat(R_ali,eu_ZYZ);
+        Math::set(Rot,R_ali);
+        ali_data.pre_rotate_reference(Rot,ptr->g_ali,ptr->K,stream);
+
+        // No additional 3D rotation per projection
+        M33f  R_eye = Eigen::MatrixXf::Identity(3,3);
         Math::set(Rot,R_eye);
-        ali_data.rotate_post(Rot,ptr->g_ali,ptr->K,stream);
+        ali_data.rotate_projections(Rot,ptr->g_ali,ptr->K,stream);
 
         ali_data.project(vol.ref,bandpass,ptr->K,stream);
-        rad_avgr.calculate_FRC(ali_data.prj_c,ptr->K,stream);
+        rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
         ctf_ref.load_buf(ali_data.prj_c,ptr->K,stream);
 
         float dU,dV,dA;
         float3 delta_w;
-        for( dU=-def_range; dU<def_range; dU+=def_step ) {
-            delta_w.x = dU;
-            for( dV=-def_range; dV<def_range; dV+=def_step ) {
-                delta_w.y = dV;
-                for( dA=-ang_range; dA<ang_range; dA+=ang_step ) {
-                    delta_w.z = dA;
+
+        /*if( ptr->ptcl.ptcl_id() == 4 ) {
+            printf("arr = (");
+        }*/
+
+        for( dU=-def_range; dU<(def_range+0.5*def_step); dU+=def_step ) {
+            delta_w.x  = dU;
+            /*if( ptr->ptcl.ptcl_id() == 4 ) {
+                printf("(");
+            }*/
+            for( dV=-def_range; dV<(def_range+0.5*def_step); dV+=def_step ) {
+                delta_w.y  = dV;
+                for( dA=-ang_range; dA<(ang_range+0.5*ang_step); dA+=ang_step ) {
+                    delta_w.z  = dA;
                     ctf_ref.apply_ctf(ali_data.prj_c,delta_w,ptr,stream);
                     rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
                     rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
+                    ali_data.apply_bandpass(bandpass,ptr->K,stream);
                     ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
                     ali_data.invert_fourier(ptr->K,stream);
                     stream.sync();
                     ali_data.extract_cc(ite_cc,ite_idx,ptr->g_ali,ptr->K,stream);
+                    //count++;
+
                     for(int i=0;i<ptr->K;i++) {
-                        if( ite_cc[i] > max_cc[i] ) {
-                            max_cc[i] = ite_cc[i];
-                            def_rslt[i].U = dU;
-                            def_rslt[i].V = dV;
-                            def_rslt[i].angle = dA;
+                        if( ptr->ptcl.prj_w[i] > 0 ) {
+                            sum_cc[i] += ite_cc[i];
+                            if( ite_cc[i] > max_cc[i] ) {
+                                def_rslt[i].angle = dA;
+                                def_rslt[i].U = dU;
+                                def_rslt[i].V = dV;
+                                max_cc[i] = ite_cc[i];
+                            }
+
+                            /*if( ptr->ptcl.ptcl_id() == 4 && i == 15 && dA == 0 ) {
+                                printf("%f,",ite_cc[i]);
+                            }*/
                         }
                     }
                 }
             }
+
+            /*if( ptr->ptcl.ptcl_id() == 4 ) {
+                printf("),\n");
+            }*/
+
         }
+
+        /*if( ptr->ptcl.ptcl_id() == 4 ) {
+            printf(")\n");
+            printf("%f  --  %f\n",ptr->ptcl.def[15].U,ptr->ptcl.def[15].V);
+        }*/
+
+        for(int i=0;i<ptr->K;i++) {
+            if( ptr->ptcl.prj_w[i] > 0 ) {
+                max_cc[i] = max_cc[i]/sum_cc[i];
+            }
+        }
+
         update_particle(ptr->ptcl,def_rslt,max_cc,ptr->K);
+
+        /*if( ptr->ptcl.ptcl_id() == 4 ) {
+            printf("%f  --  %f\n",ptr->ptcl.def[15].U,ptr->ptcl.def[15].V);
+        }*/
     }
 
     void update_particle(Particle&ptcl,const Defocus*delta_def,const single*cc, const int k) {
@@ -443,6 +498,8 @@ protected:
         gpu_worker.use_halves = p_info->use_halves;
         gpu_worker.pad_type   = pad_type;
         gpu_worker.max_K      = max_K;
+        gpu_worker.ssnr.x     = p_info->ssnr_F;
+        gpu_worker.ssnr.y     = p_info->ssnr_S;
         gpu_worker.bandpass.x = max(bp_scale*p_info->fpix_min-bp_pad,0.0);
         gpu_worker.bandpass.y = min(bp_scale*p_info->fpix_max+bp_pad,((float)NP)/2);
         gpu_worker.bandpass.z = sqrt(p_info->fpix_roll);
@@ -495,59 +552,30 @@ protected:
 
     void crop_substack(CtfRefBuffer*ptr,const int r) {
 
-        V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
-        M33f R_tmp,R_ali,R_stack,R_gpu;
+        V3f pt_tomo,pt_crop;
+        M33f R_2D,R_base,R_gpu;
 
-        if( p_info->use_halves )
-            ptr->r_ix = 2*r + (ptr->ptcl.half_id()-1);
-        else
-            ptr->r_ix = r;
+        ptr->r_ix = (p_info->use_halves)?
+                        2*r + (ptr->ptcl.half_id()-1): // True
+                        r;                             // False
 
-        /// P_tomo = P_ptcl + t_ali
-        pt_tomo(0) = ptr->ptcl.pos().x + ptr->ptcl.ali_t[r].x;
-        pt_tomo(1) = ptr->ptcl.pos().y + ptr->ptcl.ali_t[r].y;
-        pt_tomo(2) = ptr->ptcl.pos().z + ptr->ptcl.ali_t[r].z;
-
-        eu_ZYZ(0) = ptr->ptcl.ali_eu[r].x;
-        eu_ZYZ(1) = ptr->ptcl.ali_eu[r].y;
-        eu_ZYZ(2) = ptr->ptcl.ali_eu[r].z;
-        Math::eZYZ_Rmat(R_ali,eu_ZYZ);
+        pt_tomo = get_tomo_position(ptr->ptcl.pos(),ptr->ptcl.ali_t[r]);
 
         for(int k=0;k<ptr->K;k++) {
             if( ptr->ptcl.prj_w[k] > 0 ) {
 
-                /// P_stack = R^k_tomo*P_tomo + t^k_tomo
-                pt_stack = p_tomo->R[k]*pt_tomo + p_tomo->t[k];
+                Math::eZYZ_Rmat(R_2D,ptr->ptcl.prj_eu[k]);
+                R_base = R_2D * p_tomo->R[k];
 
-                /// P_crop = R^k_prj*P_stack + t^k_prj
-                eu_ZYZ(0) = ptr->ptcl.prj_eu[k].x;
-                eu_ZYZ(1) = ptr->ptcl.prj_eu[k].y;
-                eu_ZYZ(2) = ptr->ptcl.prj_eu[k].z;
-                Math::eZYZ_Rmat(R_tmp,eu_ZYZ);
-                //pt_crop = R_tmp*pt_stack;
-                pt_crop = pt_stack;
-                pt_crop(0) += ptr->ptcl.prj_t[k].x;
-                pt_crop(1) += ptr->ptcl.prj_t[k].y;
+                pt_crop = project_tomo_position(pt_tomo,p_tomo->R[k],p_tomo->t[k],ptr->ptcl.prj_t[k]);
+                pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center; /// Angstroms -> pixels
 
-                /// R_stack = R^k_prj*R^k_tomo
-                R_stack = R_tmp*p_tomo->R[k];
-
-                /// Angstroms -> pixels
-                pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center;
-
-                /// Get subpixel shift
-                V3f pt_tmp;
-                pt_tmp(0) = pt_crop(0) - floor(pt_crop(0));
-                pt_tmp(1) = pt_crop(1) - floor(pt_crop(1));
-                pt_tmp(2) = 0;
-                pt_subpix = R_stack.transpose()*pt_tmp;
-
-                /// Setup data for upload to GPU
-                ptr->c_ali.ptr[k].t.x = -pt_subpix(0);
-                ptr->c_ali.ptr[k].t.y = -pt_subpix(1);
+                /// Get subpixel shift and setup data for upload to GPU
+                ptr->c_ali.ptr[k].t.x = -(pt_crop(0) - floor(pt_crop(0)));
+                ptr->c_ali.ptr[k].t.y = -(pt_crop(1) - floor(pt_crop(1)));
                 ptr->c_ali.ptr[k].t.z = 0;
                 ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
-                R_gpu = (R_ali)*(R_stack.transpose());
+                R_gpu = R_base.transpose();
                 Math::set( ptr->c_ali.ptr[k].R, R_gpu );
 
                 /// Crop
@@ -609,6 +637,35 @@ protected:
                 rslt = true;
         }
         return rslt;
+    }
+
+    static V3f get_tomo_position(const Vec3&pos_base,const Vec3&shift,bool drift=true) {
+        V3f pos_tomo;
+        if (drift) {
+            pos_tomo(0) = pos_base.x + shift.x;
+            pos_tomo(1) = pos_base.y + shift.y;
+            pos_tomo(2) = pos_base.z + shift.z;
+        }
+        else {
+            pos_tomo(0) = pos_base.x;
+            pos_tomo(1) = pos_base.y;
+            pos_tomo(2) = pos_base.z;
+        }
+        return pos_tomo;
+    }
+
+    static V3f project_tomo_position(const V3f &pos_tomo,
+                                     const M33f&R_tomo,
+                                     const V3f &shift_tomo,
+                                     const Vec2&shift_2D,
+                                     bool drift=true)
+    {
+        V3f pos_stack = R_tomo * pos_tomo + shift_tomo;
+        if(drift) {
+            pos_stack(0) += shift_2D.x;
+            pos_stack(1) += shift_2D.y;
+        }
+        return pos_stack;
     }
 
     void upload(CtfRefBuffer*ptr,cudaStream_t&strm) {
