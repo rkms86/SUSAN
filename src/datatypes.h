@@ -172,6 +172,11 @@ typedef enum {
 } CtfInversionType_t;
 
 typedef enum {
+    PRJ_NO_CTF=0,
+    PRJ_STANDARD
+} CtfProjectionType_t;
+
+typedef enum {
     ELLIPSOID,
     CYLINDER,
     CIRCLE,

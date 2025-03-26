@@ -100,7 +100,7 @@ void Rmat_eZYZ(V3f&eu_rad,const M33f&R) {
     if( fabs(R(2,2)-1) < 1e-5 ) {
         eu_rad(0) = 0.0f;
         eu_rad(1) = 0.0f;
-        eu_rad(2) = asin(R(1,0));
+        eu_rad(2) = atan2(R(1,0),R(0,0));
     }
     else {
         eu_rad = R.eulerAngles(2,1,2);

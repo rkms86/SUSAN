@@ -137,6 +137,20 @@ namespace ArgParser {
         return type;
     }
 
+    CtfProjectionType_t get_proj_ctf_type(const char*arg) {
+        CtfProjectionType_t type = PRJ_STANDARD;
+        bool all_ok = false;
+
+        check_arg_and_set(type,all_ok,arg,"none"    ,PRJ_NO_CTF  );
+        check_arg_and_set(type,all_ok,arg,"standard",PRJ_STANDARD);
+        check_arg_and_set(type,all_ok,arg,"basic"   ,PRJ_STANDARD);
+
+        if( !all_ok )
+            fprintf(stderr,"Invalid ctf type %s. Options are: none, standard and basic. Defaulting to basic.\n",arg);
+
+        return type;
+    }
+
     OffsetType_t get_offset_type(const char*arg) {
         OffsetType_t type = ELLIPSOID;
         bool all_ok = false;

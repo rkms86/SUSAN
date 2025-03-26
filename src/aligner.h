@@ -868,9 +868,10 @@ protected:
         tm_rep.clear_cc();
 
         // DEBUG
-        // debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
+        // if( ptr->ptcl.ptcl_id() == 0 )
+        //     debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
 
-        /*if( ptr->ptcl.ptcl_id() == 2 ) {
+        /*if( ptr->ptcl.ptcl_id() == 104 ) {
             printf("\n\nR_ali = np.zeros((3,3)) #%d\n",ptr->K);
             printf("R_ali[0,:] = (%f,%f,%f)\n",R_ali(0,0),R_ali(0,1),R_ali(0,2));
             printf("R_ali[1,:] = (%f,%f,%f)\n",R_ali(1,0),R_ali(1,1),R_ali(1,2));
@@ -887,13 +888,13 @@ protected:
                         //if( ptr->ptcl.ptcl_id() == 2 ) ang_prov.print_curr_angles();
 
                         ang_prov.get_current_R(R_ite);
-                        R_tmp = R_ali*R_lvl*R_ite;
+                        R_tmp = (R_ite*R_lvl*R_ali).transpose();
                         Math::set(Rot,R_tmp);
 
                         ali_data.rotate_reference(Rot,ptr->g_ali,ptr->K,stream);
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
-                        /*if( ptr->ptcl.ptcl_id() == 2 ) {
+                        /*if( ptr->ptcl.ptcl_id() == 0 ) {
                             stream.sync();
                             printf("\nR_ite = np.zeros((3,3)) #%d\n",ptr->K);
                             printf("R_ite[0,:] = (%f,%f,%f)\n",R_tmp(0,0),R_tmp(0,1),R_tmp(0,2));
@@ -916,26 +917,27 @@ protected:
                         rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
 
                         // DEBUG
-                        // debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
+                        // if( ptr->ptcl.ptcl_id() == 0 )
+                        //     debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
                         ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
                         // DEBUG
                         // debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
-                        /*if( ptr->ptcl.ptcl_id() == 2 ) {
-                            debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
-                        }*/
+                        // if( ptr->ptcl.ptcl_id() == 0 )
+                        //     debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
+
                         ali_data.invert_fourier(ptr->K,stream);
 
                         ali_data.sparse_reconstruct(ptr->g_ali,dilate,ptr->K,stream);
                         stream.sync();
 
-                        cc_tracker.push(ali_data.c_pts,ali_data.c_cc,ali_data.n_pts,R_lvl*R_ite);
+                        cc_tracker.push(ali_data.c_pts,ali_data.c_cc,ali_data.n_pts,R_ite*R_lvl);
 
                         //if( ptr->ptcl.ptcl_id() == 2 ) printf("cc = %f\n",cc);
 
-                        tm_rep.push_cc(ali_data.c_cc);                        
+                        tm_rep.push_cc(ali_data.c_cc);
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
@@ -952,7 +954,7 @@ protected:
     void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
         
         Rot33 Rot;
-        M33f  R_ite,R_tmp,R_ali;
+        M33f  R_ite,R_ali;
 
         CcStatsTrackerArr cc_tracker_arr(cc_stats,ptr->K);
 
@@ -980,7 +982,10 @@ protected:
             sprintf(name,"sus_%ld.mrc",cur_time);
             debug_fourier_stack(name,ss_data.ss_fourier,stream);
         }*/
-        Math::set(Rot,R_ali);
+        // if( ptr->ptcl.ptcl_id() == 0 )
+        //     debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
+
+        Math::set(Rot,R_ali.transpose());
         ali_data.pre_rotate_reference(Rot,ptr->g_ali,ptr->K,stream);
 
         /*if( ptr->ptcl.ptcl_id() == 44 ) {
@@ -997,10 +1002,7 @@ protected:
                     for( ang_prov.inplane_init(); ang_prov.inplane_available(); ang_prov.inplane_next() ) {
 
                         ang_prov.get_current_R(R_ite);
-                        Math::set(Rot,R_ite);
-
-                        //R_tmp = R_ali*R_ite;
-                        //Math::set(Rot,R_tmp);
+                        Math::set(Rot,R_ite.transpose());
 
                         ali_data.rotate_projections(Rot,ptr->g_ali,ptr->K,stream);
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
@@ -1029,6 +1031,8 @@ protected:
                             sprintf(name,"prj_%ld_%03d.mrc",cur_time,it);
                             debug_fourier_stack(name,ali_data.prj_c,stream);
                         }*/
+                        // if( ptr->ptcl.ptcl_id() == 0 )
+                        //     debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
                         ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
@@ -1038,6 +1042,8 @@ protected:
                             sprintf(name,"cc_%ld_%03d.mrc",cur_time,it);
                             debug_fourier_stack(name,ali_data.prj_c,stream);
                         }*/
+                        // if( ptr->ptcl.ptcl_id() == 0 )
+                        //     debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
 
                         ali_data.invert_fourier(ptr->K,stream);
                         stream.sync();
@@ -1106,9 +1112,10 @@ protected:
 
         M33f Rprv;
         Math::eZYZ_Rmat(Rprv,ptcl.ali_eu[ref_ix]);
-        M33f Rnew = Rprv*Rot;
+        //M33f Rnew = Rprv*Rot;
+        M33f Rnew = Rot*Rprv;
 
-        /*if( ptcl.ptcl_id() == 2 ) {
+        /*if( ptcl.ptcl_id() == 104 ) {
             printf("\nRSLT ========\n");
             printf("\n Rprv = np.zeros((3,3))\n");
             printf("Rprv[0,:] = (%f,%f,%f)\n",Rprv(0,0),Rprv(0,1),Rprv(0,2));
@@ -1126,6 +1133,9 @@ protected:
         }*/
 
         Math::Rmat_eZYZ(ptcl.ali_eu[ref_ix],Rnew);
+        /*if( ptcl.ptcl_id() == 104 ) {
+            printf("euler = %f, %f, %f\n",ptcl.ali_eu[ref_ix].x,ptcl.ali_eu[ref_ix].y,ptcl.ali_eu[ref_ix].z);
+        }*/
 
         if( drift3D ) {
             ptcl.ali_t[ref_ix].x += t.x*apix;

@@ -414,7 +414,9 @@ protected:
                 ptr->c_ali.ptr[k].t.y = -(pt_crop(1) - floor(pt_crop(1)));
                 ptr->c_ali.ptr[k].t.z = 0;
                 ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
-                R_gpu = (R_3D)*(R_base.transpose());
+                // R_gpu = (R_3D)*(R_base.transpose());
+                // R_gpu = R_3D*R_base;
+                R_gpu = (R_base*R_3D).transpose();
                 Math::set( ptr->c_ali.ptr[k].R, R_gpu );
 
                 /// Crop

@@ -962,6 +962,20 @@ __global__ void remove_pad_vol(float*p_out,const float*p_in,const int half_pad,c
 
 }
 
+__global__ void remove_pad_stk(float*p_out,const float*p_in,const int half_pad,const int3 ss_raw,const int3 ss_pad) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_raw.x && ss_idx.y < ss_raw.y && ss_idx.z < ss_raw.z ) {
+
+        long idx_in  = get_3d_idx(ss_idx.x+half_pad,ss_idx.y+half_pad,ss_idx.z,ss_pad);
+        long idx_out = get_3d_idx(ss_idx,ss_raw);
+        float data = p_in[idx_in];
+        p_out[idx_out] = data;
+    }
+
+}
+
 __global__ void subpixel_shift(float2*p_data,const Proj2D*g_ali,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
@@ -1083,6 +1097,8 @@ __global__ void rotate_post(Proj2D*g_tlt,Rot33 R,Proj2D*g_tlt_in,const int in_K)
 
         float rslt = 0;
 
+        /// rslt = pR * r_in
+        /// rslt = R * g_tlt[z].R
         rslt += pR[y*3  ]*r_in[x  ];
         rslt += pR[y*3+1]*r_in[x+3];
         rslt += pR[y*3+2]*r_in[x+6];
@@ -1115,9 +1131,11 @@ __global__ void rotate_pre(Proj2D*g_tlt,Rot33 R,Proj2D*g_tlt_in,const int in_K) 
 
         float rslt = 0;
 
-        rslt += r_in[y*3  ]*pR[x*3  ];
-        rslt += r_in[y*3+1]*pR[x*3+1];
-        rslt += r_in[y*3+2]*pR[x*3+2];
+        /// rslt = r_in * pR
+        /// rslt = g_tlt[z].R * R
+        rslt += r_in[y*3  ]*pR[x  ];
+        rslt += r_in[y*3+1]*pR[x+3];
+        rslt += r_in[y*3+2]*pR[x+6];
 
         r_out[mod_z] = rslt;
     }
