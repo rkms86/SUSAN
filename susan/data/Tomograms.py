@@ -181,12 +181,13 @@ class Tomograms:
                                      [0        , 0        , 1],
                                     ]).T
                 
-                vec_xf  = _np.array([xf[i,0,2], xf[i,1,2], 0]) * apix
-                vec     = -rot_xf @ vec_xf
-                rot     =  rot_xf @ rot_tlt
-                euler   = _np.zeros(3)
-                _rotm_euZYZ(euler, rot)
-                self.proj_eZYZ [idx, i, :] = euler * 180.0 / _np.pi 
+                vec_xf   = _np.array([xf[i,0,2], xf[i,1,2], 0]) * apix
+                vec      = -rot_xf @ vec_xf
+                rot      =  rot_xf @ rot_tlt
+                euler_xf = _np.zeros(3)
+                _rotm_euZYZ(euler_xf, rot_xf)
+                self.proj_eZYZ [idx, i, 0] = euler_xf[-1] * 180.0 / _np.pi
+                self.proj_eZYZ [idx, i, 1] = tlt[i]
                 self.proj_shift[idx, i, :] = vec[:2]
                 self.proj_wgt  [idx, i,  ] = 1
          
