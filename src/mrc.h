@@ -190,6 +190,105 @@ namespace Mrc {
         fclose(fp);
     }
 
+    class SequentialWriter {
+
+    public:
+        int N;
+        int K;
+        float vmax;
+        float vmin;
+        float vavg;
+        float vstd;
+        float apix;
+        FILE *fp;
+
+
+        SequentialWriter(const char*filename,int in_N,float in_apix) {
+            fp = fopen(filename,"wb");
+            N  = in_N;
+            K  = 0;
+            vmax = -9999.9;
+            vmin =  9999.9;
+            vavg = 0.0;
+            vstd = 0.0;
+            apix = in_apix;
+
+            /// init clean header
+            uint32 header[256];
+            for(int i=0;i<256;i++) header[i] = 0;
+            fwrite((void*)header,sizeof(uint32),256,fp);
+        }
+
+        ~SequentialWriter() {
+            float stats[4];
+            stats[0] = vmin;
+            stats[1] = vmax;
+            stats[2] = vavg;
+            stats[3] = vstd;
+            uint32*tmp = (uint32*)stats;
+
+            uint32 header[256];
+            for(int i=0;i<256;i++) header[i] = 0;
+            header[0]  = N;
+            header[1]  = N;
+            header[2]  = K;
+            header[3]  = 2;
+            header[7]  = N;
+            header[8]  = N;
+            header[9]  = K;
+            header[10] = apix*N;
+            header[11] = apix*N;
+            header[12] = 1.0;
+            header[13] = 0x42b40000; // 90.0 in hexadecimal notation.
+            header[14] = 0x42b40000; // 90.0 in hexadecimal notation.
+            header[15] = 0x42b40000; // 90.0 in hexadecimal notation.
+            header[16] = 1;
+            header[17] = 2;
+            header[18] = 3;
+            header[27] = 20140;
+            header[52] = 0x2050414D;
+            header[53] = 0x00004444;
+            header[19] = tmp[0];
+            header[20] = tmp[1];
+            header[21] = tmp[2];
+            header[54] = tmp[3];
+
+            fseek(fp,0,SEEK_SET);
+            fwrite((void*)header,sizeof(uint32),256,fp);
+            fclose(fp);
+        }
+
+        void push_frame(const float*in_data) {
+            fwrite((void*)in_data,sizeof(single),N*N,fp);
+
+            /// update using parallel algorithm for track stats
+            float n_a = K*N*N;
+            float x_a = vavg;
+            float M_a = fabs((vstd*vstd)*(n_a-1));
+
+            float cmin,cmax,cavg,cstd;
+            Math::get_min_max_avg_std(cmin,cmax,cavg,cstd,in_data,N*N);
+            float n_b = N*N;
+            float x_b = cavg;
+            float M_b = fabs((cstd*cstd)*(n_b-1));
+
+            float n_ab  = n_a + n_b;
+            float delta = x_b - x_a;
+            float M_ab  = M_a + M_b + (delta*delta)*n_a*n_b/n_ab;
+
+            vavg = (n_a*x_a + n_b*x_b)/n_ab;
+            vstd = sqrtf( M_ab/(n_ab-1) );
+
+            vmax = fmax(cmax,vmax);
+            vmin = fmin(cmin,vmin);
+
+            K++;
+
+        }
+
+    };
+
+
 }
 
 #endif 

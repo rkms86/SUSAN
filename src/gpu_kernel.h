@@ -246,6 +246,29 @@ __global__ void fftshift3D(float2*p_work, const int M,const int N) {
     }
 }
 
+__global__ void fftshift3D(double*p_work, const int M,const int N) {
+
+    int3 ss_idx = get_th_idx();
+
+    int center = N/2;
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < center ) {
+
+        int3 ss_siz = make_int3(M,N,N);
+        long ix_A = get_3d_idx(ss_idx,ss_siz);
+        ss_idx.y = fftshift_idx(ss_idx.y,center);
+        ss_idx.z = fftshift_idx(ss_idx.z,center);
+        long ix_B = get_3d_idx(ss_idx,ss_siz);
+
+        double val_A = p_work[ ix_A ];
+        double val_B = p_work[ ix_B ];
+
+        p_work[ ix_A ] = val_B;
+        p_work[ ix_B ] = val_A;
+
+    }
+}
+
 __global__ void load_surf(cudaSurfaceObject_t out_surf,const float*p_in,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();

@@ -263,6 +263,15 @@ void mul(float*out,const float*in,const uint32 length) {
 
 }
 
+void mul(float*out,const float scale,const uint32 length) {
+
+    uint32 i;
+    for(i=0;i<length;i++) {
+        out[i] = out[i]*scale;
+    }
+
+}
+
 float get_max(const float*ptr,const uint32 length) {
 
     float rslt = 0;

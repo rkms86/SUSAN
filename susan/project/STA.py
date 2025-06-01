@@ -18,6 +18,8 @@
 
 import numpy as _np
 
+from scipy.spatial import KDTree as _KDTree
+
 import susan.data    as _ssa_data
 import susan.utils   as _ssa_utils
 import susan.modules as _ssa_modules
@@ -45,7 +47,7 @@ class _iteration_files:
         if not _file_exists(self.reference):
             raise NameError('File '+ self.reference + ' does not exist')
 
-class Manager:
+class STA:
     def __init__(self,prj_name,box_size=None):
         if box_size is None:
             fp = open(prj_name+"/info.prjtxt","r")
@@ -75,6 +77,8 @@ class Manager:
         
         self.max_2d_delta_angstroms  = 0
         self.max_tilt_reconstruction = -1
+        self.perturb_2d_angles       = False
+        self.type_2d_shift_fitting   = 'none' # affine / gaussian
         self.reweight_classification = False
         
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
@@ -225,26 +229,73 @@ class Manager:
         else:
             self._exec_alignment(cur,prv,ite_type)
     
-    def _apply_2D_shift_limit(self,ptcls_in,cur,prv):
-        if self.aligner.allow_drift:
-            print('    Limiting 2D drift to %.2f Å.' % self.max_2d_delta_angstroms )
-            ptcls_old  = _ssa_data.Particles(prv.ptcl_rslt)
-            delta_angs = ptcls_in.prj_t - ptcls_old.prj_t
-            norm_angs  = _np.linalg.norm( delta_angs, axis=2 )
-            scale_lim  = self.max_2d_delta_angstroms/_np.maximum(norm_angs,1)
-            scale_lim[ norm_angs<self.max_2d_delta_angstroms ] = 1
-            scale_lim = scale_lim[:,:,_np.newaxis]
-            delta_angs = scale_lim*delta_angs
-            ptcls_in.prj_t[:] = ptcls_old.prj_t + delta_angs
-            ptcls_in.save(cur.ptcl_rslt)
-        else:
-            print('    Limiting 2D shift to %.2f Å.' % self.max_2d_delta_angstroms )
-            norm_angs  = _np.linalg.norm( ptcls_in.prj_t, axis=2 )
-            scale_lim  = self.max_2d_delta_angstroms/_np.maximum(norm_angs,1)
-            scale_lim[ norm_angs<self.max_2d_delta_angstroms ] = 1
-            scale_lim = scale_lim[:,:,_np.newaxis]
-            ptcls_in.prj_t[:] = scale_lim*ptcls_in.prj_t
-            ptcls_in.save(cur.ptcl_rslt)
+    def _apply_2D_fixes(self,ptcls_in,cur,prv):
+        if self.type_2d_shift_fitting == 'none':
+            if self.max_2d_delta_angstroms > 0:
+                if self.aligner.allow_drift:
+                    print('    Limiting 2D drift to %.2f Å.' % self.max_2d_delta_angstroms )
+                    ptcls_old  = _ssa_data.Particles(prv.ptcl_rslt)
+                    delta_angs = ptcls_in.prj_t - ptcls_old.prj_t
+                    norm_angs  = _np.linalg.norm( delta_angs, axis=2 )
+                    scale_lim  = self.max_2d_delta_angstroms/_np.maximum(norm_angs,1)
+                    scale_lim[ norm_angs<self.max_2d_delta_angstroms ] = 1
+                    scale_lim = scale_lim[:,:,_np.newaxis]
+                    delta_angs = scale_lim*delta_angs
+                    ptcls_in.prj_t[:] = ptcls_old.prj_t + delta_angs
+                else:
+                    print('    Limiting 2D shift to %.2f Å.' % self.max_2d_delta_angstroms )
+                    norm_angs  = _np.linalg.norm( ptcls_in.prj_t, axis=2 )
+                    scale_lim  = self.max_2d_delta_angstroms/_np.maximum(norm_angs,1)
+                    scale_lim[ norm_angs<self.max_2d_delta_angstroms ] = 1
+                    scale_lim = scale_lim[:,:,_np.newaxis]
+                    ptcls_in.prj_t[:] = scale_lim*ptcls_in.prj_t
+                    
+        elif self.type_2d_shift_fitting.lower() == 'affine':
+            R  = np.eye(3)
+            pt = ptcls_in.position + ptcls_in.ali_eu[0]
+            tomos = _ssa_data.Tomograms(self.tomogram_file)
+            for tcix in range(tomos.n_tomos):
+                idx = ptcls_in.tomo_cix == tcix
+        
+                for i in range(tomos.num_proj[tcix]):
+                    susan.utils.euZYZ_rotm(R,tomos.proj_eZYZ[tcix,i])
+                    pt0 = pt[idx]@R.T
+                    pt0[:,2] = 1
+                    pt1 = pt0[:,:2] + ptcls_in.prj_t[idx,i]
+                    xform,_,_,_ = _np.linalg.lstsq(pt0,pt1, rcond=None)
+                    pt2 = pt0 @ xform.T
+                    ptcls_in.prj_t[idx,i] = (pt2-pt0)[:,:2]
+                    
+        elif self.type_2d_shift_fitting.lower() == 'gaussian':
+            def smooth_deltas(points, deltas, k=7):
+                tree = KDTree(points)
+                smoothed_deltas = np.zeros_like(deltas)
+                
+                for i, point in enumerate(points):
+                    distances, indices = tree.query(point, k=k)
+                    neighbor_deltas = deltas[indices]
+                    smoothed_deltas[i] = neighbor_deltas.mean(axis=0)
+                    
+            R  = np.eye(3)
+            pt = ptcls_in.position + ptcls_in.ali_eu[0]
+            tomos = _ssa_data.Tomograms(self.tomogram_file)
+            for tcix in range(tomos.n_tomos):
+                idx = ptcls_in.tomo_cix == tcix
+        
+                for i in range(tomos.num_proj[tcix]):
+                    susan.utils.euZYZ_rotm(R,tomos.proj_eZYZ[tcix,i])
+                    pt0 = pt[idx]@R.T
+                    pt0 = pt0[:,:2]
+                    ptcls_in.prj_t[idx,i] = smooth_deltas(pt0, ptcls_in.prj_t[idx,i], k=7)
+            
+
+        if self.perturb_2d_angles:
+            if self.aligner.cone.span > 0:
+                ptcls_in.prj_eu[:,:,:2] += _np.deg2rad(_np.random.uniform(-self.aligner.cone.step,self.aligner.cone.step,size=ptcls_in.prj_eu[:,:,:2].shape))
+            if self.aligner.inplane.span > 0:
+                ptcls_in.prj_eu[:,:,2] += _np.deg2rad(_np.random.uniform(-self.aligner.inplane.step,self.aligner.inplane.step,size=ptcls_in.prj_eu[:,:,2].shape))
+        
+        ptcls_in.save(cur.ptcl_rslt)
     
     def _select_particles_reconstruction(self,ptcls_in):
         for i in range(ptcls_in.n_refs):
@@ -289,8 +340,9 @@ class Manager:
         ptcls_in = _ssa_data.Particles(cur.ptcl_rslt)
         
         # Limit 2D shifts:
-        if self._validate_ite_type() == 2 and self.max_2d_delta_angstroms > 0:
-            self._apply_2D_shift_limit(ptcls_in,cur,prv)
+        should_fix_2D = (self.max_2d_delta_angstroms > 0) or self.perturb_2d_angles
+        if (self._validate_ite_type() == 2) and should_fix_2D:
+            self._apply_2D_fixes(ptcls_in,cur,prv)
         
         # Classify
         if ptcls_in.n_refs > 1 :
@@ -367,4 +419,7 @@ class Manager:
         elapsed = _ssa_utils.time_now()-start_time
         print('Iteration %d Finished [Elapsed time: %.1f seconds (%s]'%(ite,elapsed.total_seconds(),str(elapsed)))
         return rslt
+
+
+Manager = STA  # Alias for back-compatibility
 

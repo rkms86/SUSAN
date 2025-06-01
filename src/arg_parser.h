@@ -45,6 +45,19 @@ namespace ArgParser {
         return type;
     }
 
+    CropFormat_t get_format_output(const char*arg) {
+        CropFormat_t type = CROP_MRC;
+        bool all_ok = false;
+
+        check_arg_and_set(type,all_ok,arg,"mrc",CROP_MRC);
+        check_arg_and_set(type,all_ok,arg,"em" ,CROP_EM);
+
+        if( !all_ok )
+            fprintf(stderr,"Invalid format type %s. Options are: mrc or em. Defaulting to mrc.\n",arg);
+
+        return type;
+    }
+
     CcType_t get_cc_type(const char*arg) {
         CcType_t type = CC_TYPE_BASIC;
         bool all_ok = false;
@@ -111,13 +124,14 @@ namespace ArgParser {
         bool all_ok = false;
 
         check_arg_and_set(type,all_ok,arg,"none"        ,ALI_CTF_DISABLED        );
+        check_arg_and_set(type,all_ok,arg,"phase_flip"  ,ALI_CTF_PHASE_FLIP      );
         check_arg_and_set(type,all_ok,arg,"on_reference",ALI_CTF_ON_REFERENCE    );
         check_arg_and_set(type,all_ok,arg,"on_substack" ,ALI_CTF_ON_SUBSTACK     );
         check_arg_and_set(type,all_ok,arg,"wiener_ssnr" ,ALI_CTF_ON_SUBSTACK_SSNR);
         check_arg_and_set(type,all_ok,arg,"cfsc"        ,ALI_CTF_ON_REFERENCE    ); /// ToBeDeprecated
 
         if( !all_ok )
-            fprintf(stderr,"Invalid ctf correction type %s. Options are: none, on_reference, on_substack or wiener_ssnr. Defaulting to on_reference.\n",arg);
+            fprintf(stderr,"Invalid ctf correction type %s. Options are: none, phase_flip, on_reference, on_substack or wiener_ssnr. Defaulting to on_reference.\n",arg);
 
         return type;
     }
@@ -130,9 +144,10 @@ namespace ArgParser {
         check_arg_and_set(type,all_ok,arg,"phase_flip" ,INV_PHASE_FLIP );
         check_arg_and_set(type,all_ok,arg,"wiener"     ,INV_WIENER     );
         check_arg_and_set(type,all_ok,arg,"wiener_ssnr",INV_WIENER_SSNR);
+        check_arg_and_set(type,all_ok,arg,"pre_wiener" ,INV_PRE_WIENER );
 
         if( !all_ok )
-            fprintf(stderr,"Invalid ctf correction type %s. Options are: none, phase_flip, wiener and wiener_ssnr. Defaulting to wiener.\n",arg);
+            fprintf(stderr,"Invalid ctf correction type %s. Options are: none, phase_flip, wiener, pre_wiener and wiener_ssnr. Defaulting to wiener.\n",arg);
 
         return type;
     }

@@ -22,6 +22,7 @@ __all__ = ['radial_average',
            'fsc_analyse',
            'denoise_l0',
            'bandpass',
+           'radial_blurring',
            'apply_FOM',
            'euDYN_rotm',
            'euZYZ_rotm',
@@ -38,6 +39,7 @@ import datetime
 import susan.io.mrc as mrc
 import numpy as np
 from numba import jit
+from scipy.ndimage import gaussian_filter
 from os.path import splitext as split_ext
 import susan.utils.datatypes as datatypes
 
@@ -86,6 +88,85 @@ def radial_expansion(arr):
                 if r < cnt:
                     rslt[k,j,i] = arr[r]
     return rslt
+
+###########################################
+
+@jit(nopython=True)
+def _get_weight(s_r,s_a):
+    acc = 0
+    for k in range(-2,3):
+        for j in range(-2,3):
+            for i in range(-2,3):
+                rad = k
+                arc = np.sqrt((i**2)+(j**2))
+                blr = np.exp( -((arc/s_a)**2 + (rad/s_r)**2)/2 )
+                acc += blr
+    return acc
+
+@jit(nopython=True)
+def _apply_radial_blur(v_out,v_in,sigma,weight,min_rad,max_rad,sigma_shell):
+    Nh = v_in.shape[0]//2
+    s_r = sigma_shell
+    for z in range(v_in.shape[0]):
+        for y in range(v_in.shape[1]):
+            for x in range(v_in.shape[2]):
+                x_w = x-Nh
+                y_w = y-Nh
+                z_w = z-Nh
+                n_w = np.sqrt((x_w**2)+(y_w**2)+(z_w**2))
+                if (n_w >= min_rad) and (n_w <= max_rad):
+                    s_index = int( np.round( 2*(n_w - min_rad) ) )
+                    s_a = sigma[s_index]
+                    s_w = weight[s_index]
+                    acc = 0
+                    for k in range(-2,3):
+                        for j in range(-2,3):
+                            for i in range(-2,3):
+                                x_r = x_w + i
+                                y_r = y_w + j
+                                z_r = z_w + k
+                                n_r = np.abs(np.sqrt((x_r**2)+(y_r**2)+(z_r**2)))
+                                rad = n_r - n_w
+                                if n_r < 1e-6: n_r = 1
+                                if n_w < 1e-6: n_w = 1
+                                ang = (x_w*x_r + y_w*y_r + z_w*z_r)/(n_r*n_w)
+                                arc = n_r*np.abs(np.arccos( min(max(ang,-1),1) ))
+                                blr = np.exp( -((arc/s_a)**2 + (rad/s_r)**2)/2 )
+                                acc += blr * v_in[ z+k, y+j, x+i ]
+                    v_out[z,y,x] = acc/s_w
+
+def radial_blurring(v,max_sigma=1.0,min_rad=10,max_rad=None,min_sigma=0.4,sigma_shell=0.4):
+    if max_rad is None:
+        max_rad = v.shape[0]//4
+
+    radii  = np.arange(min_rad,max_rad+0.5,0.5)
+    sigma  = np.linspace(min_sigma,max_sigma,radii.size)
+    weight = np.zeros_like(sigma)
+    for i in range(sigma.shape[0]):
+        weight[i] = _get_weight(sigma_shell,sigma[i])
+
+    msk = susan.utils.create_sphere((max_rad+min_rad)/2,v.shape[0] )
+    v_out = gaussian_filter(v,min_sigma)*msk + (1-msk)*gaussian_filter(v,max_sigma)
+    _apply_radial_blur(v_out,v,sigma,weight,min_rad,max_rad,sigma_shell)
+    return v_out
+
+###########################################
+
+class BayesianEstimator3D:
+    def __init__(self, ini_vol: np.ndarray, ini_var: np.ndarray):
+        self.post_avg = ini_vol
+        self.post_var = ini_var
+
+    def update(self, new_vol: np.ndarray, new_var: np.ndarray) -> np.ndarray:
+        # Bayesian update (assuming Gaussian prior and likelihood):
+        var = 1 / ( (1/self.post_var) + (1/new_var) )
+        avg = var * ( (self.post_avg/self.post_var) + (new_vol/new_var) )
+
+        # Update internal state
+        self.post_avg = avg
+        self.post_var = var
+
+        return self.post_avg
 
 ###########################################
 
@@ -146,7 +227,7 @@ def bandpass(v,lowpass,highpass=0,rolloff=1):
     return _apply_fourier_rad_wgt(v,bp)
 
 def apply_FOM(v,fsc_array):
-    wgt = 2*fsc_array/(fsc_array+1)
+    wft = np.sqrt(fsc_array.clip(0,1))
     return _apply_fourier_rad_wgt(v,wgt)
 
 ###########################################

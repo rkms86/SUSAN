@@ -42,7 +42,10 @@ typedef struct {
     uint32 pad_type;
     uint32 ctf_type;
     uint32 norm_type;
+    uint32 out_fmt;
     bool   use_ali;
+    bool   invert;
+    bool   relion_ctf;
     int    w_inv_ite;
     float  w_inv_std;
     float  ssnr_F;
@@ -90,11 +93,14 @@ bool parse_args(Info&info,int ac,char** av) {
     info.pad_type    = PAD_ZERO;
     info.ctf_type    = INV_WIENER;
     info.norm_type   = NO_NORM;
+    info.out_fmt     = CROP_MRC;
     info.w_inv_ite   = 10;
     info.w_inv_std   = 0.75;
     info.use_ali     = false;
+    info.relion_ctf  = false;
     info.norm_output = true;
     info.ssnr_F      = 0;
+    info.invert      = false;
     info.ssnr_S      = 1;
     memset(info.p_gpu   ,0,SUSAN_MAX_N_GPU*sizeof(uint32));
     memset(info.out_dir ,0,SUSAN_FILENAME_LENGTH*sizeof(char));
@@ -115,6 +121,7 @@ bool parse_args(Info&info,int ac,char** av) {
         PAD_SIZE,
         PAD_TYPE,
         NORM_TYPE,
+        FORMAT,
         CTF_TYPE,
         SSNR,
         W_INV_ITE,
@@ -122,30 +129,35 @@ bool parse_args(Info&info,int ac,char** av) {
         BANDPASS,
         ROLLOFF_F,
         USE_ALI,
+        INVERT,
+        RELION_CTF,
         NORM_OUTPUT,
         BOOST_LOWFQ
     };
 
     int c;
     static struct option long_options[] = {
-        {"tomos_file",  1, 0, TOMOS_FILE},
-        {"out_dir",     1, 0, OUT_FOLDER},
-        {"ptcls_file",  1, 0, PTCLS_FILE},
-        {"n_threads",   1, 0, N_THREADS },
-        {"gpu_list",    1, 0, GPU_LIST  },
-        {"box_size",    1, 0, BOX_SIZE  },
-        {"pad_size",    1, 0, PAD_SIZE  },
-        {"pad_type",    1, 0, PAD_TYPE  },
-        {"norm_type",   1, 0, NORM_TYPE },
-        {"ctf_type",    1, 0, CTF_TYPE  },
-        {"ssnr_param",  1, 0, SSNR      },
-        {"w_inv_iter",  1, 0, W_INV_ITE },
-        {"w_inv_gstd",  1, 0, W_INV_STD },
-        {"use_align",   1, 0, USE_ALI   },
+        {"tomos_file",  1, 0, TOMOS_FILE },
+        {"out_dir",     1, 0, OUT_FOLDER },
+        {"ptcls_file",  1, 0, PTCLS_FILE },
+        {"n_threads",   1, 0, N_THREADS  },
+        {"gpu_list",    1, 0, GPU_LIST   },
+        {"box_size",    1, 0, BOX_SIZE   },
+        {"pad_size",    1, 0, PAD_SIZE   },
+        {"pad_type",    1, 0, PAD_TYPE   },
+        {"norm_type",   1, 0, NORM_TYPE  },
+        {"format",      1, 0, FORMAT     },
+        {"ctf_type",    1, 0, CTF_TYPE   },
+        {"ssnr_param",  1, 0, SSNR       },
+        {"w_inv_iter",  1, 0, W_INV_ITE  },
+        {"w_inv_gstd",  1, 0, W_INV_STD  },
+        {"use_align",   1, 0, USE_ALI    },
+        {"relion_ctf",  1, 0, RELION_CTF },
+        {"invert",      1, 0, INVERT     },
         {"norm_output", 1, 0, NORM_OUTPUT},
         {"boost_lowfq", 1, 0, BOOST_LOWFQ},
-        {"bandpass",    1, 0, BANDPASS  },
-        {"rolloff_f",   1, 0, ROLLOFF_F },
+        {"bandpass",    1, 0, BANDPASS   },
+        {"rolloff_f",   1, 0, ROLLOFF_F  },
         {0, 0, 0, 0}
     };
 
@@ -181,6 +193,9 @@ bool parse_args(Info&info,int ac,char** av) {
             case CTF_TYPE:
                 info.ctf_type = ArgParser::get_inv_ctf_type(optarg);
                 break;
+            case FORMAT:
+                info.out_fmt = ArgParser::get_format_output(optarg);
+                break;
             case BANDPASS:
                 ArgParser::get_single_pair(info.fpix_min,info.fpix_max,optarg);
                 break;
@@ -198,6 +213,12 @@ bool parse_args(Info&info,int ac,char** av) {
                 break;
             case USE_ALI:
                 info.use_ali = ArgParser::get_bool(optarg);
+                break;
+            case INVERT:
+                info.invert = ArgParser::get_bool(optarg);
+                break;
+            case RELION_CTF:
+                info.relion_ctf = ArgParser::get_bool(optarg);
                 break;
             case NORM_OUTPUT:
                 info.norm_output = ArgParser::get_bool(optarg);

@@ -453,6 +453,8 @@ void print_full(const Info&info,FILE*fp) {
 
     if( info.ctf_type == ALI_CTF_DISABLED )
         fprintf(fp,"\t\tCTF correction policy: Disabled.\n");
+    if( info.ctf_type == ALI_CTF_PHASE_FLIP)
+        fprintf(fp,"\t\tCTF correction policy: Phase-flip.\n");
     if( info.ctf_type == ALI_CTF_ON_REFERENCE )
         fprintf(fp,"\t\tCTF correction policy: On reference.\n");
     if( info.ctf_type == ALI_CTF_ON_SUBSTACK )
@@ -576,6 +578,8 @@ void print_minimal(const Info&info,FILE*fp) {
 
     if( info.ctf_type == ALI_CTF_DISABLED )
         fprintf(fp,"No CTF correction. ");
+    if( info.ctf_type == ALI_CTF_PHASE_FLIP)
+        fprintf(fp,"CTF by phase-flip. ");
     if( info.ctf_type == ALI_CTF_ON_REFERENCE )
         fprintf(fp,"CTF on Reference. ");
     if( info.ctf_type == ALI_CTF_ON_SUBSTACK )

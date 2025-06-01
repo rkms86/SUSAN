@@ -789,6 +789,48 @@ __global__ void ctf_stk_wiener( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_
 }
 
 /// For reconstruction
+__global__ void ctf_stk_pre_wiener( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_ctf,const float2*g_data,
+                                    const CtfConst ctf_const,const Defocus*def,const float3 bandpass,const int3 ss_siz)
+{
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float2 val = {0,0};
+        float  ctf = 0;
+
+        float x,y,R;
+        get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+
+        float max_R = bandpass.y;
+        if( def[ss_idx.z].max_res > 0 )
+            max_R = min(max_R,def[ss_idx.z].max_res);
+        float w = get_bp_wgt(bandpass.x,max_R,bandpass.z,R);
+
+        if( w > 0.025 ) {
+            float s = calc_s(R,ss_siz.y,ctf_const.apix);
+            float z = calc_def(x,y,def[ss_idx.z]);
+            float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
+            ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
+            if( def[ss_idx.z].Bfactor > 0 )
+                ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
+            if( def[ss_idx.z].ExpFilt > 0 )
+                ctf *= calc_bfactor(s,def[ss_idx.z].ExpFilt);
+
+            val   = g_data[ get_3d_idx(ss_idx,ss_siz) ];
+            val.x = w*ctf*val.x;
+            val.y = w*ctf*val.y;
+            ctf   = 1.0;
+        }
+
+        store_surface(s_stk,val,ss_idx);
+        store_surface(s_ctf,ctf,ss_idx);
+
+    }
+}
+
+/// For reconstruction
 __global__ void ctf_stk_wiener_ssnr( cudaSurfaceObject_t s_stk,cudaSurfaceObject_t s_ctf,const float2*g_data,
                                      const CtfConst ctf_const,const Defocus*def,const float ssnr_F,const float ssnr_S,
                                      const float3 bandpass,const int3 ss_siz)
@@ -876,6 +918,64 @@ __global__ void create_ctf( float*g_ctf,const CtfConst ctf_const,const Defocus*d
             g_ctf[get_3d_idx(ss_idx,ss_siz)] = ctf;
 
         }
+}
+
+/// Used in alignment
+__global__ void mask_small_ctf( float2*g_data,const float*g_ctf,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        long   ix  = get_3d_idx(ss_idx,ss_siz);
+        float2 val = g_data[ ix ];
+        float  ctf = g_ctf [ ix ];
+
+        ctf = fabs(ctf);
+        ctf = sqrtf(ctf);
+
+        val.x = ctf*val.x;
+        val.y = ctf*val.y;
+
+        g_data[ix] = val;
+
+    }
+}
+
+/// Used in alignment
+__global__ void correct_stk_phase_flip( float2*g_data,const float*g_ctf,const Defocus*def,const float3 bandpass,const CtfConst ctf_const,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        long ix = get_3d_idx(ss_idx,ss_siz);
+        float2 val = {0,0};
+
+        float x,y,R;
+        get_xyR_unit(x,y,R,ss_idx.x,ss_idx.y-ss_siz.y/2);
+
+        float max_R = bandpass.y;
+        if( def[ss_idx.z].max_res > 0 )
+            max_R = min(max_R,def[ss_idx.z].max_res);
+        float w = get_bp_wgt(bandpass.x,max_R,bandpass.z,R);
+
+        if( w > 0.05 ) {
+            val = g_data[ ix ];
+
+            float ctf = g_ctf [ ix ];
+            if(ctf<0)
+                ctf = -1.0;
+            else
+                ctf =  1.0;
+
+            val.x = ctf*val.x;
+            val.y = ctf*val.y;
+        }
+
+        g_data[ix] = val;
+
+    }
 }
 
 /// Used in alignment

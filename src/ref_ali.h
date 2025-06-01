@@ -107,6 +107,16 @@ public:
         GpuKernels::apply_std_to_fourier_stk<<<grd,blk,0,stream.strm>>>(data.ptr,std_acc.ptr,ss);
         GpuKernels::divide<<<grd,blk,0,stream.strm>>>(data.ptr,scale,ss);
     }
+
+    void mask_small_ctf(GPU::GArrSingle2&data,const CtfConst ctf_const,float2 ssnr,int k,GPU::Stream&stream) {
+        single ssnr_f = -100*ssnr.x/(N*ctf_const.apix);
+        single ssnr_s = pow(10,3*ssnr.y);
+        int3 ss = make_int3(M,N,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,M,N,k);
+        GpuKernels::radial_frc_norm<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,rad_wgt.ptr,ssnr_f,ssnr_s,ss);
+    }
+
 };
 
 class AliSubstack {
@@ -176,6 +186,20 @@ public:
         GpuKernels::fftshift2D<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,ss_fou);
         GpuKernels::subpixel_shift<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,g_ali.ptr,ss_fou);
         GpuKernels::divide<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,NP*NP,ss_fou);
+    }
+
+    void mask_small_ctf(GPU::GArrSingle&ctf_wgt,int k,GPU::Stream&stream) {
+        int3 ss = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernelsCtf::mask_small_ctf<<<grd,blk,0,stream.strm>>>(ss_fourier.ptr,ctf_wgt.ptr,ss);
+    }
+
+    void correct_phase_flip(const CtfConst ctf_const,GPU::GArrSingle&ctf_wgt,GPU::GArrDefocus&g_def,float3 bandpass,int k,GPU::Stream&stream) {
+        int3 ss = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernelsCtf::correct_stk_phase_flip<<<grd,blk,0,stream.strm>>>(ss_fourier.ptr,ctf_wgt.ptr,g_def.ptr,bandpass,ctf_const,ss);
     }
 
     void correct_wiener(const CtfConst ctf_const,GPU::GArrSingle&ctf_wgt,GPU::GArrDefocus&g_def,float3 bandpass,int k,GPU::Stream&stream) {

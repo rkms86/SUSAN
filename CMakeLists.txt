@@ -57,7 +57,7 @@ string(APPEND CMAKE_CUDA_FLAGS " -Xcudafe --display_error_number")
 ########################################################################
 
 # Basic Executables
-set(target_list estimate_ctf reconstruct rec_subtomos aligner refs_aligner ctf_refiner)
+set(target_list estimate_ctf reconstruct rec_subtomos aligner refs_aligner ctf_refiner crop_projections)
 foreach(target IN LISTS target_list)
 	set(bin susan_${target})
 	add_executable(${bin} src/${target}.cu)

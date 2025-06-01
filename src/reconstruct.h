@@ -55,6 +55,7 @@ public:
     CtfConst ctf_vals;
     int      K;
     int      r_ix;
+    int      h_ix;
 
     RecBuffer(int N,int max_k) {
         c_stk.alloc(N*N*max_k);
@@ -414,8 +415,6 @@ protected:
                 ptr->c_ali.ptr[k].t.y = -(pt_crop(1) - floor(pt_crop(1)));
                 ptr->c_ali.ptr[k].t.z = 0;
                 ptr->c_ali.ptr[k].w = ptr->ptcl.prj_w[k];
-                // R_gpu = (R_3D)*(R_base.transpose());
-                // R_gpu = R_3D*R_base;
                 R_gpu = (R_base*R_3D).transpose();
                 Math::set( ptr->c_ali.ptr[k].R, R_gpu );
 
@@ -448,7 +447,6 @@ protected:
                             if( p_info->norm_type == ZERO_MEAN_W_STD ) {
                                 ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
                             }
-                            //ptr->ptcl.prj_w[k] = ptr->c_pad.ptr[k].y;
                         }
 
                         /// Set projection weight

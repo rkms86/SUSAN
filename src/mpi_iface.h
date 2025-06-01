@@ -72,7 +72,7 @@ public:
 
     unsigned int get(int ix) {
         unsigned int value;
-        MPI_Get(&value,1,MPI_UNSIGNED,i x,ix,1,MPI_UNSIGNED,win);
+        MPI_Get(&value,1,MPI_UNSIGNED,ix,ix,1,MPI_UNSIGNED,win);
         return value;
     }
 

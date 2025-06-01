@@ -248,12 +248,15 @@ class SubtomoRec:
         self.padding_type      = 'zero'
         self.normalize_type    = 'none'
         self.ctf_correction    = 'phase_flip'
+        self.format            = 'mrc'
         self.ssnr              = _dt.ssnr(1,0.01)
         self.inversion         = _dt.inversion_params(0,0.75)
         self.use_align         = False
+        self.relion_ctf        = False
+        self.invert_contrast   = False
         self.verbosity         = 0
         self.normalize_output  = False
-        self.boost_lowfreq     = _dt.boost_lowfreq_params(2,3,10)
+        self.boost_lowfreq     = _dt.boost_lowfreq_params(0,3,10)
 
     def _validate(self):
         if not self.padding_type in ['zero','noise']:
@@ -262,8 +265,11 @@ class SubtomoRec:
         if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
             raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
 
-        if not self.ctf_correction in ['none','phase_flip','wiener','wiener_ssnr']:
-            raise NameError('Invalid ctf correction type. Only "none", "phase_flip", "wiener" ot "wiener_ssnr" are valid')
+        if not self.ctf_correction in ['none','phase_flip','wiener','wiener_ssnr', 'pre_wiener']:
+            raise NameError('Invalid ctf correction type. Only "none", "phase_flip", "wiener", "pre_wiener" or "wiener_ssnr" are valid')
+
+        if not self.format in ['mrc','em']:
+            raise NameError('Invalid output format. Only "mrc" or "em" are valid')
 
     def get_args(self,out_dir,tomos_file,ptcls_in,box_size):
         self._validate()
@@ -281,12 +287,15 @@ class SubtomoRec:
         args = args + ' -pad_type '        + self.padding_type
         args = args + ' -norm_type '       + self.normalize_type
         args = args + ' -ctf_type '        + self.ctf_correction
+        args = args + ' -format '          + self.format
         args = args + ' -bandpass %f,%f'   % (self.bandpass.highpass,self.bandpass.lowpass)
         args = args + ' -rolloff_f %f'     % self.bandpass.rolloff
         args = args + ' -ssnr_param %f,%f' % (self.ssnr.F,self.ssnr.S)
         args = args + ' -w_inv_iter %d'    % self.inversion.ite
         args = args + ' -w_inv_gstd %f'    % self.inversion.std
         args = args + ' -use_align %d'     % self.use_align
+        args = args + ' -relion_ctf %d'    % self.relion_ctf
+        args = args + ' -invert %d'        % self.invert_contrast
         args = args + ' -norm_output %d'   % self.normalize_output
         args = args + ' -boost_lowfq %f,%f,%f' % (self.boost_lowfreq.scale,self.boost_lowfreq.value,self.boost_lowfreq.decay)
         return args
@@ -296,6 +305,35 @@ class SubtomoRec:
         rslt = _os.system(cmd)
         if not rslt == 0:
             raise NameError('Error executing the subtomogram reconstruction: ' + cmd)
+
+###############################################################################
+
+class CropProjection:
+    def __init__(self):
+        self.num_threads       = 1
+        self.normalize_type    = 'zero_mean_one_std'
+        self.invert_contrast   = False
+
+    def _validate(self):
+        if not self.normalize_type in ['none','zero_mean','zero_mean_one_std','zero_mean_proj_weight']:
+            raise NameError('Invalid normalization type. Only "none", "zero_mean", "zero_mean_one_std" or "zero_mean_proj_weight" are valid')
+
+    def get_args(self,out_dir,tomos_file,ptcls_in,box_size):
+        self._validate()
+        args =        ' -tomos_file '      + tomos_file
+        args = args + ' -out_dir '         + out_dir
+        args = args + ' -ptcls_file '      + ptcls_in
+        args = args + ' -box_size %d'      % box_size
+        args = args + ' -n_threads %d'     % self.num_threads
+        args = args + ' -norm_type '       + self.normalize_type
+        args = args + ' -invert %d'        % self.invert_contrast
+        return args
+
+    def extract(self,out_pfx,tomos_file,ptcls_in,box_size):
+        cmd = 'susan_crop_projections ' + self.get_args(out_pfx,tomos_file,ptcls_in,box_size)
+        rslt = _os.system(cmd)
+        if not rslt == 0:
+            raise NameError('Error cropping projections: ' + cmd)
 
 ###############################################################################
 

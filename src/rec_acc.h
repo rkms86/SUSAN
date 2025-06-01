@@ -128,6 +128,13 @@ public:
         GpuKernelsCtf::ctf_stk_wiener<<<grd,blk,0,stream.strm>>>(ss_tex.surface,ss_ctf.surface,ss_fourier.ptr,ctf_const,g_def.ptr,bandpass,ss);
     }
 
+    void set_pre_wiener(const CtfConst ctf_const,GPU::GArrDefocus&g_def,float3 bandpass,int k,GPU::Stream&stream) {
+        int3 ss = make_int3(MP,NP,k);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
+        GpuKernelsCtf::ctf_stk_pre_wiener<<<grd,blk,0,stream.strm>>>(ss_tex.surface,ss_ctf.surface,ss_fourier.ptr,ctf_const,g_def.ptr,bandpass,ss);
+    }
+
     void set_wiener_ssnr(const CtfConst ctf_const,GPU::GArrDefocus&g_def,float3 bandpass,float2 ssnr,int k,GPU::Stream&stream) {
         // float2  ssnr; /// x=F; y=S;
         single ssnr_f = -100*ssnr.x/(NP*ctf_const.apix);
@@ -178,6 +185,12 @@ public:
         /// insert_stk_atomic faster for larger volumes (small bottleneck, less operations).
         //GpuKernelsVol::insert_stk<<<grd,blk,0,stream.strm>>>(vol_acc.ptr,vol_wgt.ptr,ss_stk.texture,ss_wgt.texture,g_ali.ptr,bandpass,MP,NP,k);
         GpuKernelsVol::insert_stk_atomic<<<grd,blk,0,stream.strm>>>(vol_acc.ptr,vol_wgt.ptr,ss_stk.texture,ss_wgt.texture,g_ali.ptr,bandpass,MP,NP,k);
+    }
+
+    void fftshift_wgt(GPU::Stream&stream) {
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,MP,NP,NP);
+        GpuKernels::fftshift3D<<<grd,blk,0,stream.strm>>>(vol_wgt.ptr,MP,NP);
     }
 };
 

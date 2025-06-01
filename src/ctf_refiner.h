@@ -302,7 +302,7 @@ protected:
         eu_ZYZ(1) = ptr->ptcl.ali_eu[ptr->class_ix].y;
         eu_ZYZ(2) = ptr->ptcl.ali_eu[ptr->class_ix].z;
         Math::eZYZ_Rmat(R_ali,eu_ZYZ);
-        Math::set(Rot,R_ali);
+        Math::set(Rot,R_ali.transpose());
         ali_data.pre_rotate_reference(Rot,ptr->g_ali,ptr->K,stream);
 
         // No additional 3D rotation per projection
@@ -312,6 +312,7 @@ protected:
 
         ali_data.project(vol.ref,bandpass,ptr->K,stream);
         rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
+        rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
         ctf_ref.load_buf(ali_data.prj_c,ptr->K,stream);
 
         float dU,dV,dA;
@@ -331,8 +332,6 @@ protected:
                 for( dA=-ang_range; dA<(ang_range+0.5*ang_step); dA+=ang_step ) {
                     delta_w.z  = dA;
                     ctf_ref.apply_ctf(ali_data.prj_c,delta_w,ptr,stream);
-                    rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
-                    rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
                     ali_data.apply_bandpass(bandpass,ptr->K,stream);
                     ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
                     ali_data.invert_fourier(ptr->K,stream);

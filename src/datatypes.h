@@ -147,6 +147,7 @@ typedef enum {
 
 typedef enum {
     ALI_CTF_DISABLED=0,
+    ALI_CTF_PHASE_FLIP,
     ALI_CTF_ON_REFERENCE,
     ALI_CTF_ON_SUBSTACK,
     ALI_CTF_ON_SUBSTACK_SSNR
@@ -168,7 +169,8 @@ typedef enum {
     INV_NO_INV=0,
     INV_PHASE_FLIP,
     INV_WIENER,
-    INV_WIENER_SSNR
+    INV_WIENER_SSNR,
+    INV_PRE_WIENER,
 } CtfInversionType_t;
 
 typedef enum {
@@ -188,5 +190,9 @@ typedef enum {
     REFERENCE_SPACE,
 } OffsetSpace_t;
 
+typedef enum {
+    CROP_MRC,
+    CROP_EM,
+} CropFormat_t;
 
 

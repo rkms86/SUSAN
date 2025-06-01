@@ -102,7 +102,7 @@ public:
 
     SubstackCrop    ss_cropper;
 
-    char em_file[SUSAN_FILENAME_LENGTH];
+    char out_file[SUSAN_FILENAME_LENGTH];
 
     RecSubtomoWorker() {
     }
@@ -198,16 +198,41 @@ protected:
                 add_data(ss_data,buffer,stream);
                 correct_ctf(ss_data,buffer,stream);
                 insert_vol(vol,ss_data,buffer,stream);
-                                stream.sync();
+                stream.sync();
                 reconstruct_core(p_vol,inv_wgt,inv_vol,vol.vol_acc,vol.vol_wgt);
                 cudaMemcpy((void*)map,(const void*)p_vol.ptr,sizeof(float)*N*N*N,cudaMemcpyDeviceToHost);
+
                 if( p_info->norm_output ) {
                     float avg,std;
                     Math::get_avg_std(avg,std,map,N*N*N);
                     Math::normalize(map,N*N*N,avg,std);
                 }
-                sprintf(em_file,"%s/particle_%06d.em",p_info->out_dir,buffer.ptcl.ptcl_id());
-                EM::write(map,N,N,N,em_file);
+                if( p_info->invert ) {
+                    Math::mul(map,-1.0f,N*N*N);
+                }
+                if( p_info->out_fmt == CROP_MRC ) {
+                    sprintf(out_file,"%s/particle_%06d.mrc",p_info->out_dir,buffer.ptcl.ptcl_id());
+                    Mrc::write(map,N,N,N,out_file);
+                }
+                else if( p_info->out_fmt == CROP_EM ) {
+                    sprintf(out_file,"%s/particle_%06d.em",p_info->out_dir,buffer.ptcl.ptcl_id());
+                    EM::write(map,N,N,N,out_file);
+                }
+
+                if( p_info->relion_ctf ) {
+                    double*d_wgt = new double[M*N*N];
+                    float *f_wgt = new float [M*N*N];
+                    vol.clear();
+                    ss_data.set_wiener(buffer.ctf_vals,buffer.g_def,bandpass,buffer.K,stream);
+                    insert_vol(vol,ss_data,buffer,stream);
+                    vol.fftshift_wgt(stream);
+                    stream.sync();
+                    cudaMemcpy((void*)d_wgt,(const void*)vol.vol_wgt.ptr,sizeof(double)*M*N*N,cudaMemcpyDeviceToHost);
+                    for(int i=0;i<(M*N*N);i++) f_wgt[i] = (float)d_wgt[i];
+                    sprintf(out_file,"%s/particle_%06d.ctf.mrc",p_info->out_dir,buffer.ptcl.ptcl_id());
+                    Mrc::write(f_wgt,M,N,N,out_file);
+                }
+
                 stream.sync();
             }
         }
@@ -236,72 +261,29 @@ protected:
 
     void crop_substack(RecBuffer&ptr) {
         V3f pt_tomo,pt_stack,pt_crop,pt_subpix,eu_ZYZ;
-        M33f R_tmp,R_stack,R_gpu,R_ali;
+        M33f R_2D,R_3D,R_base,R_gpu;
 
         int r = ptr.ptcl.ref_cix();
 
-        if( p_info->use_ali ) {
-            eu_ZYZ(0) = ptr.ptcl.ali_eu[r].x;
-            eu_ZYZ(1) = ptr.ptcl.ali_eu[r].y;
-            eu_ZYZ(2) = ptr.ptcl.ali_eu[r].z;
-        }
-        else {
-            eu_ZYZ(0) = 0;
-            eu_ZYZ(1) = 0;
-            eu_ZYZ(2) = 0;
-        }
-        Math::eZYZ_Rmat(R_ali,eu_ZYZ);
+        calc_R(R_3D,ptr.ptcl.ali_eu[r],p_info->use_ali);
 
-        /// P_tomo = P_ptcl + t_ali
-        pt_tomo(0) = ptr.ptcl.pos().x + ptr.ptcl.ali_t[r].x;
-        pt_tomo(1) = ptr.ptcl.pos().y + ptr.ptcl.ali_t[r].y;
-        pt_tomo(2) = ptr.ptcl.pos().z + ptr.ptcl.ali_t[r].z;
+        pt_tomo = get_tomo_position(ptr.ptcl.pos(),ptr.ptcl.ali_t[r]);
 
         for(int k=0;k<ptr.K;k++) {
             if( ptr.ptcl.prj_w[k] > 0 ) {
 
-                /// P_stack = R^k_tomo*P_tomo + t^k_tomo
-                pt_stack = p_tomo->R[k]*pt_tomo + p_tomo->t[k];
+                calc_R(R_2D,ptr.ptcl.prj_eu[k],p_info->use_ali);
+                R_base = R_2D * p_tomo->R[k];
 
-                /// P_crop = R^k_prj*P_stack + t^k_prj
-                if( p_info->use_ali ) {
-                    eu_ZYZ(0) = ptr.ptcl.prj_eu[k].x;
-                    eu_ZYZ(1) = ptr.ptcl.prj_eu[k].y;
-                    eu_ZYZ(2) = ptr.ptcl.prj_eu[k].z;
-                }
-                else {
-                    eu_ZYZ(0) = 0;
-                    eu_ZYZ(1) = 0;
-                    eu_ZYZ(2) = 0;
-                }
-                Math::eZYZ_Rmat(R_tmp,eu_ZYZ);
-                //pt_crop = R_tmp*pt_stack;
-                pt_crop = pt_stack;
-                pt_crop(0) += ptr.ptcl.prj_t[k].x;
-                pt_crop(1) += ptr.ptcl.prj_t[k].y;
+                pt_crop = project_tomo_position(pt_tomo,p_tomo->R[k],p_tomo->t[k],ptr.ptcl.prj_t[k]);
+                pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center; /// Angstroms -> pixels
 
-                /// R_stack = R^k_tomo*R^k_prj
-                R_stack = p_tomo->R[k]*R_tmp;
-
-                /// Angstroms -> pixels
-                pt_crop = pt_crop/p_tomo->pix_size + p_tomo->stk_center;
-
-                /// Get subpixel shift
-                //pt_subpix(0) = pt_crop(0) - floor(pt_crop(0));
-                //pt_subpix(1) = pt_crop(1) - floor(pt_crop(1));
-                //pt_subpix(2) = 0;
-                V3f pt_tmp;
-                pt_tmp(0) = pt_crop(0) - floor(pt_crop(0));
-                pt_tmp(1) = pt_crop(1) - floor(pt_crop(1));
-                pt_tmp(2) = 0;
-                pt_subpix = R_stack.transpose()*pt_tmp;
-
-                /// Setup data for upload to GPU
-                ptr.c_ali.ptr[k].t.x = -pt_subpix(0);
-                ptr.c_ali.ptr[k].t.y = -pt_subpix(1);
+                /// Get subpixel shift and setup data for upload to GPU
+                ptr.c_ali.ptr[k].t.x = -(pt_crop(0) - floor(pt_crop(0)));
+                ptr.c_ali.ptr[k].t.y = -(pt_crop(1) - floor(pt_crop(1)));
                 ptr.c_ali.ptr[k].t.z = 0;
                 ptr.c_ali.ptr[k].w = ptr.ptcl.prj_w[k];
-                R_gpu = (R_ali)*(R_stack.transpose());
+                R_gpu = (R_base*R_3D).transpose();
                 Math::set( ptr.c_ali.ptr[k].R, R_gpu );
 
                 /// Crop
@@ -383,6 +365,9 @@ protected:
             ss_data.set_wiener(ptr.ctf_vals,ptr.g_def,bandpass,ptr.K,stream);
         if( ctf_type == INV_WIENER_SSNR )
             ss_data.set_wiener_ssnr(ptr.ctf_vals,ptr.g_def,bandpass,ssnr,ptr.K,stream);
+        if( ctf_type == INV_PRE_WIENER )
+            ss_data.set_pre_wiener(ptr.ctf_vals,ptr.g_def,bandpass,ptr.K,stream);
+
     }
 
     void insert_vol(RecAcc&vol,RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
@@ -400,6 +385,51 @@ protected:
                                    p_info->boost_low_fq_decay*factor);
         }
         inv_vol.invert_and_extract(p_vol);
+    }
+
+    void calc_R(M33f&R_out,const Vec3&eu_in,bool use_ali) {
+        V3f eu_ZYZ;
+
+        if( use_ali ) {
+            eu_ZYZ(0) = eu_in.x;
+            eu_ZYZ(1) = eu_in.y;
+            eu_ZYZ(2) = eu_in.z;
+        }
+        else {
+            eu_ZYZ(0) = 0;
+            eu_ZYZ(1) = 0;
+            eu_ZYZ(2) = 0;
+        }
+        Math::eZYZ_Rmat(R_out,eu_ZYZ);
+    }
+
+    static V3f get_tomo_position(const Vec3&pos_base,const Vec3&shift,bool drift=true) {
+        V3f pos_tomo;
+        if (drift) {
+            pos_tomo(0) = pos_base.x + shift.x;
+            pos_tomo(1) = pos_base.y + shift.y;
+            pos_tomo(2) = pos_base.z + shift.z;
+        }
+        else {
+            pos_tomo(0) = pos_base.x;
+            pos_tomo(1) = pos_base.y;
+            pos_tomo(2) = pos_base.z;
+        }
+        return pos_tomo;
+    }
+
+    static V3f project_tomo_position(const V3f &pos_tomo,
+                                     const M33f&R_tomo,
+                                     const V3f &shift_tomo,
+                                     const Vec2&shift_2D,
+                                     bool drift=true)
+    {
+        V3f pos_stack = R_tomo * pos_tomo + shift_tomo;
+        if(drift) {
+            pos_stack(0) += shift_2D.x;
+            pos_stack(1) += shift_2D.y;
+        }
+        return pos_stack;
     }
 };
 
