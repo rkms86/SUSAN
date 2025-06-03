@@ -251,14 +251,14 @@ class STA:
                     ptcls_in.prj_t[:] = scale_lim*ptcls_in.prj_t
                     
         elif self.type_2d_shift_fitting.lower() == 'affine':
-            R  = np.eye(3)
+            R  = _np.eye(3)
             pt = ptcls_in.position + ptcls_in.ali_eu[0]
             tomos = _ssa_data.Tomograms(self.tomogram_file)
             for tcix in range(tomos.n_tomos):
                 idx = ptcls_in.tomo_cix == tcix
         
                 for i in range(tomos.num_proj[tcix]):
-                    susan.utils.euZYZ_rotm(R,tomos.proj_eZYZ[tcix,i])
+                    _ssa_utils.euZYZ_rotm(R,tomos.proj_eZYZ[tcix,i])
                     pt0 = pt[idx]@R.T
                     pt0[:,2] = 1
                     pt1 = pt0[:,:2] + ptcls_in.prj_t[idx,i]
@@ -268,22 +268,22 @@ class STA:
                     
         elif self.type_2d_shift_fitting.lower() == 'gaussian':
             def smooth_deltas(points, deltas, k=7):
-                tree = KDTree(points)
-                smoothed_deltas = np.zeros_like(deltas)
+                tree = _KDTree(points)
+                smoothed_deltas = _np.zeros_like(deltas)
                 
                 for i, point in enumerate(points):
                     distances, indices = tree.query(point, k=k)
                     neighbor_deltas = deltas[indices]
                     smoothed_deltas[i] = neighbor_deltas.mean(axis=0)
                     
-            R  = np.eye(3)
+            R  = _np.eye(3)
             pt = ptcls_in.position + ptcls_in.ali_eu[0]
             tomos = _ssa_data.Tomograms(self.tomogram_file)
             for tcix in range(tomos.n_tomos):
                 idx = ptcls_in.tomo_cix == tcix
         
                 for i in range(tomos.num_proj[tcix]):
-                    susan.utils.euZYZ_rotm(R,tomos.proj_eZYZ[tcix,i])
+                    _ssa_utils.euZYZ_rotm(R,tomos.proj_eZYZ[tcix,i])
                     pt0 = pt[idx]@R.T
                     pt0 = pt0[:,:2]
                     ptcls_in.prj_t[idx,i] = smooth_deltas(pt0, ptcls_in.prj_t[idx,i], k=7)
@@ -293,7 +293,7 @@ class STA:
             if self.aligner.cone.span > 0:
                 ptcls_in.prj_eu[:,:,:2] += _np.deg2rad(_np.random.uniform(-self.aligner.cone.step,self.aligner.cone.step,size=ptcls_in.prj_eu[:,:,:2].shape))
             if self.aligner.inplane.span > 0:
-                ptcls_in.prj_eu[:,:,2] += _np.deg2rad(_np.random.uniform(-self.aligner.inplane.step,self.aligner.inplane.step,size=ptcls_in.prj_eu[:,:,2].shape))
+                ptcls_in.prj_eu[:,:,2]  += _np.deg2rad(_np.random.uniform(-self.aligner.inplane.step,self.aligner.inplane.step,size=ptcls_in.prj_eu[:,:,2].shape))
         
         ptcls_in.save(cur.ptcl_rslt)
     

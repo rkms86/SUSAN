@@ -22,14 +22,6 @@ import susan.data    as _ssa_data
 import susan.utils   as _ssa_utils
 import susan.modules as _ssa_modules
 
-from susan.io.mrc import read     as _mrc_read
-from susan.io.mrc import get_info as _mrc_get_info
-
-import susan.utils.datatypes  as _dt
-import susan.utils.txt_parser as _prsr
-
-from os      import remove as _rm
-from os      import mkdir  as _mkdir
 from os.path import exists as _file_exists
 from os.path import normpath   as _normpath
 from os.path import commonpath as _commonpath
@@ -69,7 +61,7 @@ class SubtomogramGenerator:
     def generate_subtomos(self,metadata_file,subtomos_folder,tomos_file,ptcls_in,box_size):
         out_type = _ssa_utils.get_extension(metadata_file).lower()
 
-        if subtomos_folder[-1] is not '/':
+        if subtomos_folder[-1] != '/':
             subtomos_folder.append('/')
 
         if out_type in ['star',]:
@@ -133,9 +125,9 @@ class SubtomogramGenerator:
                     file = f'{subtomos_path}/particle_{p_id:06d}.mrc'
                     fctf = f'{subtomos_path}/particle_{p_id:06d}.ctf.mrc'
 
-                    ang_R = _np.rad2deg( -p1.ali_eu[0,idx,2] )
-                    ang_T = _np.rad2deg( -p1.ali_eu[0,idx,1] )
-                    ang_P = _np.rad2deg( -p1.ali_eu[0,idx,0] )
+                    ang_R = _np.rad2deg( -ptcls.ali_eu[0,idx,2] )
+                    ang_T = _np.rad2deg( -ptcls.ali_eu[0,idx,1] )
+                    ang_P = _np.rad2deg( -ptcls.ali_eu[0,idx,0] )
 
                     if _file_exists(f'{subtomos_folder}/particle_{p_id:06d}.mrc'):
                         #            1   2
@@ -151,14 +143,14 @@ class SubtomogramGenerator:
                         f.write(f'{ptcls.half_id[idx]:1d} ')
 
                         if self.subtomo_rec.relion_ctf:
-                            f.write('{fctf}\n')
+                            f.write(f'{fctf}\n')
                         else:
                             def_u = _np.median( ptcls.def_U   [idx] )
                             def_v = _np.median( ptcls.def_V   [idx] )
                             def_a = _np.median( ptcls.def_ang [idx] )
                             ph_sh = _np.median( ptcls.def_phas[idx] )
                             ph_sh = _np.rad2deg( ph_sh )
-                            f.write('{def_u:5.0f} {def_v:5.0f} {def_a:5.1f} {ph_sh:5.1f}\n')
+                            f.write(f'{def_u:5.0f} {def_v:5.0f} {def_a:5.1f} {ph_sh:5.1f}\n')
 
         else:
             print('Error: unsupported output type ' + out_type)

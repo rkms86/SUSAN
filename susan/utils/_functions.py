@@ -145,7 +145,7 @@ def radial_blurring(v,max_sigma=1.0,min_rad=10,max_rad=None,min_sigma=0.4,sigma_
     for i in range(sigma.shape[0]):
         weight[i] = _get_weight(sigma_shell,sigma[i])
 
-    msk = susan.utils.create_sphere((max_rad+min_rad)/2,v.shape[0] )
+    msk = create_sphere((max_rad+min_rad)/2,v.shape[0] )
     v_out = gaussian_filter(v,min_sigma)*msk + (1-msk)*gaussian_filter(v,max_sigma)
     _apply_radial_blur(v_out,v,sigma,weight,min_rad,max_rad,sigma_shell)
     return v_out
@@ -227,7 +227,7 @@ def bandpass(v,lowpass,highpass=0,rolloff=1):
     return _apply_fourier_rad_wgt(v,bp)
 
 def apply_FOM(v,fsc_array):
-    wft = np.sqrt(fsc_array.clip(0,1))
+    wgt = np.sqrt(fsc_array.clip(0,1))
     return _apply_fourier_rad_wgt(v,wgt)
 
 ###########################################
