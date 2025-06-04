@@ -33,6 +33,7 @@ __all__ = ['radial_average',
            'time_now',
            'create_sphere',
            'bin_vol',
+           'BayesianEstimator3D'
           ]
 
 import datetime

@@ -878,23 +878,38 @@ __global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wg
         int    r = (int)roundf(R);
 
         if( r < ss_siz.x ) {
-            int  idx = r + ss_siz.x*ss_idx.z;
-            double avg = p_avg[idx];
-            double wgt = p_wgt[idx];
+            int    idx;
+            double avg;
+            double wgt;
+            double w_acc = 0;
+
+            for(int i=1;i<ss_siz.x;i++) {
+                idx = r + ss_siz.x*ss_idx.z;
+                avg = p_avg[idx];
+                wgt = p_wgt[idx];
+                w_acc += (avg / max(wgt,1.0));
+            }
+            w_acc = sqrt(w_acc);
+
+            idx = r + ss_siz.x*ss_idx.z;
+            avg = p_avg[idx];
+            wgt = p_wgt[idx];
 
             if( avg > 0 ) {
 
                 wgt = max(wgt,1.0);
                 avg = avg/wgt;
-                avg = sqrt(avg);
+                avg = sqrt(avg)/w_acc;
 
                 if( avg > 1e-10 ) {
                     val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
-                    float w_avg = avg;
-                    if(ssnr_S>1)
-                        w_avg += (1/(ssnr_S*exp(R*ssnr_F)));
-                    val.x = val.x/w_avg;
-                    val.y = val.y/w_avg;
+                    if( r > 0 ) {
+                        float w_avg = avg;
+                        if(ssnr_S>1)
+                            w_avg += (1/(ssnr_S*exp(R*ssnr_F)));
+                        val.x = val.x/w_avg;
+                        val.y = val.y/w_avg;
+                    }
                 }
             }
         }
