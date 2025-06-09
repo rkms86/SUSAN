@@ -252,6 +252,7 @@ def _fsc_get_core(n,d1,d2):
                     tmp2[r] = tmp2[r] + d2[k,j,i]
     tmp1[0] = 1.0
     tmp2[0] = 1.0
+    rslt[0] = 1.0
     rslt = rslt/np.sqrt(tmp1*tmp2)
     return rslt
 
