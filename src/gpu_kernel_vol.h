@@ -662,7 +662,7 @@ __global__ void reconstruct_pts(float*p_cc,const Proj2D*pTlt,cudaTextureObject_t
                 cc += pTlt[z].w*tex2DLayered<float>(ss_cc,x+off,y+off,z);
             }
         }
-        
+
         p_cc[ss_idx.x] = cc;
 
     }

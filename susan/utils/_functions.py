@@ -50,7 +50,7 @@ import susan.utils.datatypes as datatypes
 def radial_average(v):
     assert v.ndim == 3, "Volume must be three-dimensional"
 
-    N = max( max(v.shape[0],v.shape[1]), v.shape[2] )+1
+    N = (max( max(v.shape[0],v.shape[1]), v.shape[2] )//2)+1
     val = np.zeros(N)
     wgt = np.zeros(N)
 
@@ -200,9 +200,9 @@ def _core_apply_fourier_rad_wgt(v_fou,wgt):
                 v_fou[z,y,x] = wgt[r]*v_fou[z,y,x]
 
 def _apply_fourier_rad_wgt(v,wgt):
-    v_f = np.fft.fftshift(np.fft.rfftn(v),axes=(0,1))
+    v_f = np.fft.fftshift(np.fft.rfftn(v,norm='ortho'),axes=(0,1))
     _core_apply_fourier_rad_wgt(v_f,wgt)
-    rslt = np.fft.irfftn(np.fft.ifftshift(v_f,axes=(0,1)))
+    rslt = np.fft.irfftn(np.fft.ifftshift(v_f,axes=(0,1)),norm='ortho')
     rslt = np.float32(rslt)
     return rslt
 
@@ -250,6 +250,8 @@ def _fsc_get_core(n,d1,d2):
                     rslt[r] = rslt[r] +  n[k,j,i]
                     tmp1[r] = tmp1[r] + d1[k,j,i]
                     tmp2[r] = tmp2[r] + d2[k,j,i]
+    tmp1[0] = 1.0
+    tmp2[0] = 1.0
     rslt = rslt/np.sqrt(tmp1*tmp2)
     return rslt
 
@@ -268,8 +270,8 @@ def fsc_get(v1,v2,msk=None):
         v1 = v1*msk
         v2 = v2*msk
 
-    V1 = np.fft.fftshift( np.fft.rfftn(v1), axes=(0,1))
-    V2 = np.fft.fftshift( np.fft.rfftn(v2), axes=(0,1))
+    V1 = np.fft.fftshift( np.fft.rfftn(v1,norm='ortho'), axes=(0,1))
+    V2 = np.fft.fftshift( np.fft.rfftn(v2,norm='ortho'), axes=(0,1))
     
     num = np.real(V1*np.conjugate(V2)).astype(np.float32)
     d_1 = np.real(V1*np.conjugate(V1)).astype(np.float32)

@@ -731,7 +731,7 @@ protected:
                 AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
                 create_ctf(ctf_wgt,ptr,stream);
                 add_data(ss_data,ctf_wgt,ptr,rad_avgr,stream);
-                // add_rec_weight(ss_data,ptr,stream);
+                add_rec_weight(ss_data,ptr,stream);
                 angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,rad_avgr,tm_rep,stream);
                 stream.sync();
             }

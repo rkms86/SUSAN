@@ -62,7 +62,7 @@ class PtclsGeom:
         R = _np.zeros((3,3),_np.float32)
         for i in range(ali_eZYZ.shape[0]):
             _euZYZ_rotm(R,ali_eZYZ[i])
-            tout = R.transpose()@t
+            tout = R@t
             ali_t[i,:] = ali_t[i,:] + tout
             
     @staticmethod
