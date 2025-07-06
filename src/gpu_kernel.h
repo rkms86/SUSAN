@@ -877,14 +877,14 @@ __global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wg
         float  R = l2_distance(x,y);
         int    r = (int)roundf(R);
 
-        if( r < ss_siz.x ) {
+        if( (r < ss_siz.x) && (r > 0) ) {
             int    idx;
             double avg;
             double wgt;
             double w_acc = 0;
 
             for(int i=1;i<ss_siz.x;i++) {
-                idx = r + ss_siz.x*ss_idx.z;
+                idx = i + ss_siz.x*ss_idx.z;
                 avg = p_avg[idx];
                 wgt = p_wgt[idx];
                 w_acc += (avg / max(wgt,1.0));

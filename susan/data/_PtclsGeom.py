@@ -72,9 +72,9 @@ class PtclsGeom:
         Rout = _np.zeros((3,3),_np.float32)
         for i in range(ali_eZYZ.shape[0]):
             _euZYZ_rotm(R_in,ali_eZYZ[i])
-            Rout = R@R_in
+            Rout = (R@R_in.transpose()).transpose()
             _rotm_euZYZ(ali_eZYZ[i],Rout)
-            tout = Rout.transpose()@t
+            tout = Rout@t
             ali_t[i,:] = ali_t[i,:] + tout
     
     @staticmethod
@@ -155,9 +155,8 @@ class PtclsGeom:
         out_ix = 0
         for i in range(in_ali_eZYZ.shape[0]):
             _euZYZ_rotm(R,in_ali_eZYZ[i])
-            Rt = R.transpose()
             for j in range(t.shape[0]):
-                tout = Rt@t[j]
+                tout = R@t[j]
                 out_ali_t[out_ix,:] = in_ali_t[i,:] + tout
                 out_ix = out_ix + 1
 
@@ -170,8 +169,8 @@ class PtclsGeom:
         for i in range(in_ali_eZYZ.shape[0]):
             _euZYZ_rotm(R_in,in_ali_eZYZ[i])
             for j in range(t.shape[0]):
-                Rout = R[j]@R_in
-                tout = Rout.transpose()@t[j]
+                Rout = (R[j]@R_in.transpose()).transpose()
+                tout = Rout@t[j]
                 out_ali_t[out_ix,:] = in_ali_t[i,:] + tout
                 _rotm_euZYZ(out_ali_eZYZ[out_ix],Rout)
                 out_ix = out_ix + 1

@@ -826,6 +826,7 @@ protected:
 
         if( cc_type == CC_TYPE_CFSC ) {
             rad_avgr.calculate_FRC(ss_data.ss_fourier,bandpass,ptr->K,stream);
+            stream.sync();
             rad_avgr.apply_FRC(ss_data.ss_fourier,ptr->ctf_vals,ssnr,ptr->K,stream);
         }
 
@@ -1016,8 +1017,10 @@ protected:
                             print_R(ali_data.g_ali,ptr->K,stream);
                         }*/
 
+
                         if( cc_type == CC_TYPE_CFSC ) {
                             rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
+                            stream.sync();
                             rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
                         }
 
