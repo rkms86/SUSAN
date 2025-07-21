@@ -382,7 +382,7 @@ __global__ void invert_wgt(double*p_data,const int3 ss_siz) {
 
         double data = p_data[idx];
 
-        if( abs(data) < 0.025 ) {
+        if( abs(data) < 1.0 ) {
             if( data<0 )
                 data = -1.0;
             else

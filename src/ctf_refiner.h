@@ -170,7 +170,7 @@ protected:
         int num_vols = R;
         if( use_halves ) num_vols = 2*R;
         AliRef*vols = new AliRef[num_vols];
-        allocate_references(vols);
+        allocate_references(vols,rad_avgr);
 
         GPU::sync();
 
@@ -188,7 +188,7 @@ protected:
         delete [] vols;
     }
 
-    void allocate_references(AliRef*vols) {
+    void allocate_references(AliRef*vols,RadialAverager&rad_avgr) {
         GPU::GArrSingle  g_raw;
         GPU::GArrSingle  g_pad;
         GPU::GArrSingle2 g_fou;
@@ -204,10 +204,12 @@ protected:
             for(int r=0;r<R;r++) {
                 upload_ref(g_pad,g_raw,p_refs[r].half_A);
                 exec_fft3(g_fou,g_pad,fft3);
+                rad_avgr.preset_FRC_vol(g_fou,bandpass);
                 vols[2*r  ].allocate(g_fou,MP,NP);
 
                 upload_ref(g_pad,g_raw,p_refs[r].half_B);
                 exec_fft3(g_fou,g_pad,fft3);
+                rad_avgr.preset_FRC_vol(g_fou,bandpass);
                 vols[2*r+1].allocate(g_fou,MP,NP);
             }
         }
@@ -215,6 +217,7 @@ protected:
             for(int r=0;r<R;r++) {
                 upload_ref(g_pad,g_raw,p_refs[r].map);
                 exec_fft3(g_fou,g_pad,fft3);
+                rad_avgr.preset_FRC_vol(g_fou,bandpass);
                 vols[r].allocate(g_fou,MP,NP);
             }
         }
@@ -311,8 +314,8 @@ protected:
         ali_data.rotate_projections(Rot,ptr->g_ali,ptr->K,stream);
 
         ali_data.project(vol.ref,bandpass,ptr->K,stream);
-        rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
-        rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
+        // rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
+        // rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
         ctf_ref.load_buf(ali_data.prj_c,ptr->K,stream);
 
         float dU,dV,dA;

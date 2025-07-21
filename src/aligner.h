@@ -632,7 +632,7 @@ protected:
         int num_vols = R;
         if( ali_halves ) num_vols = 2*R;
         AliRef*vols = new AliRef[num_vols];
-        allocate_references(vols);
+        allocate_references(vols,rad_avgr);
 
         ang_prov.cone_range = cone.x;
         ang_prov.cone_step  = cone.y;
@@ -662,7 +662,7 @@ protected:
         delete [] vols;
     }
 
-    void allocate_references(AliRef*vols) {
+    void allocate_references(AliRef*vols,RadialAverager&rad_avgr) {
         GPU::GArrSingle  g_raw;
         GPU::GArrSingle  g_pad;
         GPU::GArrSingle2 g_fou;
@@ -678,10 +678,14 @@ protected:
             for(int r=0;r<R;r++) {
                 upload_ref(g_pad,g_raw,p_refs[r].half_A);
                 exec_fft3(g_fou,g_pad,fft3);
+                if( cc_type == CC_TYPE_CFSC )
+                    rad_avgr.preset_FRC_vol(g_fou,bandpass);
                 vols[2*r  ].allocate(g_fou,MP,NP);
 
                 upload_ref(g_pad,g_raw,p_refs[r].half_B);
                 exec_fft3(g_fou,g_pad,fft3);
+                if( cc_type == CC_TYPE_CFSC )
+                    rad_avgr.preset_FRC_vol(g_fou,bandpass);
                 vols[2*r+1].allocate(g_fou,MP,NP);
             }
         }
@@ -689,6 +693,8 @@ protected:
             for(int r=0;r<R;r++) {
                 upload_ref(g_pad,g_raw,p_refs[r].map);
                 exec_fft3(g_fou,g_pad,fft3);
+                if( cc_type == CC_TYPE_CFSC )
+                    rad_avgr.preset_FRC_vol(g_fou,bandpass);
                 vols[r].allocate(g_fou,MP,NP);
             }
         }
@@ -904,10 +910,10 @@ protected:
                             //print_R(ali_data.g_ali,ptr->K,stream);
                         }*/
 
-                        if( cc_type == CC_TYPE_CFSC ) {
-                            rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
-                            rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
-                        }
+                        // if( cc_type == CC_TYPE_CFSC ) {
+                        //     rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
+                        //     rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
+                        // }
 
                         if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
@@ -984,7 +990,7 @@ protected:
             debug_fourier_stack(name,ss_data.ss_fourier,stream);
         }*/
         // if( ptr->ptcl.ptcl_id() == 0 )
-        //     debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
+            // debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
 
         Math::set(Rot,R_ali.transpose());
         ali_data.pre_rotate_reference(Rot,ptr->g_ali,ptr->K,stream);
@@ -1018,11 +1024,11 @@ protected:
                         }*/
 
 
-                        if( cc_type == CC_TYPE_CFSC ) {
+                        /*if( cc_type == CC_TYPE_CFSC ) {
                             rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
                             stream.sync();
                             rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
-                        }
+                        }*/
 
                         if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
@@ -1035,7 +1041,7 @@ protected:
                             debug_fourier_stack(name,ali_data.prj_c,stream);
                         }*/
                         // if( ptr->ptcl.ptcl_id() == 0 )
-                        //     debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
+                            // debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
                         ali_data.apply_bandpass(bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
@@ -1046,7 +1052,7 @@ protected:
                             debug_fourier_stack(name,ali_data.prj_c,stream);
                         }*/
                         // if( ptr->ptcl.ptcl_id() == 0 )
-                        //     debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
+                            // debug_fourier_stack("cc.mrc",ali_data.prj_c,stream);
 
                         ali_data.invert_fourier(ptr->K,stream);
                         stream.sync();

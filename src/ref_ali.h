@@ -59,6 +59,20 @@ public:
         std_acc.alloc(maxK);
     }
 
+    void preset_FRC_vol(GPU::GArrSingle2&data,float3 bandpass) {
+        rad_avg.clear();
+        rad_wgt.clear();
+        GPU::sync();
+        int3 ss = make_int3(M,N,N);
+        dim3 blk = GPU::get_block_size_2D();
+        dim3 grd = GPU::calc_grid_size(blk,M,N,N);
+        dim3 blk_frc = GPU::get_block_size_2D();
+        dim3 grd_frc = GPU::calc_grid_size(blk,1,1,1);
+        GpuKernels::radial_frc_avg_vol<<<grd,blk>>>(rad_avg.ptr,rad_wgt.ptr,data.ptr,bandpass,ss);
+        GpuKernels::radial_frc_acc<<<grd_frc,blk_frc>>>(rad_avg.ptr,rad_wgt.ptr,0,0,ss);
+        GpuKernels::radial_frc_norm_vol<<<grd,blk>>>(data.ptr,rad_avg.ptr,ss);
+    }
+
     void preset_FRC(GPU::GArrSingle2&data,float3 bandpass,int k,GPU::Stream&stream) {
         rad_avg.clear(stream.strm);
         rad_wgt.clear(stream.strm);
@@ -66,8 +80,11 @@ public:
         int3 ss = make_int3(M,N,k);
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,M,N,k);
-        GpuKernels::radial_frc_avg<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,data.ptr,bandpass,ss);
-        GpuKernels::radial_frc_norm<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,rad_wgt.ptr,0,0,ss);
+        dim3 blk_frc = GPU::get_block_size_2D();
+        dim3 grd_frc = GPU::calc_grid_size(blk,k,1,1);
+        GpuKernels::radial_frc_avg_stk<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,data.ptr,bandpass,ss);
+        GpuKernels::radial_frc_acc<<<grd_frc,blk_frc,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,0,0,ss);
+        GpuKernels::radial_frc_norm_stk<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,ss);
     }
 
     void calculate_FRC(GPU::GArrSingle2&data,float3 bandpass,int k,GPU::Stream&stream) {
@@ -77,7 +94,7 @@ public:
         int3 ss = make_int3(M,N,k);
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,M,N,k);
-        GpuKernels::radial_frc_avg<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,data.ptr,bandpass,ss);
+        GpuKernels::radial_frc_avg_stk<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,data.ptr,bandpass,ss);
     }
 
     void apply_FRC(GPU::GArrSingle2&data,int k,GPU::Stream&stream) {
@@ -92,7 +109,10 @@ public:
         int3 ss = make_int3(M,N,k);
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,M,N,k);
-        GpuKernels::radial_frc_norm<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,rad_wgt.ptr,ssnr_f,ssnr_s,ss);
+        dim3 blk_frc = GPU::get_block_size_2D();
+        dim3 grd_frc = GPU::calc_grid_size(blk,k,1,1);
+        GpuKernels::radial_frc_acc<<<grd_frc,blk_frc,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,ssnr_f,ssnr_s,ss);
+        GpuKernels::radial_frc_norm_stk<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,ss);
     }
 
     void normalize_stacks(GPU::GArrSingle2&data,float3 bandpass,int k,GPU::Stream&stream) {
@@ -114,7 +134,10 @@ public:
         int3 ss = make_int3(M,N,k);
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,M,N,k);
-        GpuKernels::radial_frc_norm<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,rad_wgt.ptr,ssnr_f,ssnr_s,ss);
+        dim3 blk_frc = GPU::get_block_size_2D();
+        dim3 grd_frc = GPU::calc_grid_size(blk,k,1,1);
+        GpuKernels::radial_frc_acc<<<grd_frc,blk_frc,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,ssnr_f,ssnr_s,ss);
+        GpuKernels::radial_frc_norm_stk<<<grd,blk,0,stream.strm>>>(data.ptr,rad_avg.ptr,ss);
     }
 
 };
@@ -243,10 +266,11 @@ public:
         int3 ss = make_int3(MP,NP,k);
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
-        GpuKernels::radial_frc_avg<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,ss_data.ptr,bandpass,ss);
-        stream.sync();
-        GpuKernels::radial_frc_norm<<<grd,blk,0,stream.strm>>>(ss_data.ptr,rad_avg.ptr,rad_wgt.ptr,0,0,ss);
-        stream.sync();
+        dim3 blk_frc = GPU::get_block_size_2D();
+        dim3 grd_frc = GPU::calc_grid_size(blk,k,1,1);
+        GpuKernels::radial_frc_avg_stk<<<grd,blk,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,ss_data.ptr,bandpass,ss);
+        GpuKernels::radial_frc_acc<<<grd_frc,blk_frc,0,stream.strm>>>(rad_avg.ptr,rad_wgt.ptr,0,0,ss);
+        GpuKernels::radial_frc_norm_stk<<<grd,blk,0,stream.strm>>>(ss_data.ptr,rad_avg.ptr,ss);
     }
 
     void preset_FSC(float3 bandpass,int k,GPU::Stream&stream) {

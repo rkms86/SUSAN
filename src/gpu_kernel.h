@@ -844,28 +844,84 @@ __global__ void radial_ps_norm(float2*p_data,const float*p_avg,const float*p_wgt
     }
 }
 
-__global__ void radial_frc_avg(float*p_avg,float*p_wgt,const float2*p_in,const float3 bandpass,const int3 ss_siz) {
+__global__ void radial_frc_avg_stk(float*p_avg,float*p_wgt,const float2*p_in,const float3 bandpass,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
 
         float2 val = p_in[ get_3d_idx(ss_idx,ss_siz) ];
-        float  x = ss_idx.x;
-        float  y = ss_idx.y-(ss_siz.y/2);
-        float  R = l2_distance(x,y);
-        float bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
-        int    r = (int)roundf(R);
-        int  idx = r + ss_siz.x*ss_idx.z;
-        float out = (val.x*val.x) + (val.y*val.y);
-        if( (r < ss_siz.x) && (bp > 0.02) && (cuCabsf(val)>1e-8) ) {
+        float    x = ss_idx.x;
+        float    y = ss_idx.y-(ss_siz.y/2);
+        float    R = l2_distance(x,y);
+        float   bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+        int      r = (int)roundf(R);
+        int    idx = r + ss_siz.x*ss_idx.z;
+        float  out = (val.x*val.x) + (val.y*val.y);
+        if( (r < ss_siz.x) && (bp > 0.02) ) {
             atomicAdd(p_avg + idx,out);
             atomicAdd(p_wgt + idx,1.0);
         }
     }
 }
 
-__global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wgt,const float ssnr_F,const float ssnr_S,const int3 ss_siz) {
+__global__ void radial_frc_avg_vol(float*p_avg,float*p_wgt,const float2*p_in,const float3 bandpass,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float2 val = p_in[ get_3d_idx(ss_idx,ss_siz) ];
+        float    x = ss_idx.x;
+        float    y = ss_idx.y-(ss_siz.y/2);
+        float    z = ss_idx.z-(ss_siz.z/2);
+        float    R = l2_distance(x,y,z);
+        float   bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
+        int      r = (int)roundf(R);
+        int    idx = r;
+        float  out = (val.x*val.x) + (val.y*val.y);
+        if( (r < ss_siz.x) && (bp > 0.02) ) {
+            atomicAdd(p_avg + idx,out);
+            atomicAdd(p_wgt + idx,1.0);
+        }
+    }
+}
+
+__global__ void radial_frc_acc(float*p_avg,const float*p_wgt,const float ssnr_F,const float ssnr_S,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < 1 && ss_idx.z < 1 ) {
+
+        float*w_avg = p_avg + ss_idx.x*ss_siz.x;
+        const float*w_wgt = p_wgt + ss_idx.x*ss_siz.x;
+        double avg;
+        double wgt;
+        double w_acc = 0;
+        double ssnr  = 0;
+
+        for(int i=1;i<ss_siz.x;i++) {
+            avg = w_avg[i];
+            wgt = w_wgt[i];
+            avg = sqrt(avg/fmax(wgt,1.0));
+            w_acc += avg;
+        }
+        // w_acc = sqrt(w_acc);
+        // w_acc = 1.0;
+
+        w_avg[0] = 1.0;
+        for(int i=1;i<ss_siz.x;i++) {
+            avg = w_avg[i];
+            wgt = w_wgt[i];
+            avg = sqrt(avg/fmax(wgt,1.0));
+            if(ssnr_S>1)
+                ssnr = (1/(ssnr_S*exp(i*ssnr_F)));
+            w_avg[i] = (avg/w_acc) + ssnr;
+        }
+    }
+}
+
+__global__ void radial_frc_norm_stk(float2*p_data,const float*p_avg,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
 
@@ -880,36 +936,48 @@ __global__ void radial_frc_norm(float2*p_data,const float*p_avg,const float*p_wg
         if( (r < ss_siz.x) && (r > 0) ) {
             int    idx;
             double avg;
-            double wgt;
-            double w_acc = 0;
-
-            for(int i=1;i<ss_siz.x;i++) {
-                idx = i + ss_siz.x*ss_idx.z;
-                avg = p_avg[idx];
-                wgt = p_wgt[idx];
-                w_acc += (avg / max(wgt,1.0));
-            }
-            w_acc = sqrt(w_acc);
 
             idx = r + ss_siz.x*ss_idx.z;
             avg = p_avg[idx];
-            wgt = p_wgt[idx];
 
-            if( avg > 0 ) {
+            if( avg > 1e-8 ) {
+                val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
+                if( r > 0 ) {
+                    val.x = val.x/avg;
+                    val.y = val.y/avg;
+                }
+            }
+        }
 
-                wgt = max(wgt,1.0);
-                avg = avg/wgt;
-                avg = sqrt(avg)/w_acc;
+        p_data[ get_3d_idx(ss_idx,ss_siz) ] = val;
+    }
+}
 
-                if( avg > 1e-10 ) {
-                    val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
-                    if( r > 0 ) {
-                        float w_avg = avg;
-                        if(ssnr_S>1)
-                            w_avg += (1/(ssnr_S*exp(R*ssnr_F)));
-                        val.x = val.x/w_avg;
-                        val.y = val.y/w_avg;
-                    }
+__global__ void radial_frc_norm_vol(float2*p_data,const float*p_avg,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float2 val = {0,0};
+        float    x = ss_idx.x;
+        float    y = ss_idx.y-(ss_siz.y/2);
+        float    z = ss_idx.z-(ss_siz.z/2);
+        float    R = l2_distance(x,y,z);
+        int      r = (int)roundf(R);
+
+        if( (r < ss_siz.x) && (r > 0) ) {
+            int    idx;
+            double avg;
+
+            idx = r;
+            avg = p_avg[idx];
+
+            if( avg > 1e-8 ) {
+                val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
+                if( r > 0 ) {
+                    val.x = val.x/avg;
+                    val.y = val.y/avg;
                 }
             }
         }

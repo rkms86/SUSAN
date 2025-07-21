@@ -175,7 +175,7 @@ class Averager:
         self.ctf_correction    = 'wiener'
         self.symmetry          = 'c1'
         self.ssnr              = _dt.ssnr(1,0.01)
-        self.inversion         = _dt.inversion_params(10,0.75)
+        self.inversion         = _dt.inversion_params(0,0.75)
         self.mpi               = _dt.mpi_params('srun -n %d ',1)
         self.verbosity         = 0
         self.normalize_output  = True
