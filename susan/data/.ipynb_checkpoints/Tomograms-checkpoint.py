@@ -66,7 +66,6 @@ class Tomograms:
         self.voltage    = 300 *_np.ones( n_tomos,dtype=_np.float32)
         self.sph_aber   = 2.7 *_np.ones( n_tomos,dtype=_np.float32)
         self.amp_cont   = 0.07*_np.ones( n_tomos,dtype=_np.float32)
-        self.handedness = (-1.0)*_np.ones( n_tomos,dtype=_np.float32)
         
         # Defocus
         self.def_U    = _np.zeros((n_tomos,n_projs),dtype=_np.float32) # U (angstroms)
@@ -83,10 +82,7 @@ class Tomograms:
         
         # Nominal tilt angles (sorting reasons)
         self.nominal_tilt_angles = _np.zeros((n_tomos,n_projs),dtype=_np.float32)
-        
-        # CTF Scale Factor (for relion)
-        self.ctf_scale_factor = _np.zeros((n_tomos,n_projs),dtype=_np.float32)
-        
+	
         for i in range(n_tomos):
             self.stack_file.append('')
 
@@ -98,16 +94,15 @@ class Tomograms:
         n_projs = int(_prsr.read(fp,'num_projs'))
         self._alloc(n_tomos,n_projs)
         for i in range(n_tomos):
-            self.tomo_id[i]      = _np.uint32(_prsr.read(fp,'tomo_id'))
-            self.tomo_size[i,:]  = _np.fromstring(_prsr.read(fp,'tomo_size'), _np.uint32, sep=',')
+            self.tomo_id[i]      = _np.uint32((_prsr.read(fp,'tomo_id')))
+            self.tomo_size[i,:]  = _np.fromstring(_prsr.read(fp,'tomo_size'),_np.uint32,sep=',')
             self.stack_file[i]   = _prsr.read(fp,'stack_file')
-            self.stack_size[i,:] = _np.fromstring(_prsr.read(fp,'stack_size'), _np.uint32, sep=',')
-            self.pix_size[i]     = _np.float32(_prsr.read(fp,'pix_size'))
-            self.voltage[i]      = _np.float32(_prsr.read(fp,'kv'))
-            self.sph_aber[i]     = _np.float32(_prsr.read(fp,'cs'))
-            self.amp_cont[i]     = _np.float32(_prsr.read(fp,'ac'))
-            self.handedness[i]   = _np.float32(_prsr.read(fp, 'handedness') or self.handedness[i])
-            self.num_proj[i]     = _np.uint32(_prsr.read(fp,'num_proj'))
+            self.stack_size[i,:] = _np.fromstring(_prsr.read(fp,'stack_size'),_np.uint32,sep=',')
+            self.pix_size[i]     = _np.float32((_prsr.read(fp,'pix_size')))
+            self.voltage[i]      = _np.float32((_prsr.read(fp,'kv')))
+            self.sph_aber[i]     = _np.float32((_prsr.read(fp,'cs')))
+            self.amp_cont[i]     = _np.float32((_prsr.read(fp,'ac')))
+            self.num_proj[i]     = _np.uint32((_prsr.read(fp,'num_proj')))
             
             P = self.num_proj[i]
             for p in range(P):
@@ -126,9 +121,7 @@ class Tomograms:
                 if len(buffer) > 14:
                     self.doses[i,p]    = buffer[14]
                 if len(buffer) > 15:
-                    self.nominal_tilt_angles[i,p] = buffer[15]
-                if len(buffer) > 16:
-                    self.ctf_scale_factor[i,p] = buffer[16]
+              	    self.nominal_tilt_angles[i,p] = buffer[15]
       
     def save(self,filename):
         Tomograms._check_filename(filename)
@@ -146,7 +139,6 @@ class Tomograms:
             _prsr.write(fp,'kv'        , str(self.voltage[i]))
             _prsr.write(fp,'cs'        , str(self.sph_aber[i]))
             _prsr.write(fp,'ac'        , str(self.amp_cont[i]))
-            _prsr.write(fp,'handedness', str(self.handedness[i]))
             _prsr.write(fp,'num_proj'  , str(self.num_proj[i]))
             
             fp.write('#euler.Z  euler.Y  euler.Z  shift.X  shift.Y    weight')
@@ -157,15 +149,14 @@ class Tomograms:
             
             P = self.num_proj[i]
             for p in range(P):
-                fp.write('%8.8f %8.8f %8.8f ' % (self.proj_eZYZ[i,p,0],self.proj_eZYZ[i,p,1],self.proj_eZYZ[i,p,2]))
-                fp.write('%8.8f %8.8f '       % (self.proj_shift[i,p,0],self.proj_shift[i,p,1]))
-                fp.write('%8.8f '             % (self.proj_wgt[i,p]))
-                fp.write('%8.8f %8.8f '       % (self.def_U   [i,p],self.def_V   [i,p]))             # Defocus.U    Defocus.V
-                fp.write('%8.8f %8.8f '       % (self.def_ang [i,p],self.def_phas[i,p]))             # Def.ang      Def.ph_shft
-                fp.write('%8.8f %8.8f '       % (self.def_Bfct[i,p],self.def_ExFl[i,p]))             # Def.BFactor  Def.ExpFilt
-                fp.write('%8.8f %8.8f '       % (self.def_mres[i,p],self.def_scor[i,p]))             # Def.max_res  Def.score
-                fp.write('%8.8f %8.8f '       % (self.doses[i,p]   ,self.nominal_tilt_angles[i,p]))  # Dose         NominalTiltAngle
-                fp.write('%8.8f '             % (self.ctf_scale_factor[i,p]))                        # CTF Scale Factor
+                fp.write('%8.3f %8.3f %8.3f ' % (self.proj_eZYZ[i,p,0],self.proj_eZYZ[i,p,1],self.proj_eZYZ[i,p,2]))
+                fp.write('%8.2f %8.2f '       % (self.proj_shift[i,p,0],self.proj_shift[i,p,1]))
+                fp.write('%9.4f '             % (self.proj_wgt[i,p]))
+                fp.write('%10.2f %10.2f '     % (self.def_U   [i,p],self.def_V   [i,p]))             # Defocus.U    Defocus.V
+                fp.write('%8.3f %8.3f '       % (self.def_ang [i,p],self.def_phas[i,p]))             # Def.ang      Def.ph_shft
+                fp.write('%8.2f %8.2f '       % (self.def_Bfct[i,p],self.def_ExFl[i,p]))             # Def.BFactor  Def.ExpFilt
+                fp.write('%8.4f %8.5f '       % (self.def_mres[i,p],self.def_scor[i,p]))             # Def.max_res  Def.score
+                fp.write('%8.4f %8.4f '       % (self.doses[i,p]   ,self.nominal_tilt_angles[i,p]))  # Dose         NominalTiltAngle
                 fp.write('\n')
         fp.close()
     

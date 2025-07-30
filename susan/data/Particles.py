@@ -479,8 +479,7 @@ class Particles:
             dU[i] = dU_in[i] + z_coef*dZ
             dV[i] = dV_in[i] + z_coef*dZ
 
-    def update_defocus(self,tomos_info,ref_id=0,z_sign=-1):
-        
+    def update_defocus(self,tomos_info,ref_id=0):
         # Calculate tilt rotation matrix
         R_arr = _np.zeros((tomos_info.n_tomos,tomos_info.n_projs,3,3),dtype=_np.float32)
         for t in range(tomos_info.n_tomos):
@@ -501,7 +500,17 @@ class Particles:
             
             # Note: Numba makes it ~23.3 times faster
             pos = self.position[k] + self.ali_t[ref_id,k]
-            Particles._update_new_defocus(self.def_U[k],self.def_V[k],R_arr[tid],pos,tomos_info.num_proj[tid],z_sign,tomos_info.def_U[tid],tomos_info.def_V[tid])
+            z_sign = tomos_info.handedness[tid]
+            Particles._update_new_defocus(
+                self.def_U[k],
+                self.def_V[k],
+                R_arr[tid],
+                pos,
+                tomos_info.num_proj[tid],
+                z_sign,
+                tomos_info.def_U[tid],
+                tomos_info.def_V[tid]
+            )
 
     def x(self,ref_idx=0):
         return self.position[:,0] + self.ali_t[ref_idx,:,0]
@@ -668,8 +677,3 @@ class Particles:
             tmp = tmp/apix
             pos[i,:] = tmp + tomograms.tomo_size[self.tomo_cix[i]]/2
         return pos
-
-
-
-
-

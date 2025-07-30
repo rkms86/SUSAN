@@ -45,10 +45,14 @@ public:
     single  KV;
     single  CS;
     single  AC;
+    single  handedness;
     M33f    *R;
     V3f     *t;
     single  *w;
     Defocus *def;
+    single *doses;
+    single *nml_tilt_ang;
+    single *ctf_scale;
 
 public:
     Tomogram() {
@@ -65,10 +69,14 @@ public:
         KV            = 300;
         CS            = 2.7;
         AC            = 0.07;
+        handedness    = -1.0;
         R             = NULL;
         t             = NULL;
         w             = NULL;
         def           = NULL;
+        doses         = NULL;
+        nml_tilt_ang  = NULL;
+        ctf_scale     = NULL;
     }
 
     ~Tomogram() {
@@ -76,19 +84,23 @@ public:
         free_array( t   );
         free_array( w   );
         free_array( def );
+        free_array(doses);
+        free_array(nml_tilt_ang);
+        free_array(ctf_scale);
     }
 
     void read(IO::TxtParser&parser) {
 
-        parser.get_value( tomo_id ,"tomo_id"   );
-        parser.get_value( tomo_dim,"tomo_size" );
-        parser.get_str  ( stk_name,"stack_file");
-        parser.get_value( stk_dim ,"stack_size");
-        parser.get_value( pix_size,"pix_size"  );
-        parser.get_value( KV      ,"kv"        );
-        parser.get_value( CS      ,"cs"        );
-        parser.get_value( AC      ,"ac"        );
-        parser.get_value( num_proj,"num_proj"  );
+        parser.get_value( tomo_id   ,"tomo_id"   );
+        parser.get_value( tomo_dim  ,"tomo_size" );
+        parser.get_str  ( stk_name  ,"stack_file");
+        parser.get_value( stk_dim   ,"stack_size");
+        parser.get_value( pix_size  ,"pix_size"  );
+        parser.get_value( KV        ,"kv"        );
+        parser.get_value( CS        ,"cs"        );
+        parser.get_value( AC        ,"ac"        );
+        parser.get_value( handedness,"handedness");
+        parser.get_value( num_proj  ,"num_proj"  );
 
         tomo_center(0) = ((float)tomo_dim.x)/2;
         tomo_center(1) = ((float)tomo_dim.y)/2;
@@ -106,13 +118,17 @@ public:
             char*buf = parser.read_line_raw();
             t[i](2) = 0;
 
-            int n = sscanf(buf,"%f %f %f %f %f %f %f %f %f %f %f %f %f %f",
+            int n = sscanf(buf,"%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f",
                            &eu(0),&eu(1),&eu(2),&t[i](0),&t[i](1),&w[i],
                            &def[i].U,&def[i].V,&def[i].angle,&def[i].ph_shft,
                            &def[i].Bfactor,&def[i].ExpFilt,
-                           &def[i].max_res,&def[i].score);
+                           &def[i].max_res,&def[i].score,
+                           &doses[i], 
+                           &nml_tilt_ang[i],
+                           &ctf_scale[i]
+                           );
 
-            if( n != 14 ) {
+            if( n != 17 ) {
                 fprintf(stderr,"Truncated tomogram file.\n");
                 exit(1);
             }
@@ -133,6 +149,7 @@ public:
         printf("  KV:         %.1f\n",KV);
         printf("  CS:         %.2f\n",CS);
         printf("  AC:         %.3f\n",AC);
+        printf("  Handedness: %.3f\n",handedness);
         printf("  Projections:\n");
         for(int i=0;i<num_proj;i++) {
             printf("    %2d:  %7.4f %7.4f %7.4f   %7.2f\n",      i,R[i](0,0),R[i](0,1),R[i](0,2),t[i](0));
@@ -142,6 +159,18 @@ public:
         printf("  Defocus:\n");
         for(int i=0;i<num_proj;i++) {
             printf("    %2d:  %10.2f %10.2f %8.3f %7.2f %7.2f %8.4f\n",i,def[i].U,def[i].V,def[i].angle,def[i].Bfactor,def[i].ExpFilt,def[i].max_res);
+        }
+        printf("  Doses:\n");
+        for(int i=0;i<num_proj;i++) {
+            printf("    %2d:  %8.4f\n",i,doses[i]);
+        }
+        printf("  Nominal Tilts Angles:\n");
+        for(int i=0;i<num_proj;i++) {
+            printf("    %2d:  %8.4f\n",i,nml_tilt_ang[i]);
+        }
+        printf("  CTF Scale Factor:\n");
+        for(int i=0;i<num_proj;i++) {
+            printf("    %2d:  %8.4f\n",i,ctf_scale[i]);
         }
     }
     
@@ -180,6 +209,9 @@ protected:
         t   = new V3f    [K];
         w   = new float  [K];
         def = new Defocus[K];
+        doses = new float[K];
+        nml_tilt_ang = new float[K];
+        ctf_scale = new float[K];
     }
     
     bool check_exists() {

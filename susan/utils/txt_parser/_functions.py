@@ -24,19 +24,31 @@ def _decode_if_needed(line):
     except:
         return line
 
+    
 def read_line(fp):
     line = _decode_if_needed( fp.readline().strip() )
     while len(line) > 0 and line[0] == "#" :
         line = _decode_if_needed( fp.readline().strip() )
     return line
 
-def read(fp,tag):
-    line = _decode_if_needed( fp.readline().strip() )
-    while len(line) > 0 and line[0] == "#" :
-        line = _decode_if_needed( fp.readline().strip() )
+
+def read(fp, tag):
+    pos = fp.tell()
+    line = _decode_if_needed(fp.readline().strip())
+    while len(line) > 0 and line[0] == "#":
+        pos = fp.tell()
+        line = _decode_if_needed(fp.readline().strip())
     if not line.startswith(tag):
-        raise NameError("Requested field "+tag+", but the line is "+line)
+        fp.seek(pos)
+        return None
     return line[(len(tag)+1):]
+# def read(fp,tag):
+#     line = _decode_if_needed( fp.readline().strip() )
+#     while len(line) > 0 and line[0] == "#" :
+#         line = _decode_if_needed( fp.readline().strip() )
+#     if not line.startswith(tag):
+#         raise NameError("Requested field "+tag+", but the line is "+line)
+#     return line[(len(tag)+1):]
 
 def write(fp,tag,value):
     fp.write(tag+':'+value+'\n')
