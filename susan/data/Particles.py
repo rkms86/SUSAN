@@ -501,7 +501,17 @@ class Particles:
             
             # Note: Numba makes it ~23.3 times faster
             pos = self.position[k] + self.ali_t[ref_id,k]
-            Particles._update_new_defocus(self.def_U[k],self.def_V[k],R_arr[tid],pos,tomos_info.num_proj[tid],z_sign,tomos_info.def_U[tid],tomos_info.def_V[tid])
+            z_sign = tomos_info.handedness[tid]
+            Particles._update_new_defocus(
+                self.def_U[k],
+                self.def_V[k],
+                R_arr[tid],
+                pos,
+                tomos_info.num_proj[tid],
+                z_sign,
+                tomos_info.def_U[tid],
+                tomos_info.def_V[tid]
+            )
 
     def x(self,ref_idx=0):
         return self.position[:,0] + self.ali_t[ref_idx,:,0]

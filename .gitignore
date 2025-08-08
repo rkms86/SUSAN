@@ -1,5 +1,6 @@
 # Ignore bins
 bin/*
+susan/bin
 !bin/.gitkeep
 # Ignore build with eigen
 build/
