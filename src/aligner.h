@@ -182,7 +182,7 @@ public:
             fp = fopen(tm_file,"w");
             if( tm_type == TM_CSV ) {
                 if (tm_dim == 2){
-                    fprintf(fp,"TID,PartID,RID,ProjID,X,Y,CC\n");
+                    fprintf(fp,"TID,PartID,RID,ProjID,ProjW,X,Y,CC\n");
                 }
                 else if (tm_dim == 3){
                     fprintf(fp,"TID,PartID,RID,X,Y,Z,CC,BlockID\n");
@@ -205,26 +205,27 @@ public:
         memset(p_cnt,0,n_cc*sizeof(float));
     }
 
-    void push_cc(const float*p_cc) {
+   void push_cc(const float*p_cc) {
         if( tm_type == TM_NONE )
             return;
 
         for(int cc_index=0;cc_index<n_cc;cc_index++) {
             float cc = p_cc[cc_index];
-            c_cc [cc_index] = fmax(c_cc[cc_index],cc);
+            c_cc [cc_index] = cc;
             p_avg[cc_index] += cc;
             p_std[cc_index] += (cc*cc);
             p_cnt[cc_index] += 1;
         }
     }
 
-    void save_cc(int tid,int rid,int pid,int tx,int ty,int tz,bool save_sigma=false) {
+    void save_cc(int tid,int rid,int pid,int tx,int ty,int tz,float *prj_w,bool save_sigma=false) {
         if( tm_type == TM_NONE )
             return;
 
         int x,y,z;
 
         int proj_id, point_id;
+        float proj_w;
 
         for(int cc_index=0;cc_index<n_cc;cc_index++){
             if( p_cnt[cc_index] == 0 )
@@ -233,6 +234,7 @@ public:
             if (tm_dim == 2){
                 proj_id  = cc_index / num_points;
                 point_id = cc_index % num_points;
+                proj_w   = prj_w[proj_id];
             }
             else if (tm_dim == 3){
                 proj_id  = 0;
@@ -251,29 +253,26 @@ public:
                 c_cc[cc_index] = (c_cc[cc_index]-cc_avg)/cc_std;
             }
 
-            if( c_cc[cc_index] > 0 ){
-                if (tm_dim == 2){
-                    if( tm_type == TM_PYTHON )
-                            fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d[%d,%d] = %f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
-                    else if( tm_type == TM_MATLAB )
-                            fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d(%d,%d) = %f;\n",tid, pid, rid, proj_id, (x+1), (y+1), c_cc[cc_index]);
-                    else if( tm_type == TM_CSV )
-                            fprintf(fp,"%d,%d,%d,%d,%d,%d,%f\n", tid, pid, rid, proj_id, x, y, c_cc[cc_index]);
-                }
-                else if (tm_dim == 3){
-                    if( tm_type == TM_PYTHON )
-                            fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %f\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
-                    else if( tm_type == TM_MATLAB )
-                            fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %f;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
-                    else if( tm_type == TM_CSV ) {
-                            fprintf(fp,"%d,%d,%d,%d,%d,%d,%f,%d\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index],block_id);
-                    }
-                }
-            }
-
-        }
-        block_id++;
+	    if (tm_dim == 2){
+	        if( tm_type == TM_PYTHON )
+		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d_w%f[%d,%d] = %f\n", tid, pid, rid, proj_id, proj_w, x, y, c_cc[cc_index]);
+	        else if( tm_type == TM_MATLAB )
+		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d_w%f(%d,%d) = %f;\n",tid, pid, rid, proj_id, proj_w, (x+1), (y+1), c_cc[cc_index]);
+	        else if( tm_type == TM_CSV )
+		        fprintf(fp,"%d,%d,%d,%d,%f,%d,%d,%f\n", tid, pid, rid, proj_id, proj_w, x, y, c_cc[cc_index]);
+	    }
+	    else if ((tm_dim == 3) && (c_cc[cc_index] > 0)){
+	        if( tm_type == TM_PYTHON )
+		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %f\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
+	        else if( tm_type == TM_MATLAB )
+		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %f;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
+	        else if( tm_type == TM_CSV ) {
+		        fprintf(fp,"%d,%d,%d,%d,%d,%d,%f,%d\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index],block_id);
+	        }
+	    }
 	}
+        block_id++;
+    }
 
 };
 
@@ -955,7 +954,7 @@ protected:
         update_particle_3D( ptr->ptcl,
                            cc_tracker.get_rot(),cc_tracker.get_vec(),cc_tracker.get_cc(),
                            ptr->class_ix,ptr->ctf_vals.apix);
-        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,cc_stats==CC_STATS_SIGMA);
+        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ptr->ptcl.prj_w,cc_stats==CC_STATS_SIGMA);
     }
 
     void angular_search_2D(AliRef&vol,AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,TemplateMatchingReporter&tm_rep,GPU::Stream&stream) {
@@ -1112,7 +1111,7 @@ protected:
             }
         }
         ptr->ptcl.ali_cc[ptr->class_ix] = cc_acc/max(wgt_acc,1.0);
-        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z);
+        tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ptr->ptcl.prj_w);
     }
 
     void update_particle_3D(Particle&ptcl,const M33f&Rot,const Vec3&t,const single cc, const int ref_ix,const float apix) {
