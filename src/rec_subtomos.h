@@ -369,7 +369,7 @@ protected:
 
     void correct_ctf(RecSubstack&ss_data,RecBuffer&ptr,GPU::Stream&stream) {
         if( ctf_type == INV_NO_INV )
-            ss_data.set_no_ctf(bandpass,ptr.K,stream);
+            ss_data.set_no_ctf(ptr.g_def,bandpass,ptr.K,stream);
         if( ctf_type == INV_PHASE_FLIP )
             ss_data.set_phase_flip(ptr.ctf_vals,ptr.g_def,bandpass,ptr.K,stream);
         if( ctf_type == INV_WIENER )

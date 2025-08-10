@@ -194,9 +194,9 @@ __global__ void insert_stk_atomic(double2*p_acc,double*p_wgt,
                 float2 val = tex2DLayered<float2>(ss_stk, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
                 float  wgt = tex2DLayered<float >(ss_wgt, float(ss_idx.x)+0.5, float(ss_idx.y)+0.5, ss_idx.z);
                 float x,y,z;
-                val.x *= bp*pTlt[ss_idx.z].w;
-                val.y *= bp*pTlt[ss_idx.z].w;
-                wgt   *= bp*pTlt[ss_idx.z].w;
+                val.x *= pTlt[ss_idx.z].w;
+                val.y *= pTlt[ss_idx.z].w;
+                wgt   *= pTlt[ss_idx.z].w;
 
                 rot_pt(x,y,z,pTlt[ss_idx.z].R,pt);
                 if( x < 0 ) {
@@ -216,15 +216,15 @@ __global__ void insert_stk_atomic(double2*p_acc,double*p_wgt,
                 int y1 = y0 + 1;
                 int z1 = z0 + 1;
 
-                float wx1 = x - floor(x);
-                float wy1 = y - floor(y);
-                float wz1 = z - floor(z);
+                float wx1 = x - x0;
+                float wy1 = y - y0;
+                float wz1 = z - z0;
                 float wx0 = 1 - wx1;
                 float wy0 = 1 - wy1;
                 float wz0 = 1 - wz1;
 
-                bool bx0 = x0 < M;
-                bool bx1 = x1 < M;
+                bool bx0 = (x0>=0) && (x0<M);
+                bool bx1 = (x1>=0) && (x1<M);
                 bool by0 = (y0>=0) && (y0<N);
                 bool by1 = (y1>=0) && (y1<N);
                 bool bz0 = (z0>=0) && (z0<N);
@@ -337,9 +337,6 @@ __global__ void extract_stk(float2*p_out,cudaTextureObject_t vol,const Proj2D*pT
                 if( should_conjugate )
                     val.y = -val.y;
 
-                //val.x *= bp;
-                //val.y *= bp;
-
             }
         }
 
@@ -382,7 +379,7 @@ __global__ void invert_wgt(double*p_data,const int3 ss_siz) {
 
         double data = p_data[idx];
 
-        if( abs(data) < 1.0 ) {
+        if( abs(data) < SUSAN_FLOAT_TOL ) {
             if( data<0 )
                 data = -1.0;
             else
