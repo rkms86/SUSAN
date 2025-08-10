@@ -26,6 +26,9 @@
 #include <cstring>
 #include <cstdint>
 #include <cmath>
+#include <string>
+#include <sstream>
+#include <unordered_map>
 #include <sys/stat.h>
 #include <ftw.h>
 #include <unistd.h>
@@ -114,6 +117,7 @@ class TxtParser {
 protected:
     char buffer[ SUSAN_FILENAME_LENGTH ];
     FILE *fp;
+    std::unordered_map<std::string, std::string> args;
 
 public:
     TxtParser(const char*filename,const char*extension) {
@@ -134,6 +138,10 @@ public:
 
     ~TxtParser() {
         fclose(fp);
+    }
+
+    const char*get_buffer() {
+        return (const char*)buffer;
     }
 
     void get_value(uint32&value,const char*tag) {
@@ -179,6 +187,134 @@ public:
         return buffer;
     }
 
+    bool get_next_line() {
+        bool should_continue = true;
+
+        while( should_continue ) {
+            if( fgets(buffer,SUSAN_FILENAME_LENGTH,fp) == NULL )
+                return false;
+            else {
+                int buf_len = strlen(buffer);
+                if( buf_len   ==  0  ) continue;
+                if( buffer[0] == '#' ) return false;
+
+                if( buffer[buf_len-1] == '\n' )
+                    buffer[buf_len-1] = 0;
+
+                should_continue = false;
+                return true;
+            }
+        }
+
+        return true;
+    }
+
+    void parse_args() {
+        args.clear();
+
+        while( fgets(buffer,SUSAN_FILENAME_LENGTH,fp) ) {
+            int buf_len = strlen(buffer);
+            if( buf_len   ==  0  ) continue;
+            if( buffer[0] == '#' ) break;
+
+            std::string line(buffer);
+            line.erase(line.find_last_not_of("\r\n")+1);
+
+            size_t pos = line.find(':');
+            if (pos == std::string::npos) {
+                fprintf(stderr,"Truncated file\n");
+                exit(1);
+            }
+
+            std::string key = line.substr(0,pos);
+            std::string val = line.substr(pos+1);
+
+            key.erase(0, key.find_first_not_of(" \t"));
+            key.erase(key.find_last_not_of(" \t") + 1);
+            val.erase(0, val.find_first_not_of(" \t"));
+            val.erase(val.find_last_not_of(" \t") + 1);
+
+
+            args[key] = val;
+        }
+    }
+
+    bool args_get_val(uint32&val,const char*tag,const uint32 def_val=0) {
+        std::string key(tag);
+        val = def_val;
+        if( !arg_exists(key) ) return false;
+        val = static_cast<uint32_t>(std::stoul(args[key]));
+        return true;
+    }
+
+    bool args_get_val(int&val,const char*tag,const int def_val=0) {
+        std::string key(tag);
+        val = def_val;
+        if( !arg_exists(key) ) return false;
+        val = std::stoi(args[key]);
+        return true;
+    }
+
+    bool args_get_val(float&val,const char*tag,const float def_val=0) {
+        std::string key(tag);
+        val = def_val;
+        if( !arg_exists(key) ) return false;
+        val = std::stof(args[key]);
+        return true;
+    }
+
+    bool args_get_val(VUInt3&val,const char*tag,const uint32 def_val=0) {
+        std::string key(tag);
+        val.x = def_val;
+        val.y = def_val;
+        val.z = def_val;
+        if( !arg_exists(key) ) return false;
+
+        std::stringstream ss(args[key]);
+        std::string token;
+
+        std::getline(ss, token, ',');
+        val.x = static_cast<uint32_t>(std::stoul(token));
+
+        std::getline(ss, token, ',');
+        val.y = static_cast<uint32_t>(std::stoul(token));
+
+        std::getline(ss, token, ',');
+        val.z = static_cast<uint32_t>(std::stoul(token));
+        return true;
+    }
+
+    bool args_get_val(Vec3&val,const char*tag,const float def_val=0) {
+        std::string key(tag);
+        val.x = def_val;
+        val.y = def_val;
+        val.z = def_val;
+        if( !arg_exists(key) ) return false;
+
+        std::stringstream ss(args[key]);
+        std::string token;
+
+        std::getline(ss, token, ',');
+        val.x = std::stof(token);
+
+        std::getline(ss, token, ',');
+        val.y = std::stof(token);
+
+        std::getline(ss, token, ',');
+        val.z = std::stof(token);
+
+        return true;
+    }
+
+    bool args_get_val(char*val,const char*tag) {
+        std::string key(tag);
+        val[0] = 0;
+        if( !arg_exists(key) ) return false;
+        strcpy(val,args[key].c_str());
+
+        return true;
+    }
+
 protected:
     void get_line() {
         bool read_next_line = true;
@@ -195,7 +331,7 @@ protected:
             }
             else {
                 fprintf(stderr,"Truncated file\n");
-                exit(0);
+                exit(1);
             }
         }
     }
@@ -223,6 +359,9 @@ protected:
         }
     }
 
+    bool arg_exists(std::string&key) {
+        return args.find(key) != args.end();
+    }
 };
 
 ////

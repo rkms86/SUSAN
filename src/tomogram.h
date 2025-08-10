@@ -37,6 +37,7 @@ public:
     uint32  tomo_id;
     VUInt3  tomo_dim;
     V3f     tomo_center;
+    V3f     tomo_position;
     char    stk_name[ SUSAN_FILENAME_LENGTH ];
     VUInt3  stk_dim;
     V3f     stk_center;
@@ -91,16 +92,25 @@ public:
 
     void read(IO::TxtParser&parser) {
 
-        parser.get_value( tomo_id   ,"tomo_id"   );
-        parser.get_value( tomo_dim  ,"tomo_size" );
-        parser.get_str  ( stk_name  ,"stack_file");
-        parser.get_value( stk_dim   ,"stack_size");
-        parser.get_value( pix_size  ,"pix_size"  );
-        parser.get_value( KV        ,"kv"        );
-        parser.get_value( CS        ,"cs"        );
-        parser.get_value( AC        ,"ac"        );
-        parser.get_value( handedness,"handedness");
-        parser.get_value( num_proj  ,"num_proj"  );
+        bool extended_params = false;
+        Vec3 pos_buffer;
+
+        parser.parse_args();
+        parser.args_get_val( tomo_id    ,"tomo_id"   );
+        parser.args_get_val( tomo_dim   ,"tomo_size" );
+        parser.args_get_val( stk_name   ,"stack_file");
+        parser.args_get_val( stk_dim    ,"stack_size");
+        parser.args_get_val( pix_size   ,"pix_size"  );
+        parser.args_get_val( KV         ,"kv"        );
+        parser.args_get_val( CS         ,"cs"        );
+        parser.args_get_val( AC         ,"ac"        );
+        parser.args_get_val( num_proj   ,"num_proj"  );
+        parser.args_get_val( pos_buffer ,"tomo_pos"  );
+        extended_params = parser.args_get_val( handedness,"handedness",-1);
+
+        tomo_position(0) = pos_buffer.x;
+        tomo_position(1) = pos_buffer.y;
+        tomo_position(2) = pos_buffer.z;
 
         tomo_center(0) = ((float)tomo_dim.x)/2;
         tomo_center(1) = ((float)tomo_dim.y)/2;
@@ -112,30 +122,11 @@ public:
 
         allocate(num_proj);
 
-        for(int i=0;i<num_proj;i++) {
+        if( extended_params )
+            parse_extended_params(parser);
+        else
+            parse_params(parser);
 
-            V3f eu;
-            char*buf = parser.read_line_raw();
-            t[i](2) = 0;
-
-            int n = sscanf(buf,"%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f",
-                           &eu(0),&eu(1),&eu(2),&t[i](0),&t[i](1),&w[i],
-                           &def[i].U,&def[i].V,&def[i].angle,&def[i].ph_shft,
-                           &def[i].Bfactor,&def[i].ExpFilt,
-                           &def[i].max_res,&def[i].score,
-                           &doses[i], 
-                           &nml_tilt_ang[i],
-                           &ctf_scale[i]);
-
-            if( n != 17 ) {
-                fprintf(stderr,"Truncated tomogram file.\n");
-                exit(1);
-            }
-
-            eu *= DEG2RAD;
-            Math::eZYZ_Rmat(R[i],eu);
-
-        }
     }
 
     void print() {
@@ -247,6 +238,69 @@ protected:
         }
         return true;
     }
+
+    void parse_params(IO::TxtParser&parser) {
+
+        int i=0;
+        while( parser.get_next_line() ) {
+            if(i<num_proj) {
+                V3f eu;
+                t[i](2) = 0;
+                int n = sscanf(parser.get_buffer(),"%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f",
+                               &eu(0),&eu(1),&eu(2),&t[i](0),&t[i](1),&w[i],
+                               &def[i].U,&def[i].V,&def[i].angle,&def[i].ph_shft,
+                               &def[i].Bfactor,&def[i].ExpFilt,
+                               &def[i].max_res,&def[i].score);
+
+                if( n != 14 ) {
+                    fprintf(stderr,"Truncated tomogram file.\n");
+                    exit(1);
+                }
+
+                eu *= DEG2RAD;
+                Math::eZYZ_Rmat(R[i],eu);
+
+            }
+            i++;
+        }
+
+        if( i != num_proj ) {
+            fprintf(stderr,"Error parsing tomogram data.\n");
+            exit(1);
+        }
+    }
+
+    void parse_extended_params(IO::TxtParser&parser) {
+
+        int i=0;
+        while( parser.get_next_line() ) {
+            if(i<num_proj) {
+                V3f eu;
+                t[i](2) = 0;
+
+                int n = sscanf(parser.get_buffer(),"%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f",                           &eu(0),&eu(1),&eu(2),&t[i](0),&t[i](1),&w[i],
+                               &def[i].U,&def[i].V,&def[i].angle,&def[i].ph_shft,
+                               &def[i].Bfactor,&def[i].ExpFilt,
+                               &def[i].max_res,&def[i].score,
+                               &doses[i],&nml_tilt_ang[i],&ctf_scale[i]);
+
+                if( n != 17 ) {
+                    fprintf(stderr,"Truncated tomogram file.\n");
+                    exit(1);
+                }
+
+                eu *= DEG2RAD;
+                Math::eZYZ_Rmat(R[i],eu);
+
+            }
+            i++;
+        }
+
+        if( i != num_proj ) {
+            fprintf(stderr,"Error parsing tomogram data.\n");
+            exit(1);
+        }
+    }
 };
 
 class Tomograms {
@@ -262,13 +316,15 @@ public:
         tomos = NULL;
 
         IO::TxtParser parser(filename,"tomostxt");
-        parser.get_value(num_tomo,"num_tomos");
-        parser.get_value(num_proj,"num_projs");
+        parser.parse_args();
+        parser.args_get_val(num_tomo,"num_tomos");
+        parser.args_get_val(num_proj,"num_projs");
 
         tomos = new Tomogram[num_tomo];
 
         for(int i=0;i<num_tomo;i++)
             tomos[i].read(parser);
+
     }
 
     ~Tomograms() {

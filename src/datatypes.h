@@ -112,6 +112,12 @@ typedef struct {
 } CtfConst;
 
 typedef struct {
+    float fp_min;
+    float fp_max;
+    float fp_rol;
+} Bandpass_t;
+
+typedef struct {
     Rot33 R;
     Vec3  t;
     float w;

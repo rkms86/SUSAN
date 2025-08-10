@@ -80,6 +80,12 @@ void eZYZ_Rmat(M33f&R,const V3f&eu_rad) {
       * AngleAxisf(eu_rad(2), Vector3f::UnitZ());
 }
 
+void eXYZ_Rmat(M33f&R,const V3f&eu_rad) {
+    R = AngleAxisf(eu_rad(0), Vector3f::UnitX())
+      * AngleAxisf(eu_rad(1), Vector3f::UnitY())
+      * AngleAxisf(eu_rad(2), Vector3f::UnitZ());
+}
+
 void eZXZ_Rmat(M33f&R,const Vec3&eu_rad) {
     R = AngleAxisf(eu_rad.x, Vector3f::UnitZ())
       * AngleAxisf(eu_rad.y, Vector3f::UnitX())
@@ -88,6 +94,12 @@ void eZXZ_Rmat(M33f&R,const Vec3&eu_rad) {
 
 void eZYZ_Rmat(M33f&R,const Vec3&eu_rad) {
     R = AngleAxisf(eu_rad.x, Vector3f::UnitZ())
+      * AngleAxisf(eu_rad.y, Vector3f::UnitY())
+      * AngleAxisf(eu_rad.z, Vector3f::UnitZ());
+}
+
+void eXYZ_Rmat(M33f&R,const Vec3&eu_rad) {
+    R = AngleAxisf(eu_rad.x, Vector3f::UnitX())
       * AngleAxisf(eu_rad.y, Vector3f::UnitY())
       * AngleAxisf(eu_rad.z, Vector3f::UnitZ());
 }
