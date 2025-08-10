@@ -607,10 +607,10 @@ __global__ void normalize_amplitude(float*p_data,float*radial_ia,const int3 ss_s
 
         if( r > 0 && r < ss_siz.x ) {
             val = p_data[ idx ];
-                        float wgt = radial_ia[ r + ss_idx.z*ss_siz.x ];
-                        val = val/wgt;
-                        val = val/2 + 0.5;
-                        if( wgt < SUSAN_FLOAT_TOL ) val = 0.5;
+            float wgt = radial_ia[ r + ss_idx.z*ss_siz.x ];
+            val = val/wgt;
+            val = val/2 + 0.5;
+            if( wgt < SUSAN_FLOAT_TOL ) val = 0.5;
         }
 
         p_data[ idx ] = val;
@@ -875,7 +875,9 @@ __global__ void ctf_stk_wiener_ssnr( cudaSurfaceObject_t s_stk,cudaSurfaceObject
 }
 
 /// For CTF estimation/refinement and particle alignment
-__global__ void create_ctf( float*g_ctf,const float3 delta,const CtfConst ctf_const,const Defocus*def,const int3 ss_siz) {
+__global__ void create_ctf( float*g_ctf,const float3 delta,
+                            const CtfConst ctf_const,const Defocus*def,
+                            const bool apply_bfactor, const int3 ss_siz) {
 
         int3 ss_idx = get_th_idx();
 
@@ -892,7 +894,7 @@ __global__ void create_ctf( float*g_ctf,const float3 delta,const CtfConst ctf_co
             float z = calc_def(x,y,U,V,A);
             float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
             float ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
-            if( def[ss_idx.z].Bfactor > 0 )
+            if( apply_bfactor )
                 ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
             g_ctf[get_3d_idx(ss_idx,ss_siz)] = ctf;
 
@@ -900,7 +902,9 @@ __global__ void create_ctf( float*g_ctf,const float3 delta,const CtfConst ctf_co
 }
 
 /// For CTF estimation/refinement and particle alignment
-__global__ void create_ctf( float*g_ctf,const CtfConst ctf_const,const Defocus*def,const int3 ss_siz) {
+__global__ void create_ctf( float*g_ctf,
+                            const CtfConst ctf_const,const Defocus*def,
+                            const bool apply_bfactor, const int3 ss_siz) {
 
         int3 ss_idx = get_th_idx();
 
@@ -913,12 +917,48 @@ __global__ void create_ctf( float*g_ctf,const CtfConst ctf_const,const Defocus*d
             float z = calc_def(x,y,def[ss_idx.z]);
             float g = calc_gamma(z,ctf_const.LambdaPi,ctf_const.CsLambda3PiH,s*s,def[ss_idx.z].ph_shft);
             float ctf = calc_ctf(g,ctf_const.AC,ctf_const.CA);
-            if( def[ss_idx.z].Bfactor > 0 )
+            if( apply_bfactor )
                 ctf *= calc_bfactor(s,def[ss_idx.z].Bfactor);
             g_ctf[get_3d_idx(ss_idx,ss_siz)] = ctf;
 
         }
 }
+
+/// For CTF estimation/refinement and particle alignment
+__global__ void apply_bandpass_fourier(float2*p_w,const CtfConst ctf_const,const Defocus*p_def,const float3 bandpass,const int M, const int N, const int K)
+{
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < K ) {
+
+        long idx = ss_idx.x + M*ss_idx.y + M*N*ss_idx.z;
+
+        float2 val = {0,0};
+
+        float max_R = bandpass.y;
+        if( p_def[ss_idx.z].max_res > 0 )
+            max_R = min(max_R,p_def[ss_idx.z].max_res);
+        float R = l2_distance(ss_idx.x,ss_idx.y - N/2);
+        float bp = get_bp_wgt(bandpass.x,max_R,bandpass.z,R);
+
+        if( bp > 0.025 ) {
+            val = p_w[ idx ];
+
+            float s = calc_s(R,M,ctf_const.apix);
+            if( p_def[ss_idx.z].Bfactor > 0 )
+                bp *= calc_bfactor(s,p_def[ss_idx.z].Bfactor);
+            if( p_def[ss_idx.z].ExpFilt > 0 )
+                bp *= calc_bfactor(s,p_def[ss_idx.z].ExpFilt);
+
+            val.x *= bp;
+            val.y *= bp;
+
+        }
+
+        p_w[ idx ] = val;
+    }
+}
+
 
 /// Used in alignment
 __global__ void mask_small_ctf( float2*g_data,const float*g_ctf,const int3 ss_siz) {

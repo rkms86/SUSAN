@@ -111,7 +111,7 @@ protected:
             int3 ss = make_int3(M,N,ptr->K);
             dim3 blk = GPU::get_block_size_2D();
             dim3 grd = GPU::calc_grid_size(blk,M,N,ptr->K);
-            GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_ite.ptr,delta,ptr->ctf_vals,ptr->g_def.ptr,ss);
+            GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_ite.ptr,delta,ptr->ctf_vals,ptr->g_def.ptr,false,ss);
             GpuKernels::multiply<<<grd,blk,0,stream.strm>>>(data_out.ptr,prj_buf.ptr,ctf_ite.ptr,ss);
         }
     };
@@ -247,6 +247,7 @@ protected:
         dim3 grdR = GPU::calc_grid_size(blk,NP,NP,NP);
         dim3 grdC = GPU::calc_grid_size(blk,MP,NP,NP);
         GpuKernels::fftshift3D<<<grdR,blk>>>(g_pad.ptr,NP);
+        GpuKernels::sampling_correction_3D<<<grdC,blk>>>(g_fou.ptr,2.0,MP,NP);
         fft3.exec(g_fou.ptr,g_pad.ptr);
         GpuKernels::fftshift3D<<<grdC,blk>>>(g_fou.ptr,MP,NP);
     }
@@ -281,7 +282,6 @@ protected:
 
         rad_avgr.calculate_FRC(ss_data.ss_fourier,bandpass,ptr->K,stream);
         rad_avgr.apply_FRC(ss_data.ss_fourier,ptr->ctf_vals,ssnr,ptr->K,stream);
-        rad_avgr.normalize_stacks(ss_data.ss_fourier,bandpass,ptr->K,stream);
     }
 
     void search_ctf(AliRef&vol,AliSubstack&ss_data,Refine&ctf_ref,CtfRefBuffer*ptr,AliData&ali_data,RadialAverager&rad_avgr,GPU::Stream&stream) {
@@ -299,12 +299,8 @@ protected:
         memset(sum_cc  ,0,sizeof(single )*ptr->K);
 
         // Apply 3D alignment
-        M33f  R_ite,R_tmp,R_ali;
-        V3f eu_ZYZ;
-        eu_ZYZ(0) = ptr->ptcl.ali_eu[ptr->class_ix].x;
-        eu_ZYZ(1) = ptr->ptcl.ali_eu[ptr->class_ix].y;
-        eu_ZYZ(2) = ptr->ptcl.ali_eu[ptr->class_ix].z;
-        Math::eZYZ_Rmat(R_ali,eu_ZYZ);
+        M33f  R_ali;
+        Math::eZYZ_Rmat(R_ali,ptr->ptcl.ali_eu[ptr->class_ix]);
         Math::set(Rot,R_ali.transpose());
         ali_data.pre_rotate_reference(Rot,ptr->g_ali,ptr->K,stream);
 
@@ -312,10 +308,7 @@ protected:
         M33f  R_eye = Eigen::MatrixXf::Identity(3,3);
         Math::set(Rot,R_eye);
         ali_data.rotate_projections(Rot,ptr->g_ali,ptr->K,stream);
-
         ali_data.project(vol.ref,bandpass,ptr->K,stream);
-        // rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
-        // rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
         ctf_ref.load_buf(ali_data.prj_c,ptr->K,stream);
 
         float dU,dV,dA;
@@ -335,7 +328,7 @@ protected:
                 for( dA=-ang_range; dA<(ang_range+0.5*ang_step); dA+=ang_step ) {
                     delta_w.z  = dA;
                     ctf_ref.apply_ctf(ali_data.prj_c,delta_w,ptr,stream);
-                    ali_data.apply_bandpass(bandpass,ptr->K,stream);
+                    ali_data.apply_bandpass(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
                     ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
                     ali_data.invert_fourier(ptr->K,stream);
                     stream.sync();
@@ -390,10 +383,13 @@ protected:
             if( ptcl.prj_w[i] > 0 ) {
                 ptcl.def[i].U += delta_def[i].U;
                 ptcl.def[i].V += delta_def[i].V;
+                ptcl.prj_cc[i] = cc[i];
                 ptcl.def[i].angle += delta_def[i].angle;
+                ptcl.def[i].score  = cc[i];
+
                 if( est_dose )
                     ptcl.def[i].ExpFilt = delta_def[i].ExpFilt;
-                ptcl.def[i].score = cc[i];
+
             }
         }
     }

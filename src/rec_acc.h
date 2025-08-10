@@ -103,15 +103,16 @@ public:
         GpuKernels::load_pad<<<grd_raw,blk,0,stream.strm>>>(ss_padded.ptr,g_data.ptr,pad,ss_raw,ss_pad);
         GpuKernels::fftshift2D<<<grd_pad,blk,0,stream.strm>>>(ss_padded.ptr,ss_pad);
         fft2.exec(ss_fourier.ptr,ss_padded.ptr);
+        GpuKernels::sampling_correction_2D<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,2.0,ss_fou);
         GpuKernels::fftshift2D<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,ss_fou);
         GpuKernels::subpixel_shift<<<grd_fou,blk,0,stream.strm>>>(ss_fourier.ptr,g_ali.ptr,ss_fou);
     }
 
-    void set_no_ctf(float3 bandpass,int k,GPU::Stream&stream) {
+    void set_no_ctf(GPU::GArrDefocus&g_def,float3 bandpass,int k,GPU::Stream&stream) {
         int3 ss = make_int3(MP,NP,k);
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,k);
-        GpuKernelsCtf::ctf_stk_no_correction<<<grd,blk,0,stream.strm>>>(ss_tex.surface,ss_ctf.surface,ss_fourier.ptr,bandpass,ss);
+        GpuKernelsCtf::ctf_stk_no_correction<<<grd,blk,0,stream.strm>>>(ss_tex.surface,ss_ctf.surface,ss_fourier.ptr,g_def.ptr,bandpass,ss);
     }
 
     void set_phase_flip(const CtfConst ctf_const,GPU::GArrDefocus&g_def,float3 bandpass,int k,GPU::Stream&stream) {
@@ -321,6 +322,7 @@ public:
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,NP);
         GpuKernels::fftshift3D<<<grd,blk>>>(vol_fou.ptr,MP,NP);
+        GpuKernels::sampling_correction_3D<<<grd,blk>>>(vol_fou.ptr,0.5,MP,NP);
         ifft3.exec(vol_pad.ptr,vol_fou.ptr);
         GpuKernels::fftshift3D<<<grd,blk>>>(vol_pad.ptr,NP);
 

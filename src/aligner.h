@@ -725,6 +725,7 @@ protected:
         int3 ss   = make_int3(MP,NP,NP);
         GpuKernels::fftshift3D<<<grdR,blk>>>(g_pad.ptr,NP);
         fft3.exec(g_fou.ptr,g_pad.ptr);
+        GpuKernels::sampling_correction_3D<<<grdC,blk>>>(g_fou.ptr,2.0,MP,NP);
         GpuKernels::fftshift3D<<<grdC,blk>>>(g_fou.ptr,MP,NP);
         GpuKernels::divide<<<grdC,blk>>>(g_fou.ptr,NP*NP*NP,ss);
     }
@@ -734,7 +735,7 @@ protected:
         while( p_buffer->RO_get_status() > DONE ) {
             if( p_buffer->RO_get_status() == READY ) {
                 AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
-                create_ctf(ctf_wgt,ptr,stream);
+                create_ctf(ctf_wgt,ptr,rad_avgr,stream);
                 add_data(ss_data,ctf_wgt,ptr,rad_avgr,stream);
                 add_rec_weight(ss_data,ptr,stream);
                 angular_search_3D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,rad_avgr,tm_rep,stream);
@@ -766,6 +767,7 @@ protected:
         dim3 grd_r = GPU::calc_grid_size(blk,NP,NP,max_K);
 
         GpuKernels::fftshift2D<<<grd_f,blk,0,stream.strm>>>(g_work.ptr,ss_fou);
+        GpuKernels::sampling_correction_2D<<<grd_f,blk,0,stream.strm>>>(g_work.ptr,0.5,ss_fou);
         ifft2.exec(g_real.ptr,g_work.ptr);
         GpuKernels::fftshift2D<<<grd_r,blk,0,stream.strm>>>(g_real.ptr,ss_pad);
         GPU::download_async(buffer.ptr,g_real.ptr,NP*NP*max_K,stream.strm);
@@ -787,7 +789,7 @@ protected:
         while( p_buffer->RO_get_status() > DONE ) {
             if( p_buffer->RO_get_status() == READY ) {
                 AliBuffer*ptr = (AliBuffer*)p_buffer->RO_get_buffer();
-                create_ctf(ctf_wgt,ptr,stream);
+                create_ctf(ctf_wgt,ptr,rad_avgr,stream);
                 add_data(ss_data,ctf_wgt,ptr,rad_avgr,stream);
                 angular_search_2D(vols[ptr->r_ix],ss_data,ctf_wgt,ptr,ali_data,rad_avgr,tm_rep,stream);
                 stream.sync();
@@ -796,11 +798,12 @@ protected:
         }
     }
 
-    void create_ctf(GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,GPU::Stream&stream) {
+    void create_ctf(GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,RadialAverager&rad_avgr,GPU::Stream&stream) {
         int3 ss = make_int3(MP,NP,ptr->K);
         dim3 blk = GPU::get_block_size_2D();
         dim3 grd = GPU::calc_grid_size(blk,MP,NP,ptr->K);
-        GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_wgt.ptr,ptr->ctf_vals,ptr->g_def.ptr,ss);
+        GpuKernelsCtf::create_ctf<<<grd,blk,0,stream.strm>>>(ctf_wgt.ptr,ptr->ctf_vals,ptr->g_def.ptr,false,ss);
+        rad_avgr.normalize_ctf(ctf_wgt,ptr->K,stream);
     }
 
     void add_data(AliSubstack&ss_data,GPU::GArrSingle&ctf_wgt,AliBuffer*ptr,RadialAverager&rad_avgr,GPU::Stream&stream) {
@@ -831,11 +834,8 @@ protected:
 
         if( cc_type == CC_TYPE_CFSC ) {
             rad_avgr.calculate_FRC(ss_data.ss_fourier,bandpass,ptr->K,stream);
-            stream.sync();
             rad_avgr.apply_FRC(ss_data.ss_fourier,ptr->ctf_vals,ssnr,ptr->K,stream);
         }
-
-        rad_avgr.normalize_stacks(ss_data.ss_fourier,bandpass,ptr->K,stream);
     }
 
     void add_rec_weight(AliSubstack&ss_data,AliBuffer*ptr,GPU::Stream&stream) {
@@ -920,13 +920,11 @@ protected:
                         // if( cc_type == CC_TYPE_CFSC )
                         //     rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
 
-                        rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
-
                         // DEBUG
                         // if( ptr->ptcl.ptcl_id() == 0 )
                         //     debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
-                        ali_data.apply_bandpass(bandpass,ptr->K,stream);
+                        ali_data.apply_bandpass(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
                         // DEBUG
@@ -1032,8 +1030,6 @@ protected:
                         if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
 
-                        rad_avgr.normalize_stacks(ali_data.prj_c,bandpass,ptr->K,stream);
-
                         // DEBUG
                         /*if( ptr->ptcl.ptcl_id() == 295 ) {
                             sprintf(name,"prj_%ld_%03d.mrc",cur_time,it);
@@ -1042,7 +1038,7 @@ protected:
                         // if( ptr->ptcl.ptcl_id() == 0 )
                             // debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
-                        ali_data.apply_bandpass(bandpass,ptr->K,stream);
+                        ali_data.apply_bandpass(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
 
                         // DEBUG

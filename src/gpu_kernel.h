@@ -269,6 +269,46 @@ __global__ void fftshift3D(double*p_work, const int M,const int N) {
     }
 }
 
+/// Use right after fft3.exec() or just before ifft3.exec()
+__global__ void sampling_correction_3D(float2*p_work, const float correction, const int M,const int N) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < N ) {
+
+        if( (ss_idx.x == 0 || ss_idx.x == N/2) &&
+            (ss_idx.y == 0 || ss_idx.y == N/2) &&
+            (ss_idx.z == 0 || ss_idx.z == N/2))
+        {
+            int3 siz = make_int3(M,N,N);
+            long idx = get_3d_idx(ss_idx,siz);
+            float2 val = p_work[ idx ];
+            val.x *= correction;
+            val.y *= correction;
+            p_work[ idx ] = val;
+        }
+    }
+}
+
+/// Use right after batch fft2.exec() or just before batch ifft2.exec()
+__global__ void sampling_correction_2D(float2*p_work,const float correction,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        if( (ss_idx.x == 0 || ss_idx.x == ss_siz.y/2) &&
+            (ss_idx.y == 0 || ss_idx.y == ss_siz.y/2))
+        {
+            long idx = get_3d_idx(ss_idx,ss_siz);
+            float2 val = p_work[ idx ];
+            val.x *= correction;
+            val.y *= correction;
+            p_work[ idx ] = val;
+        }
+    }
+}
+
 __global__ void load_surf(cudaSurfaceObject_t out_surf,const float*p_in,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
@@ -887,36 +927,26 @@ __global__ void radial_frc_avg_vol(float*p_avg,float*p_wgt,const float2*p_in,con
     }
 }
 
-__global__ void radial_frc_acc(float*p_avg,const float*p_wgt,const float ssnr_F,const float ssnr_S,const int3 ss_siz) {
+__global__ void radial_frc_acc(float*p_avg,const float*p_wgt,const float ssnr_F,const float ssnr_S,const int K, const int M) {
 
     int3 ss_idx = get_th_idx();
 
-    if( ss_idx.x < ss_siz.x && ss_idx.y < 1 && ss_idx.z < 1 ) {
+    if( ss_idx.x < K && ss_idx.y < 1 && ss_idx.z < 1 ) {
 
-        float*w_avg = p_avg + ss_idx.x*ss_siz.x;
-        const float*w_wgt = p_wgt + ss_idx.x*ss_siz.x;
+        float*w_avg = p_avg + ss_idx.x*M;
+        const float*w_wgt = p_wgt + ss_idx.x*M;
         double avg;
         double wgt;
-        double w_acc = 0;
         double ssnr  = 0;
 
-        for(int i=1;i<ss_siz.x;i++) {
-            avg = w_avg[i];
-            wgt = w_wgt[i];
-            avg = sqrt(avg/fmax(wgt,1.0));
-            w_acc += avg;
-        }
-        // w_acc = sqrt(w_acc);
-        // w_acc = 1.0;
-
         w_avg[0] = 1.0;
-        for(int i=1;i<ss_siz.x;i++) {
+        for(int i=1;i<M;i++) {
             avg = w_avg[i];
             wgt = w_wgt[i];
             avg = sqrt(avg/fmax(wgt,1.0));
             if(ssnr_S>1)
                 ssnr = (1/(ssnr_S*exp(i*ssnr_F)));
-            w_avg[i] = (avg/w_acc) + ssnr;
+            w_avg[i] = avg + ssnr;
         }
     }
 }
@@ -937,8 +967,9 @@ __global__ void radial_frc_norm_stk(float2*p_data,const float*p_avg,const int3 s
             int    idx;
             double avg;
 
-            idx = r + ss_siz.x*ss_idx.z;
-            avg = p_avg[idx];
+            idx  = r + ss_siz.x*ss_idx.z;
+            avg  = p_avg[idx];
+            avg *= 2*(4/M_PI); // from half circle to square
 
             if( avg > 1e-8 ) {
                 val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
@@ -970,8 +1001,9 @@ __global__ void radial_frc_norm_vol(float2*p_data,const float*p_avg,const int3 s
             int    idx;
             double avg;
 
-            idx = r;
-            avg = p_avg[idx];
+            idx  = r;
+            avg  = p_avg[idx];
+            avg *= 2*(6/M_PI); // from half sphere to cube
 
             if( avg > 1e-8 ) {
                 val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
@@ -985,6 +1017,33 @@ __global__ void radial_frc_norm_vol(float2*p_data,const float*p_avg,const int3 s
         p_data[ get_3d_idx(ss_idx,ss_siz) ] = val;
     }
 }
+
+__global__ void get_energy_stk(float*p_avg,const float*p_ctf,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        float val = p_ctf[ get_3d_idx(ss_idx,ss_siz) ];
+        int   idx = ss_siz.x*ss_idx.z;
+        float out = val*val;
+        atomicAdd(p_avg + idx,out);
+    }
+}
+
+__global__ void divide_energy_stk(float*p_ctf,const float*p_avg,const int3 ss_siz) {
+
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < ss_siz.x && ss_idx.y < ss_siz.y && ss_idx.z < ss_siz.z ) {
+
+        int   idx = get_3d_idx(ss_idx,ss_siz);
+        float val = p_ctf[idx];
+        float wgt = sqrtf(p_avg[ss_siz.x*ss_idx.z]);
+        p_ctf[idx] = val/wgt;
+    }
+}
+
 
 __global__ void divide(float*p_avg,const float*p_wgt,const int3 ss_siz) {
 
@@ -1298,6 +1357,33 @@ __global__ void apply_bandpass_fourier(float2*p_w,const float3 bandpass,const in
         p_w[ idx ] = val;
     }
 }
+
+__global__ void apply_bandpass_fourier(float2*p_w,const Defocus*p_def,const float3 bandpass,const int M, const int N, const int K)
+{
+    int3 ss_idx = get_th_idx();
+
+    if( ss_idx.x < M && ss_idx.y < N && ss_idx.z < K ) {
+
+        long idx = ss_idx.x + M*ss_idx.y + M*N*ss_idx.z;
+
+        float2 val = {0,0};
+
+        float max_R = bandpass.y;
+        if( p_def[ss_idx.z].max_res > 0 )
+            max_R = min(max_R,p_def[ss_idx.z].max_res);
+        float R = l2_distance(ss_idx.x,ss_idx.y - N/2);
+        float bp = get_bp_wgt(bandpass.x,max_R,bandpass.z,R);
+
+        if( bp > 0.025 ) {
+            val = p_w[ idx ];
+            val.x *= bp;
+            val.y *= bp;
+        }
+
+        p_w[ idx ] = val;
+    }
+}
+
 
 
 
