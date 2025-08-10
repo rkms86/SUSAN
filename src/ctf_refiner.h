@@ -562,6 +562,7 @@ protected:
                         r;                             // False
 
         pt_tomo = get_tomo_position(ptr->ptcl.pos(),ptr->ptcl.ali_t[r]);
+        pt_tomo = pt_tomo - p_tomo->tomo_position;
 
         for(int k=0;k<ptr->K;k++) {
             if( ptr->ptcl.prj_w[k] > 0 ) {

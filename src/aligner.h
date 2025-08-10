@@ -1110,7 +1110,7 @@ protected:
                                    i,ptr->ctf_vals.apix);
             }
         }
-        ptr->ptcl.ali_cc[ptr->class_ix] = cc_acc/max(wgt_acc,1.0);
+        ptr->ptcl.ali_cc[ptr->class_ix] = cc_acc/fmax(wgt_acc,1.0);
         tm_rep.save_cc(ptr->ptcl.tomo_id(),ptr->ptcl.ref_cix()+1,ptr->ptcl.ptcl_id(),ptr->tomo_pos_x,ptr->tomo_pos_y,ptr->tomo_pos_z,ptr->ptcl.prj_w);
     }
 
@@ -1328,8 +1328,8 @@ protected:
         gpu_worker.cc_type    = p_info->cc_type;
         gpu_worker.ctf_type   = p_info->ctf_type;
         gpu_worker.max_K      = max_K;
-        gpu_worker.bandpass.x = max(bp_scale*p_info->fpix_min-bp_pad,0.0);
-        gpu_worker.bandpass.y = min(bp_scale*p_info->fpix_max+bp_pad,((float)NP)/2);
+        gpu_worker.bandpass.x = fmax(bp_scale*p_info->fpix_min-bp_pad,0.0);
+        gpu_worker.bandpass.y = fmin(bp_scale*p_info->fpix_max+bp_pad,((float)NP)/2);
         gpu_worker.bandpass.z = sqrt(p_info->fpix_roll);
         gpu_worker.ssnr.x     = p_info->ssnr_F;
         gpu_worker.ssnr.y     = p_info->ssnr_S;
@@ -1428,6 +1428,7 @@ protected:
                         ptr->class_ix;                             // False
 
         pt_tomo = get_tomo_position(ptr->ptcl.pos(),ptr->ptcl.ali_t[ptr->class_ix],drift3D);
+        pt_tomo = pt_tomo - p_tomo->tomo_position;
         ptr->set_tomo_pos(pt_tomo,p_tomo->tomo_center,p_tomo->pix_size);
 
         for(int k=0;k<ptr->K;k++) {
@@ -1485,17 +1486,23 @@ protected:
                             ptr->c_pad.ptr[k].y = 1;
                         }
                         else {
-                            Math::normalize(ss_ptr,N*N,avg,std);
-
-                            ptr->c_pad.ptr[k].x = 0;
-                            ptr->c_pad.ptr[k].y = 1;
-
                             if( p_info->norm_type == ::ZERO_MEAN ) {
+                                Math::normalize(ss_ptr,N*N,avg,1.0);
+                                ptr->c_pad.ptr[k].x = 0;
                                 ptr->c_pad.ptr[k].y = std;
                             }
+
+                            if( p_info->norm_type == ::ZERO_MEAN_1_STD ) {
+                                Math::normalize(ss_ptr,N*N,avg,std);
+                                ptr->c_pad.ptr[k].x = 0;
+                                ptr->c_pad.ptr[k].y = 1.0;
+                            }
+
                             if( p_info->norm_type == ZERO_MEAN_W_STD ) {
+                                Math::normalize(ss_ptr,N*N,avg,std/ptr->ptcl.prj_w[k]);
                                 ptr->c_pad.ptr[k].y = ptr->ptcl.prj_w[k];
                             }
+
                             if( p_info->norm_type == GAT_NORMAL ) {
                                 Math::generalized_anscombe_transform_zero_mean(ss_ptr,N*N);
                                 ptr->c_pad.ptr[k].y = 1;

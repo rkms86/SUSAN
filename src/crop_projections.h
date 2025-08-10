@@ -152,6 +152,7 @@ protected:
         calc_R(R_3D,ptr.ptcl.ali_eu[r],true);
 
         pt_tomo = get_tomo_position(ptr.ptcl.pos(),ptr.ptcl.ali_t[r]);
+        pt_tomo = pt_tomo - p_tomo->tomo_position;
 
         for(int k=0;k<p_tomo->stk_dim.z;k++) {
             if( ptr.ptcl.prj_w[k] <= 0 )

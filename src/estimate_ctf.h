@@ -248,6 +248,8 @@ protected:
         pt_tomo(1) = pt_ptcl.y;
         pt_tomo(2) = pt_ptcl.z;
 
+        pt_tomo = pt_tomo - p_tomo->tomo_position;
+
         for(int k=0;k<K;k++) {
             /// P_crop = R^k_tomo*P_tomo + t^k_tomo
             pt_stack = p_tomo->R[k]*pt_tomo + p_tomo->t[k];

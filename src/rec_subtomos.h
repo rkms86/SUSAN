@@ -268,6 +268,7 @@ protected:
         calc_R(R_3D,ptr.ptcl.ali_eu[r],p_info->use_ali);
 
         pt_tomo = get_tomo_position(ptr.ptcl.pos(),ptr.ptcl.ali_t[r]);
+        pt_tomo = pt_tomo - p_tomo->tomo_position;
 
         for(int k=0;k<ptr.K;k++) {
             if( ptr.ptcl.prj_w[k] > 0 ) {
@@ -304,16 +305,26 @@ protected:
                             ptr.c_pad.ptr[k].y = std;
                         }
                         else {
-                            Math::normalize(ss_ptr,N*N,avg,std);
-                            ptr.c_pad.ptr[k].x = 0;
-                            if( p_info->norm_type == ZERO_MEAN ) {
+                            if( p_info->norm_type == ::ZERO_MEAN ) {
+                                Math::normalize(ss_ptr,N*N,avg,1.0);
+                                ptr.c_pad.ptr[k].x = 0;
                                 ptr.c_pad.ptr[k].y = std;
                             }
-                            if( p_info->norm_type == ZERO_MEAN_1_STD ) {
-                                ptr.c_pad.ptr[k].y = 1;
+
+                            if( p_info->norm_type == ::ZERO_MEAN_1_STD ) {
+                                Math::normalize(ss_ptr,N*N,avg,std);
+                                ptr.c_pad.ptr[k].x = 0;
+                                ptr.c_pad.ptr[k].y = 1.0;
                             }
+
                             if( p_info->norm_type == ZERO_MEAN_W_STD ) {
+                                Math::normalize(ss_ptr,N*N,avg,std/ptr.ptcl.prj_w[k]);
                                 ptr.c_pad.ptr[k].y = ptr.ptcl.prj_w[k];
+                            }
+
+                            if( p_info->norm_type == GAT_NORMAL ) {
+                                Math::generalized_anscombe_transform_zero_mean(ss_ptr,N*N);
+                                ptr.c_pad.ptr[k].y = 1;
                             }
                             ptr.ptcl.prj_w[k] = ptr.c_pad.ptr[k].y;
                         }
