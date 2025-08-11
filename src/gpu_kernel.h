@@ -933,17 +933,25 @@ __global__ void radial_frc_acc(float*p_avg,const float*p_wgt,const float ssnr_F,
 
     if( ss_idx.x < K && ss_idx.y < 1 && ss_idx.z < 1 ) {
 
+        float N = 2*(M-1);
         float*w_avg = p_avg + ss_idx.x*M;
         const float*w_wgt = p_wgt + ss_idx.x*M;
         double avg;
         double wgt;
-        double ssnr  = 0;
+        double rms  = 0;
+        double ssnr = 0;
 
-        w_avg[0] = 1.0;
+        for(int i=1;i<M;i++) {
+            if(w_avg[i]>0)
+                rms += w_avg[i];
+        }
+        rms = sqrt(rms/(N*M));
+        w_avg[0] = 1.0/rms;
         for(int i=1;i<M;i++) {
             avg = w_avg[i];
             wgt = w_wgt[i];
             avg = sqrt(avg/fmax(wgt,1.0));
+            avg = avg/rms;
             if(ssnr_S>1)
                 ssnr = (1/(ssnr_S*exp(i*ssnr_F)));
             w_avg[i] = avg + ssnr;
@@ -1039,7 +1047,8 @@ __global__ void divide_energy_stk(float*p_ctf,const float*p_avg,const int3 ss_si
 
         int   idx = get_3d_idx(ss_idx,ss_siz);
         float val = p_ctf[idx];
-        float wgt = sqrtf(p_avg[ss_siz.x*ss_idx.z]);
+        float wgt = p_avg[ss_siz.x*ss_idx.z];
+        wgt = sqrtf( wgt/(ss_siz.x*ss_siz.y) );
         p_ctf[idx] = val/wgt;
     }
 }
