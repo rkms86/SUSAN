@@ -933,19 +933,21 @@ __global__ void radial_frc_acc(float*p_avg,const float*p_wgt,const float ssnr_F,
 
     if( ss_idx.x < K && ss_idx.y < 1 && ss_idx.z < 1 ) {
 
-        float N = 2*(M-1);
         float*w_avg = p_avg + ss_idx.x*M;
         const float*w_wgt = p_wgt + ss_idx.x*M;
         double avg;
         double wgt;
         double rms  = 0;
+        double cnt  = 0;
         double ssnr = 0;
 
         for(int i=1;i<M;i++) {
-            if(w_avg[i]>0)
+            if(w_wgt[i]>0) {
                 rms += w_avg[i];
+                cnt += w_wgt[i];
+            }
         }
-        rms = sqrt(rms/(N*M));
+        rms = sqrt(rms/cnt);
         w_avg[0] = 1.0/rms;
         for(int i=1;i<M;i++) {
             avg = w_avg[i];
@@ -977,7 +979,6 @@ __global__ void radial_frc_norm_stk(float2*p_data,const float*p_avg,const int3 s
 
             idx  = r + ss_siz.x*ss_idx.z;
             avg  = p_avg[idx];
-            avg *= 2*(4/M_PI); // from half circle to square
 
             if( avg > 1e-8 ) {
                 val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
@@ -1011,7 +1012,6 @@ __global__ void radial_frc_norm_vol(float2*p_data,const float*p_avg,const int3 s
 
             idx  = r;
             avg  = p_avg[idx];
-            avg *= 2*(6/M_PI); // from half sphere to cube
 
             if( avg > 1e-8 ) {
                 val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
