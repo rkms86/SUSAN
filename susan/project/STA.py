@@ -260,11 +260,11 @@ class STA:
                 for i in range(tomos.num_proj[tcix]):
                     _ssa_utils.euZYZ_rotm(R,tomos.proj_eZYZ[tcix,i])
                     pt0 = pt[idx]@R.T
-                    pt0[:,2] = 1
-                    pt1 = pt0[:,:2] + ptcls_in.prj_t[idx,i]
+                    pt0 = pt0[:,:2] 
+                    pt1 = pt0 + ptcls_in.prj_t[idx,i]
                     xform,_,_,_ = _np.linalg.lstsq(pt0,pt1, rcond=None)
                     pt2 = pt0 @ xform.T
-                    ptcls_in.prj_t[idx,i] = (pt2-pt0)[:,:2]
+                    ptcls_in.prj_t[idx,i] = (pt2-pt0)
                     
         elif self.type_2d_shift_fitting.lower() == 'gaussian':
             def smooth_deltas(points, deltas, k=7):
@@ -341,6 +341,7 @@ class STA:
         
         # Limit 2D shifts:
         should_fix_2D = (self.max_2d_delta_angstroms > 0) or self.perturb_2d_angles
+        should_fix_2D = should_fix_2D or self.type_2d_shift_fitting != 'none'
         if (self._validate_ite_type() == 2) and should_fix_2D:
             self._apply_2D_fixes(ptcls_in,cur,prv)
         
