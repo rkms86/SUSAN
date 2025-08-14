@@ -155,7 +155,7 @@ class Tomograms:
             fp.write(' Res.angs FitScore\n')
             
             P = self.num_proj[i]
-            for j in range(P):
+            for p in range(P):
                 fp.write('%8.8f %8.8f %8.8f ' % (self.proj_eZYZ[i,p,0],self.proj_eZYZ[i,p,1],self.proj_eZYZ[i,p,2]))
                 fp.write('%8.8f %8.8f '       % (self.proj_shift[i,p,0],self.proj_shift[i,p,1]))
                 fp.write('%8.8f '             % (self.proj_wgt[i,p]))
