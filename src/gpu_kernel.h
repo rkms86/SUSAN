@@ -884,7 +884,7 @@ __global__ void radial_ps_norm(float2*p_data,const float*p_avg,const float*p_wgt
     }
 }
 
-__global__ void radial_frc_avg_stk(float*p_avg,float*p_wgt,const float2*p_in,const float3 bandpass,const int3 ss_siz) {
+__global__ void radial_frc_avg_stk(float*p_avg,const float2*p_in,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
 
@@ -894,18 +894,16 @@ __global__ void radial_frc_avg_stk(float*p_avg,float*p_wgt,const float2*p_in,con
         float    x = ss_idx.x;
         float    y = ss_idx.y-(ss_siz.y/2);
         float    R = l2_distance(x,y);
-        float   bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
         int      r = (int)roundf(R);
         int    idx = r + ss_siz.x*ss_idx.z;
         float  out = (val.x*val.x) + (val.y*val.y);
-        if( (r < ss_siz.x) && (bp > 0.02) ) {
+        if( r < ss_siz.x ) {
             atomicAdd(p_avg + idx,out);
-            atomicAdd(p_wgt + idx,1.0);
         }
     }
 }
 
-__global__ void radial_frc_avg_vol(float*p_avg,float*p_wgt,const float2*p_in,const float3 bandpass,const int3 ss_siz) {
+__global__ void radial_frc_avg_vol(float*p_avg,const float2*p_in,const int3 ss_siz) {
 
     int3 ss_idx = get_th_idx();
 
@@ -916,47 +914,33 @@ __global__ void radial_frc_avg_vol(float*p_avg,float*p_wgt,const float2*p_in,con
         float    y = ss_idx.y-(ss_siz.y/2);
         float    z = ss_idx.z-(ss_siz.z/2);
         float    R = l2_distance(x,y,z);
-        float   bp = get_bp_wgt(bandpass.x,bandpass.y,bandpass.z,R);
         int      r = (int)roundf(R);
         int    idx = r;
         float  out = (val.x*val.x) + (val.y*val.y);
-        if( (r < ss_siz.x) && (bp > 0.02) ) {
+        if( r < ss_siz.x ) {
             atomicAdd(p_avg + idx,out);
-            atomicAdd(p_wgt + idx,1.0);
         }
     }
 }
 
-__global__ void radial_frc_acc(float*p_avg,const float*p_wgt,const float ssnr_F,const float ssnr_S,const int K, const int M) {
+__global__ void radial_frc_acc(float*p_avg,const float ssnr_F,const float ssnr_S,const int K, const int M) {
 
     int3 ss_idx = get_th_idx();
 
     if( ss_idx.x < K && ss_idx.y < 1 && ss_idx.z < 1 ) {
 
+        float N = 2*(M-1);
         float*w_avg = p_avg + ss_idx.x*M;
-        const float*w_wgt = p_wgt + ss_idx.x*M;
         double avg;
-        double wgt;
-        double rms  = 0;
-        double cnt  = 0;
-        double ssnr = 0;
+        double ssnr  = 0.0;
+        double scale = sqrt(N/2);
 
+        w_avg[0] = 1.0*scale;
         for(int i=1;i<M;i++) {
-            if(w_wgt[i]>0) {
-                rms += w_avg[i];
-                cnt += w_wgt[i];
-            }
-        }
-        rms = sqrt(rms/cnt);
-        w_avg[0] = 1.0/rms;
-        for(int i=1;i<M;i++) {
-            avg = w_avg[i];
-            wgt = w_wgt[i];
-            avg = sqrt(avg/fmax(wgt,1.0));
-            avg = avg/rms;
+            avg = sqrt(w_avg[i]);
             if(ssnr_S>1)
                 ssnr = (1/(ssnr_S*exp(i*ssnr_F)));
-            w_avg[i] = avg + ssnr;
+            w_avg[i] = (avg + ssnr)*scale;
         }
     }
 }
@@ -973,14 +957,14 @@ __global__ void radial_frc_norm_stk(float2*p_data,const float*p_avg,const int3 s
         float  R = l2_distance(x,y);
         int    r = (int)roundf(R);
 
-        if( (r < ss_siz.x) && (r > 0) ) {
+        if( r < ss_siz.x ) {
             int    idx;
             double avg;
 
             idx  = r + ss_siz.x*ss_idx.z;
             avg  = p_avg[idx];
 
-            if( avg > 1e-8 ) {
+            if( avg > 1e-10 ) {
                 val = p_data[ get_3d_idx(ss_idx,ss_siz) ];
                 if( r > 0 ) {
                     val.x = val.x/avg;
@@ -1052,7 +1036,6 @@ __global__ void divide_energy_stk(float*p_ctf,const float*p_avg,const int3 ss_si
         p_ctf[idx] = val/wgt;
     }
 }
-
 
 __global__ void divide(float*p_avg,const float*p_wgt,const int3 ss_siz) {
 
@@ -1245,7 +1228,7 @@ __global__ void print_proj2D(Proj2D*g_tlt,const int in_K) {
     if( ss_idx.x == 0 && ss_idx.y == 0 && ss_idx.z == 0 ) {
         for( int z=0; z<in_K; z++ ) {
             //if( (z == 11) || (z == 21) || (z == 31) ) {
-            if( z == 20 ) {
+            if( z == 30 ) {
                 printf("R[%d,0,:] = (%f,%f,%f)\n",z,g_tlt[z].R.xx,g_tlt[z].R.xy,g_tlt[z].R.xz);
                 printf("R[%d,1,:] = (%f,%f,%f)\n",z,g_tlt[z].R.yx,g_tlt[z].R.yy,g_tlt[z].R.yz);
                 printf("R[%d,2,:] = (%f,%f,%f)\n",z,g_tlt[z].R.zx,g_tlt[z].R.zy,g_tlt[z].R.zz);
@@ -1335,10 +1318,18 @@ __global__ void apply_radial_wgt(float2*p_data,const float w_total,float crowthe
         float w = ss_idx.x;
         w = fminf(w/crowther_limit,1.0);
         w = (1-w_off)*w + w_off;
-        if( (ss_idx.x == 0) || (ss_idx.x+1 == ss_siz.x) )
-            w /= 2;
-        val.x = w*val.x;
-        val.y = w*val.y;
+
+        float K = fminf(crowther_limit,ss_siz.x);
+        float w_inv = 1/w_total;
+
+        float energy  = ( ss_siz.x - K );
+        energy += ( (1-w_inv)*(1-w_inv) * ( (K-1)*K*(2*K-1) )/(6*crowther_limit*crowther_limit) );
+        energy += ( 2*(1-w_inv)*w_inv*((K-1)*K) / (2*crowther_limit) );
+        energy += ( (w_inv*w_inv)*K );
+        energy  = sqrtf(energy);
+
+        val.x = w*val.x/energy;
+        val.y = w*val.y/energy;
 
         p_data[ idx ] = val;
     }

@@ -677,14 +677,10 @@ protected:
             for(int r=0;r<R;r++) {
                 upload_ref(g_pad,g_raw,p_refs[r].half_A);
                 exec_fft3(g_fou,g_pad,fft3);
-                if( cc_type == CC_TYPE_CFSC )
-                    rad_avgr.preset_FRC_vol(g_fou,bandpass);
                 vols[2*r  ].allocate(g_fou,MP,NP);
 
                 upload_ref(g_pad,g_raw,p_refs[r].half_B);
                 exec_fft3(g_fou,g_pad,fft3);
-                if( cc_type == CC_TYPE_CFSC )
-                    rad_avgr.preset_FRC_vol(g_fou,bandpass);
                 vols[2*r+1].allocate(g_fou,MP,NP);
             }
         }
@@ -692,8 +688,6 @@ protected:
             for(int r=0;r<R;r++) {
                 upload_ref(g_pad,g_raw,p_refs[r].map);
                 exec_fft3(g_fou,g_pad,fft3);
-                if( cc_type == CC_TYPE_CFSC )
-                    rad_avgr.preset_FRC_vol(g_fou,bandpass);
                 vols[r].allocate(g_fou,MP,NP);
             }
         }
@@ -833,7 +827,7 @@ protected:
         }
 
         if( cc_type == CC_TYPE_CFSC ) {
-            rad_avgr.calculate_FRC(ss_data.ss_fourier,bandpass,ptr->K,stream);
+            rad_avgr.calculate_FRC(ss_data.ss_fourier,ptr->K,stream);
             rad_avgr.apply_FRC(ss_data.ss_fourier,ptr->ctf_vals,ssnr,ptr->K,stream);
         }
     }
@@ -875,7 +869,7 @@ protected:
 
         // DEBUG
         // if( ptr->ptcl.ptcl_id() == 0 )
-        //     debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
+            // debug_fourier_stack("sus.mrc",ss_data.ss_fourier,stream);
 
         /*if( ptr->ptcl.ptcl_id() == 104 ) {
             printf("\n\nR_ali = np.zeros((3,3)) #%d\n",ptr->K);
@@ -909,10 +903,10 @@ protected:
                             //print_R(ali_data.g_ali,ptr->K,stream);
                         }*/
 
-                        // if( cc_type == CC_TYPE_CFSC ) {
-                        //     rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
-                        //     rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
-                        // }
+                        if( cc_type == CC_TYPE_CFSC ) {
+                            rad_avgr.calculate_FRC(ali_data.prj_c,ptr->K,stream);
+                            rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
+                        }
 
                         if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
@@ -922,7 +916,7 @@ protected:
 
                         // DEBUG
                         // if( ptr->ptcl.ptcl_id() == 0 )
-                        //     debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
+                            // debug_fourier_stack("prj.mrc",ali_data.prj_c,stream);
 
                         ali_data.apply_bandpass(ptr->ctf_vals,ptr->g_def,bandpass,ptr->K,stream);
                         ali_data.multiply(ss_data.ss_fourier,ptr->K,stream);
@@ -979,8 +973,8 @@ protected:
         tm_rep.clear_cc();
 
         // DEBUG
-        /*int it = 0;
-        long int cur_time = time(NULL);
+        // int it = 0;
+        /*long int cur_time = time(NULL);
         char name[2048];
         if( ptr->ptcl.ptcl_id() == 295 ) {
             sprintf(name,"sus_%ld.mrc",cur_time);
@@ -992,13 +986,13 @@ protected:
         Math::set(Rot,R_ali.transpose());
         ali_data.pre_rotate_reference(Rot,ptr->g_ali,ptr->K,stream);
 
-        /*if( ptr->ptcl.ptcl_id() == 44 ) {
-            printf("\n\nR_ali = np.zeros((3,3)) #%d\n",ptr->K);
-            printf("R_ali[0,:] = (%f,%f,%f)\n",R_ali(0,0),R_ali(0,1),R_ali(0,2));
-            printf("R_ali[1,:] = (%f,%f,%f)\n",R_ali(1,0),R_ali(1,1),R_ali(1,2));
-            printf("R_ali[2,:] = (%f,%f,%f)\n",R_ali(2,0),R_ali(2,1),R_ali(2,2));
-            print_R(ptr->g_ali,ptr->K,stream);
-        }*/
+        //if( ptr->ptcl.ptcl_id() == 44 ) {
+            // printf("\n\nR_ali = np.zeros((3,3)) #%d\n",ptr->K);
+            // printf("R_ali[0,:] = (%f,%f,%f)\n",R_ali(0,0),R_ali(0,1),R_ali(0,2));
+            // printf("R_ali[1,:] = (%f,%f,%f)\n",R_ali(1,0),R_ali(1,1),R_ali(1,2));
+            // printf("R_ali[2,:] = (%f,%f,%f)\n",R_ali(2,0),R_ali(2,1),R_ali(2,2));
+            // print_R(ptr->g_ali,ptr->K,stream);
+        //}
 
         for( ang_prov.levels_init(); ang_prov.levels_available(); ang_prov.levels_next() ) {
             for( ang_prov.sym_init(); ang_prov.sym_available(); ang_prov.sym_next() ) {
@@ -1011,21 +1005,19 @@ protected:
                         ali_data.rotate_projections(Rot,ptr->g_ali,ptr->K,stream);
                         ali_data.project(vol.ref,bandpass,ptr->K,stream);
 
-                        /*if( ptr->ptcl.ptcl_id() == 44 ) {
-                            stream.sync();
-                            printf("\nR_ite = np.zeros((3,3)) #%d\n",ptr->K);
-                            printf("R_ite[0,:] = (%f,%f,%f)\n",R_ite(0,0),R_ite(0,1),R_ite(0,2));
-                            printf("R_ite[1,:] = (%f,%f,%f)\n",R_ite(1,0),R_ite(1,1),R_ite(1,2));
-                            printf("R_ite[2,:] = (%f,%f,%f)\n",R_ite(2,0),R_ite(2,1),R_ite(2,2));
-                            print_R(ali_data.g_ali,ptr->K,stream);
-                        }*/
+                        //if( ptr->ptcl.ptcl_id() == 44 ) {
+                            // stream.sync();
+                            // printf("\nR_ite = np.zeros((3,3)) #%d\n",ptr->K);
+                            // printf("R_ite[0,:] = (%f,%f,%f)\n",R_ite(0,0),R_ite(0,1),R_ite(0,2));
+                            // printf("R_ite[1,:] = (%f,%f,%f)\n",R_ite(1,0),R_ite(1,1),R_ite(1,2));
+                            // printf("R_ite[2,:] = (%f,%f,%f)\n",R_ite(2,0),R_ite(2,1),R_ite(2,2));
+                            // print_R(ali_data.g_ali,ptr->K,stream);
+                        //}
 
-
-                        /*if( cc_type == CC_TYPE_CFSC ) {
-                            rad_avgr.calculate_FRC(ali_data.prj_c,bandpass,ptr->K,stream);
-                            stream.sync();
+                        if( cc_type == CC_TYPE_CFSC ) {
+                            rad_avgr.calculate_FRC(ali_data.prj_c,ptr->K,stream);
                             rad_avgr.apply_FRC(ali_data.prj_c,ptr->K,stream);
-                        }*/
+                        }
 
                         if( ctf_type == ALI_CTF_ON_REFERENCE )
                             ali_data.multiply(ctf_wgt,ptr->K,stream);
@@ -1074,20 +1066,20 @@ protected:
                                 for(int j=0;j<ali_data.n_pts;j++){
                                     cc_placeholder[i*ali_data.n_pts + j] = ali_data.c_cc[i*ali_data.n_pts + j];
                                 }
-                                /*if( i == 20 ) {
-                                    if( ptr->ptcl.ptcl_id() == 44 ) {
-                                        stream.sync();
-                                        printf("\nR_ite = np.zeros((3,3)) #%d\n",ptr->K);
-                                        printf("R_ite[0,:] = (%f,%f,%f)\n",R_ite(0,0),R_ite(0,1),R_ite(0,2));
-                                        printf("R_ite[1,:] = (%f,%f,%f)\n",R_ite(1,0),R_ite(1,1),R_ite(1,2));
-                                        printf("R_ite[2,:] = (%f,%f,%f)\n",R_ite(2,0),R_ite(2,1),R_ite(2,2));
-                                        printf("cc = %f; it = %d\n",ite_cc[i],it);
-                                        print_R(ali_data.g_ali,ptr->K,stream);
-                                    }
-                                }*/
+                                // if( i == 30 ) {
+                                //     //if( ptr->ptcl.ptcl_id() == 44 ) {
+                                //         stream.sync();
+                                //         printf("\nR_ite = np.zeros((3,3)) #%d\n",ptr->K);
+                                //         printf("R_ite[0,:] = (%f,%f,%f)\n",R_ite(0,0),R_ite(0,1),R_ite(0,2));
+                                //         printf("R_ite[1,:] = (%f,%f,%f)\n",R_ite(1,0),R_ite(1,1),R_ite(1,2));
+                                //         printf("R_ite[2,:] = (%f,%f,%f)\n",R_ite(2,0),R_ite(2,1),R_ite(2,2));
+                                //         printf("cc = %f; it = %d\n",ite_cc[i],it);
+                                //         print_R(ali_data.g_ali,ptr->K,stream);
+                                //     //}
+                                // }
                             }
                         }
-                        //it++;
+                        // it++;
                     } // INPLANE
                 } // CONE
             } // SYMMETRY
