@@ -348,8 +348,14 @@ class STA:
         # Classify
         if ptcls_in.n_refs > 1 :
             ptcls_in.ref_cix = _np.argmax(ptcls_in.ali_cc,axis=0)
-            if self.reweight_classification:
-                ptcls_in.ali_cc = ptcls_in.ali_cc/ptcls_in.ali_cc.sum(axis=0)
+            if type(self.reweight_classification) is bool:
+                if self.reweight_classification:
+                    ptcls_in.ali_cc = ptcls_in.ali_cc/ptcls_in.ali_cc.sum(axis=0)
+            elif isinstance(self.reweight_classification, (int, float)):
+                ptcls_in.ali_cc = _np.power(ptcls_in.ali_cc,self.reweight_classification)
+                total = ptcls_in.ali_cc.sum(axis=0)
+                total[total==0] = 1
+                ptcls_in.ali_cc = ptcls_in.ali_cc/total
             ptcls_in.save(cur.ptcl_rslt)
         
         # Select particles for reconstruction
