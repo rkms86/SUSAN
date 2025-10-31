@@ -255,19 +255,19 @@ public:
 
 	    if (tm_dim == 2){
 	        if( tm_type == TM_PYTHON )
-		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d_w%f[%d,%d] = %f\n", tid, pid, rid, proj_id, proj_w, x, y, c_cc[cc_index]);
+		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d_w%f[%d,%d] = %.15lf\n", tid, pid, rid, proj_id, proj_w, x, y, c_cc[cc_index]);
 	        else if( tm_type == TM_MATLAB )
-		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d_w%f(%d,%d) = %f;\n",tid, pid, rid, proj_id, proj_w, (x+1), (y+1), c_cc[cc_index]);
+		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d_proj%02d_w%.15lf(%d,%d) = %f;\n",tid, pid, rid, proj_id, proj_w, (x+1), (y+1), c_cc[cc_index]);
 	        else if( tm_type == TM_CSV )
-		        fprintf(fp,"%d,%d,%d,%d,%f,%d,%d,%f\n", tid, pid, rid, proj_id, proj_w, x, y, c_cc[cc_index]);
+		        fprintf(fp,"%d,%d,%d,%d,%f,%d,%d,%.15lf\n", tid, pid, rid, proj_id, proj_w, x, y, c_cc[cc_index]);
 	    }
 	    else if ((tm_dim == 3) && (c_cc[cc_index] > 0)){
 	        if( tm_type == TM_PYTHON )
-		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %f\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
+		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d[%d,%d,%d] = %.15lf\n", tid, pid, rid, (z+tz),  (y+ty),  (x+tx),  c_cc[cc_index]);
 	        else if( tm_type == TM_MATLAB )
-		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %f;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
+		        fprintf(fp,"cc_tomo%03d_ptcl%d_ref%02d(%4d,%4d,%4d) = %.15lf;\n",tid, pid, rid, (x+tx+1), (y+ty+1), (z+tz+1), c_cc[cc_index]);
 	        else if( tm_type == TM_CSV ) {
-		        fprintf(fp,"%d,%d,%d,%d,%d,%d,%f,%d\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index],block_id);
+		        fprintf(fp,"%d,%d,%d,%d,%d,%d,%.15lf,%d\n",tid, pid, rid, (x+tx), (y+ty), (z+tz), c_cc[cc_index],block_id);
 	        }
 	    }
 	}
