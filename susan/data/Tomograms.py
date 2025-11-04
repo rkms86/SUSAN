@@ -207,8 +207,7 @@ class Tomograms:
                 rot     =  rot_xf @ rot_tlt
                 euler   = _np.zeros(3)
                 _rotm_euZYZ(euler, rot)
-                self.proj_eZYZ [idx, i, 0] = euler_xf[-1] * 180.0 / _np.pi
-                self.proj_eZYZ [idx, i, 1] = tlt[i]
+                self.proj_eZYZ [idx, i, :] = euler * 180.0 / _np.pi
                 self.proj_shift[idx, i, :] = vec[:2]
                 self.proj_wgt  [idx, i,  ] = 1
          
