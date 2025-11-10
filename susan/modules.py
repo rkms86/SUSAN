@@ -113,6 +113,8 @@ class Aligner:
 
     def get_args(self,ptcls_out,refs_file,tomos_file,ptcls_in,box_size):
         self._validate()
+        if self.bandpass.lowpass <= 0:
+            self.bandpass.lowpass = box_size/2-1
         n_threads = len(self.list_gpus_ids)*self.threads_per_gpu
         gpu_str   = _get_gpu_str(self.list_gpus_ids)
         args =        ' -tomos_file '      + tomos_file
