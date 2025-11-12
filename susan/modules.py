@@ -33,7 +33,7 @@ class Aligner:
         self.dimensionality    = 3
         self.extra_padding     = 0
         self.allow_drift       = True
-        self.halfsets_independ = False
+        self.halfsets_independ = True
         self.ignore_classes    = False
         self.cone              = _dt.search_params(0,1)
         self.inplane           = _dt.search_params(0,1)
